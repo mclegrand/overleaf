@@ -73,6 +73,17 @@ const _ = require('lodash')
 const { plainTextResponse } = require('./infrastructure/Response')
 const PublicAccessLevels = require('./Features/Authorization/PublicAccessLevels')
 
+const bodyParser = require("body-parser");
+const passport = require('passport')
+const samlStrategy = require('passport-saml').Strategy
+const fs = require('fs')
+const { User } = require('./models/User')
+const UserCreator = require('./Features/User/UserCreator')
+const UserUpdater = require('./Features/User/UserUpdater')
+//const certDir = '/etc/sharelatex/certs/'
+const certDir = '/var/lib/overleaf/certs/'
+
+
 const rateLimiters = {
   addEmail: new RateLimiter('add-email', {
     points: 10,
@@ -227,6 +238,120 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     CaptchaMiddleware.validateCaptcha('login'),
     AuthenticationController.passportLogin
   )
+
+var oldstrat = new samlStrategy({
+       //callbackUrl: "http://137.194.211.16/login/callback",
+       callbackUrl: "https://overleaf.enst.fr/login/callback",
+       entryPoint:"https://idp.telecom-paristech.fr/idp/profile/SAML2/Redirect/SSO",
+       issuer:"https://overleaf.enst.fr",
+       privateCert: fs.readFileSync(certDir + 'certificate.crt', 'utf8'),
+       decryptionPvk: fs.readFileSync(certDir + 'privateKey.key', 'utf8'),
+       cert: fs.readFileSync(certDir + 'tpt.crt', 'utf8')
+}, function(){});
+const { MultiSamlStrategy } = require('passport-saml');
+var sstrat = new MultiSamlStrategy({
+       passReqToCallback: true,
+       callbackUrl: "https://overleaf.enst.fr/login/callback",
+       issuer:"https://overleaf.enst.fr",
+       privateCert: fs.readFileSync(certDir + 'certificate.crt', 'utf8'),
+       decryptionPvk: fs.readFileSync(certDir + 'privateKey.key', 'utf8'),
+       identifierFormat: null,
+
+       getSamlOptions: function(req, done){
+               console.log(req);
+               console.log(req.get('Referer'))
+
+               org = req.query.institution ? req.query.institution : req.body.RelayState;
+               req.query.RelayState = {'institution': org}
+
+               console.log("detected org:", org)
+
+
+               switch(org){
+                       case "tpt":
+                               ans= {
+                                       cert: fs.readFileSync(certDir + 'tpt.crt', 'utf8'),
+                                       entryPoint:"https://idp.telecom-paristech.fr/idp/profile/SAML2/Redirect/SSO",
+                                       additionalParams: { 'RelayState': org },
+                               }
+                               break
+                       case "tsp":
+                               ans= {
+                                       cert: fs.readFileSync(certDir + 'tsp.cert', 'utf8'),
+                                       entryPoint:"https://idpr4.imtbs-tsp.eu/idp/profile/SAML2/Redirect/SSO",
+                                       additionalParams: { 'RelayState': org },
+                               }
+                               break
+                       case "x":
+                               ans= {
+                                       cert: [fs.readFileSync(certDir + 'x.cert', 'utf8'), fs.readFileSync(certDir + 'x2.cert', 'utf8') ],
+                                       entryPoint:"https://idp.polytechnique.fr/idp/profile/SAML2/Redirect/SSO",
+                                       additionalParams: { 'RelayState': org },
+                               }
+                               break
+                       case "ensta":
+                               ans= {
+                                       cert: fs.readFileSync(certDir + 'ensta.cert', 'utf8'),
+                                       entryPoint:"https://shibboleth.ensta.fr/idp/profile/SAML2/Redirect/SSO",
+                                       additionalParams: { 'RelayState': org },
+                               }
+                               break
+                       case "ensae":
+                               ans = {
+                                       cert: fs.readFileSync(certDir + 'ensae.cert', 'utf8'),
+                                       entryPoint:"https://idp.ensae.fr/saml2/idp/SSOService.php",
+                                       additionalParams: { 'RelayState': org },
+                               }
+                               break
+                       default:
+                               return done("nop", null)
+               }
+               return done(null, ans)
+       },
+},
+       function (req, profile, done) {
+      User.findOne({'email':profile.email }, (e,u) => {
+             console.log("toto",e,u, profile)
+      if(e) {return done(e)}
+      if (!u) {
+             UserCreator.createNewUser({"email":profile.email}, function() {
+             User.findOne({'email':profile.email }, (e,u) => {
+               console.log("CREATING",e,u, profile)
+             UserUpdater.confirmEmail(u._id, u.email, function(){return done(null, u)})
+             }) })
+      } else return done(null, u) })
+    }
+
+)
+passport.use("saml", sstrat)
+  webRouter.post(
+    "/login/callback",
+    //bodyParser.urlencoded({ extended: false }),
+    passport.authenticate("saml", { failureRedirect: "/", failureFlash: true }),
+    function (req, res) {
+      res.redirect("/");
+    }
+  )
+ webRouter.csrf.disableDefaultCsrfProtection("/login/callback", "POST")
+ AuthenticationController.addEndpointToLoginWhitelist('/login/callback')
+
+  webRouter.get("/samlmetadata", function(req, res) {
+    res.type('application/xml');
+    res.status(200).send(oldstrat.generateServiceProviderMetadata(
+      fs.readFileSync(certDir + 'certificate.crt', 'utf8')
+      ,fs.readFileSync(certDir + 'certificate.crt', 'utf8')
+    ));
+  })
+  AuthenticationController.addEndpointToLoginWhitelist('/samlmetadata')
+
+ webRouter.get("/login/saml",
+       passport.authenticate("saml", { failureRedirect: "/", failureFlash: true }),
+  function (req, res) {
+   res.redirect("/");
+  })
+  AuthenticationController.addEndpointToLoginWhitelist('/login/saml')
+
+
 
   webRouter.get(
     '/compromised-password',
