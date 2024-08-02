@@ -24,6 +24,7 @@ import { isBlockedFilename, isCleanFilename } from '../util/safe-path'
 import { useProjectContext } from '../../../shared/context/project-context'
 import { useFileTreeData } from '../../../shared/context/file-tree-data-context'
 import { useFileTreeSelectable } from './file-tree-selectable'
+import { getFullPath } from './get-full-path'
 
 import {
   InvalidFilenameError,
@@ -47,6 +48,9 @@ type DroppedFiles = {
 
 const FileTreeActionableContext = createContext<
   | {
+      fileTreeData: any
+      selectedEntityIds: any
+      projectName: any
       isDeleting: boolean
       isRenaming: boolean
       isCreatingFile: boolean
@@ -533,7 +537,7 @@ export const FileTreeActionableProvider: FC<React.PropsWithChildren> = ({
       cancel,
       droppedFiles,
       setDroppedFiles,
-      downloadPath,
+      downloadPath, // fileTreeData,selectedEntityIds,projectName,
     }),
     [
       cancel,
@@ -577,7 +581,18 @@ export function useFileTreeActionable() {
     )
   }
 
-  return context
+  const { fileTreeData, selectedEntityIds } = context;
+
+  // Calculates the file path
+  const selectedFilePath = useMemo(() => {
+    if (selectedEntityIds.size === 1) {
+      const [selectedEntityId] = selectedEntityIds
+      return getFullPath(fileTreeData, selectedEntityId).slice(1)
+    }
+    return null;
+  }, [fileTreeData, selectedEntityIds])
+
+  return {...context, selectedFilePath}
 }
 
 function getSelectedParentFolderId(

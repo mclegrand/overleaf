@@ -24,6 +24,8 @@ const moduleSettings: Array<{
   import: { default: ElementType }
   path: string
 }> = importOverleafModules('settingsEntries')
+import { useFeatureFlag } from '@/shared/context/split-test-context'
+import SettingsGit from './settings/settings-git'
 
 export default function SettingsMenu() {
   const { t } = useTranslation()
@@ -40,6 +42,7 @@ export default function SettingsMenu() {
         <SettingsCompiler />
         <SettingsImageName />
         <SettingsDocument />
+        <SettingsGit />
         <SettingsSpellCheckLanguage />
         <SettingsDictionary />
         {moduleSettings.map(({ import: { default: Component }, path }) => (
