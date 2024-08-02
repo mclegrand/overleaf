@@ -5,8 +5,28 @@ import { Button } from 'react-bootstrap'
 import Tooltip from '../../../shared/components/tooltip'
 import Icon from '../../../shared/components/icon'
 
+import { useProjectContext } from '@/shared/context/project-context'
+import { useUserContext } from '../../../shared/context/user-context'
 import { useEditorContext } from '../../../shared/context/editor-context'
 import { useFileTreeActionable } from '../contexts/file-tree-actionable'
+
+
+import useAsync from '../../../shared/hooks/use-async'
+import {
+  getUserFacingMessage,
+  postJSON,
+} from '../../../infrastructure/fetch-json'
+
+type NewProjectData = {
+  project_id: string
+  owner_ref: string
+  owner: {
+    first_name: string
+    last_name: string
+    email: string
+    id: string
+  }
+}
 
 function FileTreeToolbar() {
   const { permissionsLevel } = useEditorContext()
@@ -22,7 +42,11 @@ function FileTreeToolbar() {
 }
 
 function FileTreeToolbarLeft() {
+  const { isLoading, isError, error, runAsync } = useAsync<NewProjectData>()
   const { t } = useTranslation()
+  const { id: userId } = useUserContext()
+  const { _id: projectId } = useProjectContext()
+
   const {
     canCreate,
     startCreatingFolder,
@@ -68,6 +92,24 @@ function FileTreeToolbarLeft() {
         overlayProps={{ placement: 'bottom' }}
       >
         <Button onClick={uploadWithAnalytics}>
+          <Icon type="upload" fw accessibilityLabel={t('upload')} />
+        </Button>
+      </Tooltip>
+      <Tooltip
+        id="pull"
+        description='Pull'
+        overlayProps={{ placement: 'bottom' }}
+      >
+        <Button onClick={() => {
+            runAsync(
+               postJSON('/git-pull', {
+                 body:{
+                    projectId: projectId,
+                    userId: userId
+                 }
+              })
+            );
+      }}>
           <Icon type="upload" fw accessibilityLabel={t('upload')} />
         </Button>
       </Tooltip>

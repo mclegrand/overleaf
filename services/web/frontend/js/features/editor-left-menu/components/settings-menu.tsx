@@ -18,6 +18,7 @@ import SettingsSpellCheckLanguage from './settings/settings-spell-check-language
 import SettingsSyntaxValidation from './settings/settings-syntax-validation'
 import SettingsMathPreview from './settings/settings-math-preview'
 import { useFeatureFlag } from '@/shared/context/split-test-context'
+import SettingsGit from './settings/settings-git'
 
 export default function SettingsMenu() {
   const { t } = useTranslation()
@@ -35,6 +36,7 @@ export default function SettingsMenu() {
         <SettingsCompiler />
         <SettingsImageName />
         <SettingsDocument />
+        <SettingsGit />
         <SettingsSpellCheckLanguage />
         <SettingsDictionary />
         <SettingsAutoComplete />

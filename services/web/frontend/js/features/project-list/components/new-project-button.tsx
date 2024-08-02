@@ -190,6 +190,16 @@ function NewProjectButton({
           >
             {t('upload_project')}
           </MenuItem>
+          <MenuItem
+            onClick={e =>
+              handleModalMenuClick(e, {
+                modalVariant: 'import_from_git_free',
+                dropdownMenuEvent: 'import-from-git-free',
+              })
+            }
+          >
+            {'Import from Git'}
+          </MenuItem>
           {ImportProjectFromGithubMenu && (
             <ImportProjectFromGithubMenu
               onClick={e =>

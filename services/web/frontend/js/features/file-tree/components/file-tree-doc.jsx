@@ -53,6 +53,10 @@ export const FileTreeIcon = ({ isLinkedFile, name }) => {
   return (
     <>
       &nbsp;
+      <Icon type="external-link-square"
+          modifier="rotate-180"
+          className="linked-file-highlight"
+          accessibilityLabel="Modified file"/>
       <Icon type={iconTypeFromName(name)} fw className={className} />
       {isLinkedFile && (
         <Icon

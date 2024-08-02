@@ -2,17 +2,41 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as eventTracking from '../../../../infrastructure/event-tracking'
 import { useProjectContext } from '@/shared/context/project-context'
-
+import { useUserContext } from '../../../../shared/context/user-context'
 import { MenuItem } from 'react-bootstrap'
 import { useFileTreeActionable } from '../../contexts/file-tree-actionable'
+import { copyDirectory } from '../../../../shared/utils/storage-handler'
+
+import useAsync from '../../../../shared/hooks/use-async'
+import {
+  getUserFacingMessage,
+  postJSON,
+} from '../../../../infrastructure/fetch-json'
+
+type NewProjectData = {
+  project_id: string
+  owner_ref: string
+  owner: {
+    first_name: string
+    last_name: string
+    email: string
+    id: string
+  }
+}
+
 
 function FileTreeItemMenuItems() {
+  const { isLoading, isError, error, runAsync } = useAsync<NewProjectData>()
+
+  const { id: userId } = useUserContext()
+  const { _id: projectId } = useProjectContext()
   const { t } = useTranslation()
 
   const {
     canRename,
     canDelete,
     canCreate,
+    parentFolderID,
     startRenaming,
     startDeleting,
     startCreatingFolder,
@@ -20,6 +44,7 @@ function FileTreeItemMenuItems() {
     startUploadingDocOrFile,
     downloadPath,
     selectedFileName,
+    selectedFilePath
   } = useFileTreeActionable()
 
   const { owner } = useProjectContext()
@@ -40,8 +65,7 @@ function FileTreeItemMenuItems() {
     eventTracking.sendMB('upload-click', { location: 'file-menu' })
     startUploadingDocOrFile()
   }, [startUploadingDocOrFile])
-
-  return (
+  return(
     <>
       {canRename ? (
         <MenuItem onClick={startRenaming}>{t('rename')}</MenuItem>
@@ -61,6 +85,19 @@ function FileTreeItemMenuItems() {
           <MenuItem onClick={startCreatingFolder}>{t('new_folder')}</MenuItem>
           <MenuItem onClick={uploadWithAnalytics}>{t('upload')}</MenuItem>
         </>
+      ) : null}
+      {canDelete ? (
+        <MenuItem onClick={() => {
+            runAsync(
+               postJSON('/git-add', {
+                 body:{
+                    projectId: projectId,
+                    userId: userId,
+                    filePath: selectedFilePath
+                 }
+              })
+            )
+      }}>Add</MenuItem>
       ) : null}
     </>
   )

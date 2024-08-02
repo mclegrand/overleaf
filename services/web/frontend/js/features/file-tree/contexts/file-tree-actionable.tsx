@@ -25,6 +25,7 @@ import { useProjectContext } from '../../../shared/context/project-context'
 import { useEditorContext } from '../../../shared/context/editor-context'
 import { useFileTreeData } from '../../../shared/context/file-tree-data-context'
 import { useFileTreeSelectable } from './file-tree-selectable'
+import { getFullPath } from './get-full-path'
 
 import {
   InvalidFilenameError,
@@ -46,6 +47,9 @@ type DroppedFiles = {
 
 const FileTreeActionableContext = createContext<
   | {
+      fileTreeData: any
+      selectedEntityIds: any
+      projectName: any
       isDeleting: boolean
       isRenaming: boolean
       isCreatingFile: boolean
@@ -218,7 +222,8 @@ function fileTreeActionableReducer(state: State, action: Action) {
 }
 
 export const FileTreeActionableProvider: FC = ({ children }) => {
-  const { _id: projectId } = useProjectContext()
+  const { _id: projectId, name:projectName } = useProjectContext()
+
   const { permissionsLevel } = useEditorContext()
   const { indexAllReferences } = useReferencesContext()
 
@@ -508,6 +513,9 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
     canRename: selectedEntityIds.size === 1 && !isRootFolderSelected,
     canCreate: selectedEntityIds.size < 2,
     ...state,
+    fileTreeData,
+    selectedEntityIds,
+    projectName,
     parentFolderId,
     selectedFileName,
     isDuplicate,
@@ -545,7 +553,18 @@ export function useFileTreeActionable() {
     )
   }
 
-  return context
+  const { fileTreeData, selectedEntityIds } = context;
+
+  // Calculates the file path
+  const selectedFilePath = useMemo(() => {
+    if (selectedEntityIds.size === 1) {
+      const [selectedEntityId] = selectedEntityIds
+      return getFullPath(fileTreeData, selectedEntityId).slice(1)
+    }
+    return null;
+  }, [fileTreeData, selectedEntityIds])
+
+  return {...context, selectedFilePath}
 }
 
 function getSelectedParentFolderId(

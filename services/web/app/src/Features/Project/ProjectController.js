@@ -1,3 +1,5 @@
+const path = require('path')
+const fs = require('fs-extra')
 const _ = require('lodash')
 const OError = require('@overleaf/o-error')
 const crypto = require('crypto')
@@ -235,12 +237,11 @@ const _ProjectController = {
       req.body.projectName != null ? req.body.projectName.trim() : undefined
     const { template } = req.body
 
-    const project = await (template === 'example'
-      ? ProjectCreationHandler.promises.createExampleProject(
-          userId,
-          projectName
-        )
-      : ProjectCreationHandler.promises.createBasicProject(userId, projectName))
+    const project = await (
+        (template === 'example') ? ProjectCreationHandler.promises.createExampleProject(userId, projectName) : (
+        (template === 'git') ? ProjectCreationHandler.promises.createGitProject(userId, projectName) :
+        ProjectCreationHandler.promises.createBasicProject(userId, projectName)
+    ))
 
     res.json({
       project_id: project._id,
@@ -928,6 +929,92 @@ const _ProjectController = {
     }
     return portalTemplates
   },
+
+  copyDirectory(req, res) {
+    console.log("Copying")
+    const src = req.body.src
+    const dest = req.body.dest
+    fs.copy(src, dest, err => {
+
+        if (err) {
+          console.error(`Error when copying ${src} to ${dest}:`, err)
+          res.sendStatus(400)
+       }
+
+        fs.readdir(dest, (err, files) => {
+        if (err) {
+            console.error(`Erreur when reading folder: ${err}`)
+            res.sendStatus(400)
+        }
+
+        files.forEach(file => {
+
+            const filePath = path.join(dest, file);
+
+            fs.stat(filePath, (err, stats) => {
+
+                if (err) {
+                    console.error(`Error getting stats of file: ${filePath}, ${err}`);
+                    return res.sendStatus(400);
+                }
+
+                if (!stats.isDirectory() && path.extname(file) !== '.tex') {
+
+                    fs.remove(filePath, err => {
+                        if (err) {
+                            console.error(`Couldn't delete file: ${filePath}, ${err}`)
+                            res.sendStatus(400)
+                        }
+                    });
+                }
+           });
+       });
+    });
+    console.log("Source: " + src)
+    console.log("Destination: " + dest)
+    res.sendStatus(200)
+   })
+  },
+
+  importProject(req, res, next) {
+    const currentUser = SessionManager.getSessionUser(req.session)
+    const {
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      _id: userId,
+    } = currentUser
+    const projectName =
+      req.body.projectName != null ? req.body.projectName.trim() : undefined
+    const { template } = req.body
+
+    async.waterfall(
+      [
+        cb => {
+          console.log("Importing project")
+        },
+      ],
+      (err, project) => {
+        if (err != null) {
+          return next(err)
+        }
+        res.json({
+          project_id: project._id,
+          owner_ref: project.owner_ref,
+          owner: {
+            first_name: firstName,
+            last_name: lastName,
+            email,
+            _id: userId,
+          },
+        })
+      }
+    )
+  },
+
+
+
+
 }
 
 const defaultSettingsForAnonymousUser = userId => ({
@@ -1014,11 +1101,13 @@ const LEGACY_THEME_LIST = [
 const ProjectController = {
   archiveProject: expressify(_ProjectController.archiveProject),
   cloneProject: expressify(_ProjectController.cloneProject),
+  copyDirectory: expressify(_ProjectController.copyDirectory),
   deleteProject: expressify(_ProjectController.deleteProject),
   expireDeletedProject: expressify(_ProjectController.expireDeletedProject),
   expireDeletedProjectsAfterDuration: expressify(
     _ProjectController.expireDeletedProjectsAfterDuration
   ),
+  importProject: expressify(_ProjectController.importProject),
   loadEditor: expressify(_ProjectController.loadEditor),
   newProject: expressify(_ProjectController.newProject),
   projectEntitiesJson: expressify(_ProjectController.projectEntitiesJson),
