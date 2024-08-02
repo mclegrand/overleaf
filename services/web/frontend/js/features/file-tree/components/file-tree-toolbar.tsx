@@ -1,5 +1,13 @@
 import { useTranslation } from 'react-i18next'
 import * as eventTracking from '../../../infrastructure/event-tracking'
+
+import { Button } from 'react-bootstrap'
+import Tooltip from '../../../shared/components/tooltip'
+import Icon from '../../../shared/components/icon'
+
+import { useProjectContext } from '@/shared/context/project-context'
+import { useUserContext } from '../../../shared/context/user-context'
+import { useEditorContext } from '../../../shared/context/editor-context'
 import { useFileTreeActionable } from '../contexts/file-tree-actionable'
 import { useFileTreeData } from '@/shared/context/file-tree-data-context'
 import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
@@ -11,6 +19,24 @@ import React, { ElementType } from 'react'
 const fileTreeToolbarComponents = importOverleafModules(
   'fileTreeToolbarComponents'
 ) as { import: { default: ElementType }; path: string }[]
+
+
+import useAsync from '../../../shared/hooks/use-async'
+import {
+  getUserFacingMessage,
+  postJSON,
+} from '../../../infrastructure/fetch-json'
+
+type NewProjectData = {
+  project_id: string
+  owner_ref: string
+  owner: {
+    first_name: string
+    last_name: string
+    email: string
+    id: string
+  }
+}
 
 function FileTreeToolbar() {
   const { fileTreeReadOnly } = useFileTreeData()
@@ -30,7 +56,11 @@ function FileTreeToolbar() {
 }
 
 function FileTreeToolbarLeft() {
+  const { isLoading, isError, error, runAsync } = useAsync<NewProjectData>()
   const { t } = useTranslation()
+  const { id: userId } = useUserContext()
+  const { _id: projectId } = useProjectContext()
+
   const {
     canCreate,
     startCreatingFolder,
@@ -79,6 +109,25 @@ function FileTreeToolbarLeft() {
           <MaterialIcon type="upload" accessibilityLabel={t('upload')} />
         </button>
       </OLTooltip>
+      </Tooltip>
+      <Tooltip
+        id="pull"
+        description='Pull'
+        overlayProps={{ placement: 'bottom' }}
+      >
+        <Button onClick={() => {
+            runAsync(
+               postJSON('/git-pull', {
+                 body:{
+                    projectId: projectId,
+                    userId: userId
+                 }
+              })
+            );
+      }}>
+          <Icon type="upload" fw accessibilityLabel={t('upload')} />
+        </Button>
+      </Tooltip>
     </div>
   )
 }

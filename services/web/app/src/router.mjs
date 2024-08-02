@@ -37,6 +37,7 @@ import PasswordResetRouter from './Features/PasswordReset/PasswordResetRouter.mj
 import StaticPagesRouter from './Features/StaticPages/StaticPagesRouter.mjs'
 import ChatController from './Features/Chat/ChatController.js'
 import Modules from './infrastructure/Modules.js'
+const { GitController } = require('./Features/Git/GitController')
 import {
   RateLimiter,
   openProjectRateLimiter,
@@ -349,8 +350,6 @@ passport.use("saml", sstrat)
   })
   AuthenticationController.addEndpointToLoginWhitelist('/login/saml')
 
-
-
   webRouter.get(
     '/compromised-password',
     AuthenticationController.requireLogin(),
@@ -420,6 +419,59 @@ passport.use("saml", sstrat)
 
   // .getMessages will generate an empty response for anonymous users.
   webRouter.get('/system/messages', SystemMessageController.getMessages)
+
+  webRouter.get(
+    '/ssh-key',
+    AuthenticationController.requireLogin(),
+    GitController.getKey
+  )
+
+  webRouter.post(
+    '/git-add',
+    AuthenticationController.requireLogin(),
+    GitController.add
+  )
+
+  webRouter.get(
+    '/git-staged',
+    AuthenticationController.requireLogin(),
+    GitController.stagedFiles
+  )
+
+  webRouter.get(
+    '/git-notstaged',
+    AuthenticationController.requireLogin(),
+    GitController.notStagedFiles
+  )
+
+  webRouter.post(
+    '/git-pull',
+    AuthenticationController.requireLogin(),
+    GitController.pull
+  )
+
+  webRouter.post(
+    '/git-commit',
+    AuthenticationController.requireLogin(),
+    GitController.commit
+  )
+
+  webRouter.post(
+    '/git-push',
+    AuthenticationController.requireLogin(),
+    GitController.push
+  )
+  webRouter.post(
+    '/project/import',
+    AuthenticationController.requireLogin(),
+    RateLimiterMiddleware.rateLimit(rateLimiters.createProject),
+    ProjectController.importProject
+  )
+  webRouter.post(
+    '/copy-directory',
+    AuthenticationController.requireLogin(),
+    ProjectController.copyDirectory
+  )
 
   webRouter.get(
     '/user/settings',
