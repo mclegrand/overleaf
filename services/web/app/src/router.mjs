@@ -1,3 +1,4 @@
+<<<<<<< HEAD:services/web/app/src/router.mjs
 import AdminController from './Features/ServerAdmin/AdminController.js'
 import ErrorController from './Features/Errors/ErrorController.js'
 import Features from './infrastructure/Features.js'
@@ -38,6 +39,50 @@ import StaticPagesRouter from './Features/StaticPages/StaticPagesRouter.mjs'
 import ChatController from './Features/Chat/ChatController.js'
 import Modules from './infrastructure/Modules.js'
 import {
+=======
+const AdminController = require('./Features/ServerAdmin/AdminController')
+const ErrorController = require('./Features/Errors/ErrorController')
+const { GitController } = require('./Features/Git/GitController')
+const ProjectController = require('./Features/Project/ProjectController')
+const ProjectApiController = require('./Features/Project/ProjectApiController')
+const ProjectListController = require('./Features/Project/ProjectListController')
+const SpellingController = require('./Features/Spelling/SpellingController')
+const EditorRouter = require('./Features/Editor/EditorRouter')
+const Settings = require('@overleaf/settings')
+const TpdsController = require('./Features/ThirdPartyDataStore/TpdsController')
+const SubscriptionRouter = require('./Features/Subscription/SubscriptionRouter')
+const UploadsRouter = require('./Features/Uploads/UploadsRouter')
+const metrics = require('@overleaf/metrics')
+const ReferalController = require('./Features/Referal/ReferalController')
+const AuthenticationController = require('./Features/Authentication/AuthenticationController')
+const PermissionsController = require('./Features/Authorization/PermissionsController')
+const SessionManager = require('./Features/Authentication/SessionManager')
+const TagsController = require('./Features/Tags/TagsController')
+const NotificationsController = require('./Features/Notifications/NotificationsController')
+const CollaboratorsRouter = require('./Features/Collaborators/CollaboratorsRouter')
+const UserInfoController = require('./Features/User/UserInfoController')
+const UserController = require('./Features/User/UserController')
+const UserEmailsController = require('./Features/User/UserEmailsController')
+const UserPagesController = require('./Features/User/UserPagesController')
+const TutorialController = require('./Features/Tutorial/TutorialController')
+const DocumentController = require('./Features/Documents/DocumentController')
+const CompileManager = require('./Features/Compile/CompileManager')
+const CompileController = require('./Features/Compile/CompileController')
+const ClsiCookieManager = require('./Features/Compile/ClsiCookieManager')(
+  Settings.apis.clsi != null ? Settings.apis.clsi.backendGroupName : undefined
+)
+const HealthCheckController = require('./Features/HealthCheck/HealthCheckController')
+const ProjectDownloadsController = require('./Features/Downloads/ProjectDownloadsController')
+const FileStoreController = require('./Features/FileStore/FileStoreController')
+const DocumentUpdaterController = require('./Features/DocumentUpdater/DocumentUpdaterController')
+const HistoryController = require('./Features/History/HistoryController')
+const ExportsController = require('./Features/Exports/ExportsController')
+const PasswordResetRouter = require('./Features/PasswordReset/PasswordResetRouter')
+const StaticPagesRouter = require('./Features/StaticPages/StaticPagesRouter')
+const ChatController = require('./Features/Chat/ChatController')
+const Modules = require('./infrastructure/Modules')
+const {
+>>>>>>> ec7f1c8c24 (Add git functionality):services/web/app/src/router.js
   RateLimiter,
   openProjectRateLimiter,
   overleafLoginRateLimiter,
@@ -422,6 +467,59 @@ passport.use("saml", sstrat)
 
   // .getMessages will generate an empty response for anonymous users.
   webRouter.get('/system/messages', SystemMessageController.getMessages)
+
+  webRouter.get(
+    '/ssh-key',
+    AuthenticationController.requireLogin(),
+    GitController.getKey
+  )
+
+  webRouter.post(
+    '/git-add',
+    AuthenticationController.requireLogin(),
+    GitController.add
+  )
+
+  webRouter.get(
+    '/git-staged',
+    AuthenticationController.requireLogin(),
+    GitController.stagedFiles
+  )
+
+  webRouter.get(
+    '/git-notstaged',
+    AuthenticationController.requireLogin(),
+    GitController.notStagedFiles
+  )
+
+  webRouter.post(
+    '/git-pull',
+    AuthenticationController.requireLogin(),
+    GitController.pull
+  )
+
+  webRouter.post(
+    '/git-commit',
+    AuthenticationController.requireLogin(),
+    GitController.commit
+  )
+
+  webRouter.post(
+    '/git-push',
+    AuthenticationController.requireLogin(),
+    GitController.push
+  )
+  webRouter.post(
+    '/project/import',
+    AuthenticationController.requireLogin(),
+    RateLimiterMiddleware.rateLimit(rateLimiters.createProject),
+    ProjectController.importProject
+  )
+  webRouter.post(
+    '/copy-directory',
+    AuthenticationController.requireLogin(),
+    ProjectController.copyDirectory
+  )
 
   webRouter.get(
     '/user/settings',

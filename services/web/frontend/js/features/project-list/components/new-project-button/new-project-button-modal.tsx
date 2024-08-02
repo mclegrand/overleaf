@@ -1,5 +1,6 @@
 import BlankProjectModal from './blank-project-modal'
 import ExampleProjectModal from './example-project-modal'
+import GitProjectModal from './git-project-modal'
 import importOverleafModules from '../../../../../macros/import-overleaf-module.macro'
 import { JSXElementConstructor, lazy, Suspense, useCallback } from 'react'
 import { Nullable } from '../../../../../../types/utils'
@@ -12,6 +13,7 @@ export type NewProjectButtonModalVariant =
   | 'blank_project'
   | 'example_project'
   | 'upload_project'
+  | 'import_from_git_free'
   | 'import_from_github'
 
 type NewProjectButtonModalProps = {
@@ -47,6 +49,8 @@ function NewProjectButtonModal({ modal, onHide }: NewProjectButtonModalProps) {
           <UploadProjectModal onHide={onHide} openProject={openProject} />
         </Suspense>
       )
+    case 'import_from_git_free':
+      return <GitProjectModal onHide={onHide} />
     case 'import_from_github':
       return <ImportProjectFromGithubModalWrapper onHide={onHide} />
     default:

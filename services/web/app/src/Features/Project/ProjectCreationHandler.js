@@ -11,6 +11,7 @@ const HistoryManager = require('../History/HistoryManager')
 const { User } = require('../../models/User')
 const fs = require('fs')
 const path = require('path')
+const { gitClone } = require('../Git/GitController')
 const { callbackify } = require('util')
 const _ = require('lodash')
 const AnalyticsManager = require('../Analytics/AnalyticsManager')
@@ -103,6 +104,27 @@ async function createExampleProject(ownerId, projectName) {
   })
 
   return project
+}
+
+async function createGitProject(ownerId, projectLink) {
+  console.log("Importing git project")
+  const regex = /^git@github\.com:(.+?)\/(.+?)\.git$/;
+  const match = projectLink.match(regex);
+
+  if (match) {
+    const username = match[1];
+    const repoName = match[2];
+    const projectName = `${repoName} (${username})`
+    const project = await _createBlankProject(ownerId, projectName)
+    AnalyticsManager.recordEventForUser(ownerId, 'project-created', {
+      projectId: project._id,
+    })
+    await gitClone(project._id, ownerId, projectLink)
+
+    return project
+  } else {
+    throw new Error('Invalid SSH URL format');
+  }
 }
 
 async function _addExampleProjectFiles(ownerId, projectName, project) {
@@ -246,10 +268,12 @@ module.exports = {
   createProjectFromSnippet: callbackify(createProjectFromSnippet),
   createBasicProject: callbackify(createBasicProject),
   createExampleProject: callbackify(createExampleProject),
+  createGitProject: callbackify(createGitProject),
   promises: {
     createBlankProject,
     createProjectFromSnippet,
     createBasicProject,
     createExampleProject,
+    createGitProject,
   },
 }

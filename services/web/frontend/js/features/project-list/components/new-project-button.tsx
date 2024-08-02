@@ -173,6 +173,47 @@ function NewProjectButton({
         </DropdownToggle>
         <DropdownMenu>
           <li role="none">
+          <MenuItem
+            onClick={e =>
+              handleModalMenuClick(e, {
+                modalVariant: 'blank_project',
+                dropdownMenuEvent: 'blank-project',
+              })
+            }
+          >
+            {t('blank_project')}
+          </MenuItem>
+          <MenuItem
+            onClick={e =>
+              handleModalMenuClick(e, {
+                modalVariant: 'example_project',
+                dropdownMenuEvent: 'example-project',
+              })
+            }
+          >
+            {t('example_project')}
+          </MenuItem>
+          <MenuItem
+            onClick={e =>
+              handleModalMenuClick(e, {
+                modalVariant: 'upload_project',
+                dropdownMenuEvent: 'upload-project',
+              })
+            }
+          >
+            {t('upload_project')}
+          </MenuItem>
+          <MenuItem
+            onClick={e =>
+              handleModalMenuClick(e, {
+                modalVariant: 'import_from_git_free',
+                dropdownMenuEvent: 'import-from-git-free',
+              })
+            }
+          >
+            {'Import from Git'}
+          </MenuItem>
+          {ImportProjectFromGithubMenu && (
             <DropdownItem
               onClick={e =>
                 handleModalMenuClick(e, {
