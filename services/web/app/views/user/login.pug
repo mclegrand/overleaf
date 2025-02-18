@@ -40,15 +40,3 @@ block content
 									span(data-ol-inflight="idle") #{translate("login")}
 									span(hidden data-ol-inflight="pending") #{translate("logging_in")}…
 								a.pull-right(href='/user/password/reset') #{translate("forgot_your_password")}?
-						form(action='/login/saml?institution=tpt')
-							button.btn-shib(type='submit', name='institution', value='tpt')
-								img(src='/img/tpt.svg', width='50px')
-							button.btn-shib(type='submit', name='institution', value='ensta')
-								img(src='/img/ensta.png', width='50px')
-							button.btn-shib(type='submit', name='institution', value='x')
-								img(src='/img/x.svg', width='50px')
-							button.btn-shib(type='submit', name='institution', value='ensae')
-								img(src='/img/ensae.png', width='50px')
-							button.btn-shib(type='submit', name='institution', value='tsp')
-								img(src='/img/tsp.svg', width='50px')
-
