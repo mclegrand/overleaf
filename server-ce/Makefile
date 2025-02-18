@@ -3,15 +3,12 @@
 MONOREPO_ROOT := ../
 export MONOREPO_REVISION := $(shell git rev-parse HEAD)
 export BRANCH_NAME ?= $(shell git rev-parse --abbrev-ref HEAD)
-
-REPO_PREFIX := ipp
-
-export OVERLEAF_BASE_BRANCH ?= $(REPO_PREFIX)/sharelatex-base:$(BRANCH_NAME)
-export OVERLEAF_BASE_LATEST ?= $(REPO_PREFIX)/sharelatex-base
-export OVERLEAF_BASE_TAG ?= $(REPO_PREFIX)/sharelatex-base:$(BRANCH_NAME)-$(MONOREPO_REVISION)
-export OVERLEAF_BRANCH ?= $(REPO_PREFIX)/sharelatex:$(BRANCH_NAME)
-export OVERLEAF_LATEST ?= $(REPO_PREFIX)/sharelatex
-export OVERLEAF_TAG ?= $(REPO_PREFIX)/sharelatex:$(BRANCH_NAME)-$(MONOREPO_REVISION)
+export OVERLEAF_BASE_BRANCH ?= sharelatex/sharelatex-base:$(BRANCH_NAME)
+export OVERLEAF_BASE_LATEST ?= sharelatex/sharelatex-base
+export OVERLEAF_BASE_TAG ?= sharelatex/sharelatex-base:$(BRANCH_NAME)-$(MONOREPO_REVISION)
+export OVERLEAF_BRANCH ?= sharelatex/sharelatex:$(BRANCH_NAME)
+export OVERLEAF_LATEST ?= sharelatex/sharelatex
+export OVERLEAF_TAG ?= sharelatex/sharelatex:$(BRANCH_NAME)-$(MONOREPO_REVISION)
 
 all: build-base build-community
 
