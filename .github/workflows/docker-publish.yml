@@ -39,7 +39,7 @@ jobs:
       - name: Publish
         run: |
           export ghcr_registry="ghcr.io/4llysa/overleaf"
-          docker tag docker.io/sharelatex/sharelatex:main ${ghcr_registry}:latest
-          docker tag docker.io/sharelatex/sharelatex:main ${ghcr_registry}:${{ github.sha }}
+          docker tag docker.io/sharelatex/sharelatex:add-simple-git-2 ${ghcr_registry}:latest
+          docker tag docker.io/sharelatex/sharelatex:add-simple-git-2 ${ghcr_registry}:${{ github.sha }}
           echo "Publishing ${ghcr_registry}:${{ github.sha }}"
           docker push ${ghcr_registry}:latest
