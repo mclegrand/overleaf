@@ -1,0 +1,151 @@
+nohup: ignoring input
+cp .dockerignore ../
+docker build \
+  --build-arg BUILDKIT_INLINE_CACHE=1 \
+  --progress=plain \
+  --file Dockerfile-base \
+  --pull \
+  --cache-from sharelatex/sharelatex-base \
+  --cache-from sharelatex/sharelatex-base:remove_saml \
+  --tag sharelatex/sharelatex-base:remove_saml-c4c44584d54cb68b15655c85a00391d7017eec61 \
+  --tag sharelatex/sharelatex-base:remove_saml \
+  ../
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile-base
+#1 transferring dockerfile: 3.25kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/phusion/baseimage:noble-1.0.0
+#2 DONE 0.7s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 227B done
+#3 DONE 0.0s
+
+#4 [stage-0 1/3] FROM docker.io/phusion/baseimage:noble-1.0.0@sha256:b05855f2aa91a1d887d26039d203b65f6d1c7f64191cff786c6deff439af17f3
+#4 DONE 0.0s
+
+#5 importing cache manifest from sharelatex/sharelatex-base:remove_saml
+#5 ERROR: failed to configure registry cache importer: docker.io/sharelatex/sharelatex-base:remove_saml: not found
+
+#6 importing cache manifest from sharelatex/sharelatex-base
+#6 inferred cache manifest type: application/vnd.docker.distribution.manifest.v2+json done
+#6 DONE 1.0s
+
+#4 [stage-0 1/3] FROM docker.io/phusion/baseimage:noble-1.0.0@sha256:b05855f2aa91a1d887d26039d203b65f6d1c7f64191cff786c6deff439af17f3
+#4 CACHED
+
+#7 [stage-0 2/3] RUN --mount=type=cache,target=/var/cache/apt,sharing=locked     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked true &&  rm -f /etc/apt/apt.conf.d/docker-clean && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache &&  apt-get update &&  apt-get install -y       texlive-full       unattended-upgrades       build-essential wget net-tools unzip time imagemagick optipng strace nginx git python3 python-is-python3 zlib1g-dev libpcre3-dev gettext-base libwww-perl ca-certificates curl gnupg       qpdf       aspell aspell-en aspell-af aspell-am aspell-ar aspell-ar-large aspell-bg aspell-bn aspell-br aspell-ca aspell-cs aspell-cy aspell-da aspell-de aspell-de-1901 aspell-el aspell-eo aspell-es aspell-et aspell-eu-es aspell-fa aspell-fo aspell-fr aspell-ga aspell-gl-minimos aspell-gu aspell-he aspell-hi aspell-hr aspell-hsb aspell-hu aspell-hy aspell-id aspell-is aspell-it aspell-kk aspell-kn aspell-ku aspell-lt aspell-lv aspell-ml aspell-mr aspell-nl aspell-no aspell-nr aspell-ns  aspell-pa aspell-pl aspell-pt aspell-pt-br aspell-ro aspell-ru aspell-sk aspell-sl aspell-ss aspell-st aspell-sv aspell-tl aspell-tn aspell-ts aspell-uk aspell-uz aspell-xh aspell-zu &&  unattended-upgrade --verbose --no-minimal-upgrade-steps &&  mkdir -p /etc/apt/keyrings &&  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg &&  echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list &&  apt-get update &&  apt-get install -y nodejs     &&  rm -rf       /etc/nginx/nginx.conf       /etc/nginx/sites-enabled/default
+#7 0.342 Hit:1 http://archive.ubuntu.com/ubuntu noble InRelease
+#7 0.342 Hit:2 http://archive.ubuntu.com/ubuntu noble-updates InRelease
+#7 0.345 Hit:3 http://archive.ubuntu.com/ubuntu noble-backports InRelease
+#7 0.606 Get:4 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]
+#7 30.64 Ign:4 http://security.ubuntu.com/ubuntu noble-security InRelease
+#7 31.81 Get:4 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]
+#7 61.81 Ign:4 http://security.ubuntu.com/ubuntu noble-security InRelease
+#7 64.26 Get:4 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]
+#7 64.90 Get:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [789 kB]
+#7 94.94 Ign:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages
+#7 94.94 Get:6 http://security.ubuntu.com/ubuntu noble-security/multiverse amd64 Packages [15.5 kB]
+#7 95.09 Get:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [1,039 kB]
+#7 125.2 Ign:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages
+#7 125.3 Get:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [777 kB]
+#7 155.3 Ign:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages
+#7 155.6 Get:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [789 kB]
+#7 186.2 Ign:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages
+#7 186.5 Get:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [1,039 kB]
+#7 216.5 Ign:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages
+#7 216.7 Get:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [777 kB]
+#7 246.8 Ign:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages
+#7 247.0 Get:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [789 kB]
+#7 277.0 Ign:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages
+#7 277.2 Get:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [1,039 kB]
+#7 307.9 Ign:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages
+#7 308.1 Get:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [777 kB]
+#7 338.1 Ign:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages
+#7 338.3 Get:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [789 kB]
+#7 369.2 Ign:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages
+#7 369.4 Get:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [1,039 kB]
+#7 399.5 Ign:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages
+#7 399.7 Get:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [777 kB]
+#7 430.6 Ign:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages
+#7 430.8 Get:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [789 kB]
+#7 461.2 Ign:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages
+#7 461.4 Get:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [1,039 kB]
+#7 491.5 Ign:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages
+#7 491.6 Get:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [777 kB]
+#7 522.4 Ign:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages
+#7 522.6 Get:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [625 kB]
+#7 552.6 Ign:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages
+#7 552.8 Get:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [803 kB]
+#7 582.9 Ign:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages
+#7 583.0 Get:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [617 kB]
+#7 613.7 Ign:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages
+#7 613.9 Get:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [625 kB]
+#7 644.1 Ign:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages
+#7 644.3 Get:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [803 kB]
+#7 675.1 Ign:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages
+#7 675.3 Get:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [617 kB]
+#7 706.0 Ign:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages
+#7 706.2 Ign:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages
+#7 706.3 Ign:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages
+#7 706.3 Ign:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages
+#7 706.3 Err:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages
+#7 706.3   Connection timed out [IP: 91.189.91.82 80]
+#7 706.4 Ign:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages
+#7 706.4 Ign:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages
+#7 706.5 Fetched 99.3 kB in 11min 46s (140 B/s)
+#7 706.5 Reading package lists...
+#7 707.2 E: Failed to fetch http://security.ubuntu.com/ubuntu/dists/noble-security/restricted/binary-amd64/Packages  Connection timed out [IP: 91.189.91.82 80]
+#7 707.2 E: Some index files failed to download. They have been ignored, or old ones used instead.
+#7 ERROR: process "/bin/sh -c true &&  rm -f /etc/apt/apt.conf.d/docker-clean && echo 'Binary::apt::APT::Keep-Downloaded-Packages \"true\";' > /etc/apt/apt.conf.d/keep-cache &&  apt-get update &&  apt-get install -y       texlive-full       unattended-upgrades       build-essential wget net-tools unzip time imagemagick optipng strace nginx git python3 python-is-python3 zlib1g-dev libpcre3-dev gettext-base libwww-perl ca-certificates curl gnupg       qpdf       aspell aspell-en aspell-af aspell-am aspell-ar aspell-ar-large aspell-bg aspell-bn aspell-br aspell-ca aspell-cs aspell-cy aspell-da aspell-de aspell-de-1901 aspell-el aspell-eo aspell-es aspell-et aspell-eu-es aspell-fa aspell-fo aspell-fr aspell-ga aspell-gl-minimos aspell-gu aspell-he aspell-hi aspell-hr aspell-hsb aspell-hu aspell-hy aspell-id aspell-is aspell-it aspell-kk aspell-kn aspell-ku aspell-lt aspell-lv aspell-ml aspell-mr aspell-nl aspell-no aspell-nr aspell-ns  aspell-pa aspell-pl aspell-pt aspell-pt-br aspell-ro aspell-ru aspell-sk aspell-sl aspell-ss aspell-st aspell-sv aspell-tl aspell-tn aspell-ts aspell-uk aspell-uz aspell-xh aspell-zu &&  unattended-upgrade --verbose --no-minimal-upgrade-steps &&  mkdir -p /etc/apt/keyrings &&  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg &&  echo \"deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x nodistro main\" | tee /etc/apt/sources.list.d/nodesource.list &&  apt-get update &&  apt-get install -y nodejs     &&  rm -rf       /etc/nginx/nginx.conf       /etc/nginx/sites-enabled/default" did not complete successfully: exit code: 100
+------
+ > importing cache manifest from sharelatex/sharelatex-base:remove_saml:
+------
+------
+ > [stage-0 2/3] RUN --mount=type=cache,target=/var/cache/apt,sharing=locked     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked true &&  rm -f /etc/apt/apt.conf.d/docker-clean && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache &&  apt-get update &&  apt-get install -y       texlive-full       unattended-upgrades       build-essential wget net-tools unzip time imagemagick optipng strace nginx git python3 python-is-python3 zlib1g-dev libpcre3-dev gettext-base libwww-perl ca-certificates curl gnupg       qpdf       aspell aspell-en aspell-af aspell-am aspell-ar aspell-ar-large aspell-bg aspell-bn aspell-br aspell-ca aspell-cs aspell-cy aspell-da aspell-de aspell-de-1901 aspell-el aspell-eo aspell-es aspell-et aspell-eu-es aspell-fa aspell-fo aspell-fr aspell-ga aspell-gl-minimos aspell-gu aspell-he aspell-hi aspell-hr aspell-hsb aspell-hu aspell-hy aspell-id aspell-is aspell-it aspell-kk aspell-kn aspell-ku aspell-lt aspell-lv aspell-ml aspell-mr aspell-nl aspell-no aspell-nr aspell-ns  aspell-pa aspell-pl aspell-pt aspell-pt-br aspell-ro aspell-ru aspell-sk aspell-sl aspell-ss aspell-st aspell-sv aspell-tl aspell-tn aspell-ts aspell-uk aspell-uz aspell-xh aspell-zu &&  unattended-upgrade --verbose --no-minimal-upgrade-steps &&  mkdir -p /etc/apt/keyrings &&  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg &&  echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list &&  apt-get update &&  apt-get install -y nodejs     &&  rm -rf       /etc/nginx/nginx.conf       /etc/nginx/sites-enabled/default:
+644.3 Get:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [803 kB]
+675.1 Ign:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages
+675.3 Get:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [617 kB]
+706.0 Ign:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages
+706.2 Ign:5 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages
+706.3 Ign:7 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages
+706.3 Ign:8 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages
+
+707.2 E: Failed to fetch http://security.ubuntu.com/ubuntu/dists/noble-security/restricted/binary-amd64/Packages  Connection timed out [IP: 91.189.91.82 80]
+707.2 E: Some index files failed to download. They have been ignored, or old ones used instead.
+------
+Dockerfile-base:17
+--------------------
+  16 |     # --------------------
+  17 | >>> RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+  18 | >>> # Technically, we are using potentially stale package-lists with the below line.
+  19 | >>> # Practically, apt refreshes the lists as needed and release builds run in fresh CI VMs without the cache.
+  20 | >>>     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked true \
+  21 | >>> # Enable caching: https://docs.docker.com/reference/dockerfile/#example-cache-apt-packages
+  22 | >>> &&  rm -f /etc/apt/apt.conf.d/docker-clean && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache \
+  23 | >>> &&  apt-get update \
+  24 | >>> &&  apt-get install -y \
+  25 | >>>       texlive-full \
+  26 | >>>       unattended-upgrades \
+  27 | >>>       build-essential wget net-tools unzip time imagemagick optipng strace nginx git python3 python-is-python3 zlib1g-dev libpcre3-dev gettext-base libwww-perl ca-certificates curl gnupg \
+  28 | >>>       qpdf \
+  29 | >>>       aspell aspell-en aspell-af aspell-am aspell-ar aspell-ar-large aspell-bg aspell-bn aspell-br aspell-ca aspell-cs aspell-cy aspell-da aspell-de aspell-de-1901 aspell-el aspell-eo aspell-es aspell-et aspell-eu-es aspell-fa aspell-fo aspell-fr aspell-ga aspell-gl-minimos aspell-gu aspell-he aspell-hi aspell-hr aspell-hsb aspell-hu aspell-hy aspell-id aspell-is aspell-it aspell-kk aspell-kn aspell-ku aspell-lt aspell-lv aspell-ml aspell-mr aspell-nl aspell-no aspell-nr aspell-ns  aspell-pa aspell-pl aspell-pt aspell-pt-br aspell-ro aspell-ru aspell-sk aspell-sl aspell-ss aspell-st aspell-sv aspell-tl aspell-tn aspell-ts aspell-uk aspell-uz aspell-xh aspell-zu \
+  30 | >>> # upgrade base-image, batch all the upgrades together, rather than installing them on-by-one (which is slow!)
+  31 | >>> &&  unattended-upgrade --verbose --no-minimal-upgrade-steps \
+  32 | >>> # install Node.js https://github.com/nodesource/distributions#nodejs
+  33 | >>> &&  mkdir -p /etc/apt/keyrings \
+  34 | >>> &&  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+  35 | >>> &&  echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
+  36 | >>> &&  apt-get update \
+  37 | >>> &&  apt-get install -y nodejs \
+  38 | >>>     \
+  39 | >>> &&  rm -rf \
+  40 | >>> # We are adding a custom nginx config in the main Dockerfile.
+  41 | >>>       /etc/nginx/nginx.conf \
+  42 | >>>       /etc/nginx/sites-enabled/default
+  43 |     
+--------------------
+ERROR: failed to solve: process "/bin/sh -c true &&  rm -f /etc/apt/apt.conf.d/docker-clean && echo 'Binary::apt::APT::Keep-Downloaded-Packages \"true\";' > /etc/apt/apt.conf.d/keep-cache &&  apt-get update &&  apt-get install -y       texlive-full       unattended-upgrades       build-essential wget net-tools unzip time imagemagick optipng strace nginx git python3 python-is-python3 zlib1g-dev libpcre3-dev gettext-base libwww-perl ca-certificates curl gnupg       qpdf       aspell aspell-en aspell-af aspell-am aspell-ar aspell-ar-large aspell-bg aspell-bn aspell-br aspell-ca aspell-cs aspell-cy aspell-da aspell-de aspell-de-1901 aspell-el aspell-eo aspell-es aspell-et aspell-eu-es aspell-fa aspell-fo aspell-fr aspell-ga aspell-gl-minimos aspell-gu aspell-he aspell-hi aspell-hr aspell-hsb aspell-hu aspell-hy aspell-id aspell-is aspell-it aspell-kk aspell-kn aspell-ku aspell-lt aspell-lv aspell-ml aspell-mr aspell-nl aspell-no aspell-nr aspell-ns  aspell-pa aspell-pl aspell-pt aspell-pt-br aspell-ro aspell-ru aspell-sk aspell-sl aspell-ss aspell-st aspell-sv aspell-tl aspell-tn aspell-ts aspell-uk aspell-uz aspell-xh aspell-zu &&  unattended-upgrade --verbose --no-minimal-upgrade-steps &&  mkdir -p /etc/apt/keyrings &&  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg &&  echo \"deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x nodistro main\" | tee /etc/apt/sources.list.d/nodesource.list &&  apt-get update &&  apt-get install -y nodejs     &&  rm -rf       /etc/nginx/nginx.conf       /etc/nginx/sites-enabled/default" did not complete successfully: exit code: 100
+make: *** [Makefile:17: build-base] Error 1

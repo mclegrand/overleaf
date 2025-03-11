@@ -2,7 +2,8 @@
   "name": "overleaf",
   "private": true,
   "dependencies": {
-    "patch-package": "^8.0.0"
+    "patch-package": "^8.0.0",
+    "simple-git": "^3.27.0"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",
