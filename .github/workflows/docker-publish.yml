@@ -36,8 +36,7 @@ jobs:
           make build-base
           make build-community
 
-      - name:
-          Debug: List Docker images
+      - name: Debug
         run:
           docker images
 
