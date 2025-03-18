@@ -43,7 +43,14 @@ jobs:
       - name: Publish
         run: |
           export ghcr_registry="ghcr.io/4llysa/overleaf"
-          docker tag sharelatex/sharelatex:${{ github.ref_name }} ${ghcr_registry}:latest
-          docker tag sharelatex/sharelatex:${{ github.ref_name }} ${ghcr_registry}:${{ github.sha }}
+          
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            docker tag sharelatex/sharelatex:main ${ghcr_registry}:latest
+            docker tag sharelatex/sharelatex:main ${ghcr_registry}:${{ github.sha }}
+          else 
+            docker tag sharelatex/sharelatex:HEAD ${ghcr_registry}:latest
+            docker tag sharelatex/sharelatex:HEAD ${ghcr_registry}:${{ github.sha }}
+          fi
+
           echo "Publishing ${ghcr_registry}:${{ github.sha }}"
           docker push ${ghcr_registry}:latest
