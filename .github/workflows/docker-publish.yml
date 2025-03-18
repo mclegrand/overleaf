@@ -37,8 +37,9 @@ jobs:
           make build-community
 
       - name: Debug
-        run:
+        run: |
           docker images
+          echo "Current branch: ${github.ref_name}"
 
       - name: Publish
         run: |
