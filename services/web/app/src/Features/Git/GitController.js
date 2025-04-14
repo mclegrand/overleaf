@@ -58,8 +58,9 @@ async function resetDatabase(projectId, userId, projectPath) {
   }
 }
 
-async function buildProject(currentPath, projectId, ownerId, parentId){
+async function buildProject(currentPath, projectId, ownerId, parentId) {
 
+  resetDatabase(projectId, ownerId, currentPath)
   const items = await fs.readdir(currentPath)
 
   for (const item of items) {
@@ -347,14 +348,13 @@ GitController = {
 
     console.log("Pulling")
 
-    resetDatabase(projectId, userId, projectPath)
-    .then(() => getKey(userId, 'private'))
+    getKey(userId, 'private')
       .then(key => {
         const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
         git = simpleGit().env({'GIT_SSH_COMMAND': GIT_SSH_COMMAND});
         return move(projectId, userId)
       })
-      .then(() => git.pull())
+      .then(() => git.pull({'--no-rebase': null}))
       .then(update => {
         console.log("Repository pulled");
         return buildProject(projectPath, projectId, userId, getRootId(projectId));
@@ -363,6 +363,7 @@ GitController = {
       .catch(error => {
         console.error("Error:", error);
         res.sendStatus(500);
+        return buildProject(projectPath, projectId, userId, getRootId(projectId));
       });
   },
 

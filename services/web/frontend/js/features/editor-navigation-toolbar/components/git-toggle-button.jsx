@@ -22,18 +22,18 @@ function Modal({ isOpen, onClose, onCommit, onPush, notStagedFiles, stagedFiles}
         <div className="modal-content">
           <h2 style={{ fontFamily: 'sans-serif', fontWeight: 500 }}>Git Menu</h2>
           <div>
-            <label htmlFor="commit-message">Commit message</label>
-            <textarea id="commit-message" rows="4" style={{ width: '100%' }}></textarea>
+            <label htmlFor="commit-message" style={{ color: 'black' }}>Commit message</label>
+            <textarea id="commit-message" rows="4" style={{ color: 'dimgray', width: '100%' }}></textarea>
           </div>
           <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <button onClick={onCommit} style={{ width: '100%', marginBottom: '10px' }}>Commit</button>
-            <button onClick={onPush} style={{ width: '100%' }}>Push</button>
+            <button onClick={onCommit} style={{ color: 'black', width: '100%', marginBottom: '10px' }}>Commit</button>
+            <button onClick={onPush} style={{ color: 'black', width: '100%' }}>Push</button>
           </div>
         <div style={{ marginTop: '20px' }}>
           <h3>Modified files (not staged)</h3>
           <ul>
             {notStagedFiles.map((file, index) => (
-              <li key={index}>{file}</li>
+              <li key={index} style={{ color: 'black' }}>{file}</li>
             ))}
           </ul>
         </div>
@@ -41,7 +41,7 @@ function Modal({ isOpen, onClose, onCommit, onPush, notStagedFiles, stagedFiles}
           <h3>Staged files</h3>
           <ul>
             {stagedFiles.map((file, index) => (
-              <li key={index}>{file}</li>
+              <li key={index} style={{ color: 'black' }}>{file}</li>
             ))}
           </ul>
         </div>
