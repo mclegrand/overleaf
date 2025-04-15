@@ -347,6 +347,7 @@ GitController = {
     const projectPath = dataPath + projectId + "-" + userId
 
     console.log("Pulling")
+    // alert("I am an alert box!");
 
     getKey(userId, 'private')
       .then(key => {
@@ -361,7 +362,25 @@ GitController = {
       })
       .then(() => res.sendStatus(200))
       .catch(error => {
-        console.error("Error:", error);
+        console.error("Error.git: ", error.git);
+        if (error.git?.message === "Exiting because of an unresolved conflict." ||
+          error.git?.message === "Exiting because of unfinished merge.") {
+          console.log("here");
+          /*
+          return HttpErrorHandler.conflict(req, res, 'Please commit or stash changes first.', {
+
+            errorType: 'git-conflict',
+            detail: error.git?.message
+          })
+           */
+        } else {
+          // just for debugging for now
+          console.error("Error:", error);
+          console.error("Type:", error?.constructor?.name);
+          console.error("Message:", error?.message);
+          console.error("Stack:", error?.stack);
+          console.error("Full error object:", JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+        }
         res.sendStatus(500);
         return buildProject(projectPath, projectId, userId, getRootId(projectId));
       });
