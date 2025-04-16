@@ -108,6 +108,12 @@ function FileTreeToolbarLeft() {
                 userId: userId
               }
             })
+            .then(response => {
+                alert("Pull successful");
+            })
+            .catch(error => {
+                alert("Error: " + error.message);
+            })
         );
       }}>
         <Icon type="repeat" fw accessibilityLabel={t('pull')} />
