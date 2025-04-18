@@ -92,11 +92,6 @@ module.exports = HttpErrorHandler = {
     }
   },
 
-  gitMethodError(req, res, message, info = {}) {
-    res.status(405)
-    return plainTextResponse(res, message)
-  },
-
   forbidden(req, res, message = 'restricted', info = {}) {
     res.status(403)
     switch (req.accepts(['html', 'json'])) {
