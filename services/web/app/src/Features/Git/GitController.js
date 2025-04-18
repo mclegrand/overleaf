@@ -4,6 +4,8 @@ const dataPath = "/var/lib/overleaf/data/git/"
 const outputPath = "/var/lib/overleaf/data/compiles/"
 const simpleGit = require('simple-git')
 const EditorController = require('../Editor/EditorController')
+const Errors = require('../Errors/Errors')
+const HttpErrorHandler = require('../Errors/HttpErrorHandler')
 const crypto = require('crypto')
 const sshpk = require('sshpk')
 
@@ -347,7 +349,6 @@ GitController = {
     const projectPath = dataPath + projectId + "-" + userId
 
     console.log("Pulling")
-    // alert("I am an alert box!");
 
     getKey(userId, 'private')
       .then(key => {
@@ -358,31 +359,20 @@ GitController = {
       .then(() => git.pull({'--no-rebase': null}))
       .then(update => {
         console.log("Repository pulled");
-        return buildProject(projectPath, projectId, userId, getRootId(projectId));
+        buildProject(projectPath, projectId, userId, getRootId(projectId));
       })
       .then(() => res.sendStatus(200))
       .catch(error => {
         console.error("Error.git: ", error.git);
         if (error.git?.message === "Exiting because of an unresolved conflict." ||
           error.git?.message === "Exiting because of unfinished merge.") {
-          console.log("here");
-          /*
-          return HttpErrorHandler.conflict(req, res, 'Please commit or stash changes first.', {
-
-            errorType: 'git-conflict',
-            detail: error.git?.message
-          })
-           */
+          HttpErrorHandler.gitMethodError(req, res, "Please fix all conflicts before merging");
         } else {
-          // just for debugging for now
           console.error("Error:", error);
-          console.error("Type:", error?.constructor?.name);
           console.error("Message:", error?.message);
-          console.error("Stack:", error?.stack);
-          console.error("Full error object:", JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+          HttpErrorHandler.gitMethodError(req, res, error?.message);
         }
-        res.sendStatus(500);
-        return buildProject(projectPath, projectId, userId, getRootId(projectId));
+        buildProject(projectPath, projectId, userId, getRootId(projectId));
       });
   },
 

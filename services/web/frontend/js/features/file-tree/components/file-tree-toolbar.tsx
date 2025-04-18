@@ -112,6 +112,12 @@ function FileTreeToolbarLeft() {
                 alert("Pull successful");
             })
             .catch(error => {
+                // let message = error.message;
+
+                // if (error.response && error.response.text) {
+                //     alert(error.response.text);
+                //     message = await error.response.text();
+                // }
                 alert("Error: " + error.message);
             })
         );
