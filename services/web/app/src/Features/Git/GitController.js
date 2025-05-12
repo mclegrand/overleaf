@@ -349,35 +349,28 @@ GitController = {
     const projectPath = dataPath + projectId + "-" + userId
 
     console.log("Pulling")
-    HttpErrorHandler.conflict(req, res, "asdfghjkl", {errorReason:"asd"})
-    // HttpErrorHandler.notFound(req,res)
-    // res.status(500).json({ message: "hello"});
-    // HttpErrorHandler.forbidden(req,res)
-    console.log("Done")
-    // getKey(userId, 'private')
-    //   .then(key => {
-    //     const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
-    //     git = simpleGit().env({'GIT_SSH_COMMAND': GIT_SSH_COMMAND});
-    //     return move(projectId, userId)
-    //   })
-    //   .then(() => git.pull({'--no-rebase': null}))
-    //   .then(update => {
-    //     console.log("Repository pulled");
-    //     buildProject(projectPath, projectId, userId, getRootId(projectId));
-    //   })
-    //   .then(() => res.sendStatus(200))
-    //   .catch(error => {
-    //     console.error("Error.git: ", error.git);
-    //     if (error.git?.message === "Exiting because of an unresolved conflict." ||
-    //       error.git?.message === "Exiting because of unfinished merge.") {
-    //       HttpErrorHandler.gitMethodError(req, res, "Please fix all conflicts before merging");
-    //     } else {
-    //       console.error("Error:", error);
-    //       console.error("Message:", error?.message);
-    //       HttpErrorHandler.gitMethodError(req, res, error?.message);
-    //     }
-    //     buildProject(projectPath, projectId, userId, getRootId(projectId));
-    //   });
+    getKey(userId, 'private')
+      .then(key => {
+        const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
+        git = simpleGit().env({'GIT_SSH_COMMAND': GIT_SSH_COMMAND});
+        return move(projectId, userId)
+      })
+      .then(() => git.pull({'--no-rebase': null}))
+      .then(update => {
+        console.log("Repository pulled");
+        buildProject(projectPath, projectId, userId, getRootId(projectId));
+      })
+      .then(() => res.sendStatus(200))
+      .catch(error => {
+        console.error("Error.git: ", error.git);
+        if (error.git?.message === "Exiting because of an unresolved conflict." ||
+          error.git?.message === "Exiting because of unfinished merge.") {
+          HttpErrorHandler.conflict(req, res, "", {errorReason:"Please fix all conflicts before merging"})
+        } else {
+          HttpErrorHandler.conflict(req, res, "", {errorReason:error?.message})
+        }
+        buildProject(projectPath, projectId, userId, getRootId(projectId));
+      });
   },
 
   add(req, res) {

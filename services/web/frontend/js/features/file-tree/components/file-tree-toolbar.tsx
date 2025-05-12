@@ -112,29 +112,7 @@ function FileTreeToolbarLeft() {
                 alert("Pull successful");
             })
             .catch( error => {
-                let message = error.message;
-                alert("data: " + error.data);
                 alert("data: " + error.data.errorReason);
-                alert("info: " + error.info);
-                alert("try:" + error.info.errorReason)
-                alert("please: " + JSON.stringify(error.info))
-                alert("message: " + message);
-                // alert("help " + error.info.test);
-                // alert("json: " + error.info["test"]);
-                // alert("error.response: " + error.response);
-                // alert("error: " + error);
-                // alert("text: " + error.response.text)
-                // alert(message)
-                if (error.response && error.response.text) {
-                    // Use .then() to resolve the promise
-                    setTimeout(() => null, 0);
-                    error.response.text().then((text: any) => {
-                        message = text;
-                        alert("Error: " + message);
-                    });
-                } else {
-                    alert("Error: " + message);
-                }
             })
         );
       }}>
