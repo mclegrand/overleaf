@@ -397,6 +397,10 @@ GitController = {
     const userId = req.body.userId
     const message = req.body.message
     console.log("Commit with message: " + message)
+    if (message === "") {
+      HttpErrorHandler.gitMethodError(req, res, "", {errorReason: "Please add a commit message before commiting."})
+      return
+    }
     move(projectId, userId)
 
     git.commit(message, (error) => {
