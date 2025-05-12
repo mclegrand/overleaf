@@ -435,6 +435,7 @@ GitController = {
       })
       .catch(error => {
         console.error("Error:", error)
+        HttpErrorHandler.gitMethodError(req, res, "Error: " + error)
         res.sendStatus(500)
       })
   },
