@@ -104,11 +104,11 @@ module.exports = HttpErrorHandler = {
     }
   },
 
-  gitMethodError(req, res, message, info = {}) {
+  gitMethodError(req, res, message) {
     res.status(405);
     switch (req.accepts(['json'])) {
       case 'json':
-        return renderJSONError(res, message, info)
+        return renderJSONError(res, message, {errorReason: message})
       default:
         return plainTextResponse(res, message)
     }

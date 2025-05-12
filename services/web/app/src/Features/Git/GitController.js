@@ -365,9 +365,9 @@ GitController = {
         console.error("Error.git: ", error.git);
         if (error.git?.message === "Exiting because of an unresolved conflict." ||
           error.git?.message === "Exiting because of unfinished merge.") {
-          HttpErrorHandler.conflict(req, res, "", {errorReason:"Please fix all conflicts before merging"})
+          HttpErrorHandler.gitMethodError(req, res, "Please fix all conflicts before merging")
         } else {
-          HttpErrorHandler.conflict(req, res, "", {errorReason:error?.message})
+          HttpErrorHandler.conflict(req, res, "errorReason:error?.message")
         }
         buildProject(projectPath, projectId, userId, getRootId(projectId));
       });
@@ -383,7 +383,7 @@ GitController = {
     git.add(filePath, (error) => {
         if (error) {
           console.error("Could not add the file", error)
-          res.sendStatus(500)
+          HttpErrorHandler.gitMethodError(req, res, "Could not add the file: " + error)
         }
         else{
           console.log('File added')
@@ -398,7 +398,7 @@ GitController = {
     const message = req.body.message
     console.log("Commit with message: " + message)
     if (message === "") {
-      HttpErrorHandler.gitMethodError(req, res, "", {errorReason: "Please add a commit message before commiting."})
+      HttpErrorHandler.gitMethodError(req, res, "Please add a commit message before commiting.")
       return
     }
     move(projectId, userId)
