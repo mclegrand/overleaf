@@ -1,5 +1,5 @@
 let CompileManager
-const { gitUpdate } = require('../Git/GitController')
+const { gitUpdate } = require('../Git/GitUtils')
 const Settings = require('@overleaf/settings')
 const RedisWrapper = require('../../infrastructure/RedisWrapper')
 const rclient = RedisWrapper.client('clsi_recently_compiled')

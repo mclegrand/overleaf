@@ -4,6 +4,9 @@ const dataPath = "/var/lib/overleaf/data/git/"
 const outputPath = "/var/lib/overleaf/data/compiles/"
 const simpleGit = require('simple-git')
 const EditorController = require('../Editor/EditorController')
+const CompileManager = require('../Compile/CompileManager');
+const ClsiCookieManager = require('../Compile/ClsiCookieManager');
+
 const crypto = require('crypto')
 const sshpk = require('sshpk')
 
@@ -347,7 +350,6 @@ GitController = {
     const projectPath = dataPath + projectId + "-" + userId
 
     console.log("Pulling")
-
     getKey(userId, 'private')
       .then(key => {
         const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
@@ -367,23 +369,48 @@ GitController = {
       });
   },
 
-  add(req, res) {
+  async add(req, res) {
     const projectId = req.body.projectId
     const userId = req.body.userId
     const filePath = req.body.filePath
     console.log("Adding " + filePath)
     move(projectId, userId)
+    console.log("compiling bcause add")
 
-    git.add(filePath, (error) => {
-        if (error) {
-          console.error("Could not add the file", error)
-          res.sendStatus(500)
-        }
-        else{
-          console.log('File added')
-          res.sendStatus(200)
-        }
-     })
+try {
+      console.log('Triggering compilation...');
+      const compilePromise = new Promise((resolve, reject) => {
+        let handler = setTimeout(() => {
+          reject(new Error('Compiler timed out'));
+          handler = null;
+        }, 10000); // 10-second timeout
+
+        CompileManager.compile(
+          projectId,
+          userId,
+          {}, // Add any options if needed
+          function (error, status) {
+            if (handler) {
+              clearTimeout(handler);
+            }
+            if (error) {
+              reject(error);
+            } else if (status === 'success') {
+              resolve('Compilation successful');
+            } else {
+              reject(new Error(`Compilation failed: ${status}`));
+            }
+          }
+        );
+      });
+
+      const compileResult = await compilePromise;
+      console.log(compileResult);
+}
+catch(error){
+console.log("erreur add")
+}
+
   },
 
   commit(req, res) {
@@ -479,3 +506,6 @@ GitController = {
 }
 
 module.exports = {GitController, gitClone, gitUpdate}
+
+
+
