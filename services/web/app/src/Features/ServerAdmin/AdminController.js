@@ -6,6 +6,28 @@ const TpdsUpdateSender = require('../ThirdPartyDataStore/TpdsUpdateSender')
 const TpdsProjectFlusher = require('../ThirdPartyDataStore/TpdsProjectFlusher')
 const EditorRealTimeController = require('../Editor/EditorRealTimeController')
 const SystemMessageManager = require('../SystemMessages/SystemMessageManager')
+const { readdir, stat } = require('fs/promises');
+const { join } = require('path');
+
+const dirSize = async dir => {
+  const files = await readdir( dir, { withFileTypes: true } );
+
+  const paths = files.map( async file => {
+    const path = join( dir, file.name );
+
+    if ( file.isDirectory() ) return await dirSize( path );
+
+    if ( file.isFile() ) {
+      const { size } = await stat( path );
+      
+      return size;
+    }
+
+    return 0;
+  } );
+
+  return ( await Promise.all( paths ) ).flat( Infinity ).reduce( ( i, size ) => i + size, 0 );
+}
 
 const AdminController = {
   _sendDisconnectAllUsersMessage: delay => {
@@ -15,7 +37,7 @@ const AdminController = {
       delay
     )
   },
-  index: (req, res, next) => {
+  index: async (req, res, next) => {
     let url
     const openSockets = {}
     for (url in http.globalAgent.sockets) {
@@ -29,6 +51,14 @@ const AdminController = {
         socket => socket._httpMessage.path
       )
     }
+    const targetDir = '/var/lib/overleaf/data'
+    let directorySizeBytes = null
+    try {
+      directorySizeBytes = await dirSize(targetDir)
+    } catch (err) {
+      logger.error('Failed to get directory size', { error: err, targetDir })
+      directorySizeBytes = null
+    }
 
     SystemMessageManager.getMessagesFromDB(function (error, systemMessages) {
       if (error) {
@@ -38,6 +68,7 @@ const AdminController = {
         title: 'System Admin',
         openSockets,
         systemMessages,
+	directorySizeBytes,
       })
     })
   },
@@ -92,6 +123,8 @@ const AdminController = {
       res.redirect('/admin#system-messages')
     })
   },
+  
+  
 }
 
 module.exports = AdminController

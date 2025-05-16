@@ -104,3 +104,8 @@ block content
 								)
 									h3 Vm use
 									p No data is currently available. Please Wait.
+									if typeof directorySizeBytes !== 'undefined' && directorySizeBytes !== null
+										p Directory size: #{directorySizeBytes} bytes.
+									else
+										p Directory size could not be determined.
+
