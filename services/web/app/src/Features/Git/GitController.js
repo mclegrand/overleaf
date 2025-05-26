@@ -35,6 +35,38 @@ async function createFolder(projectId, ownerId, parentId, name) {
  return doc._id.toString()
 }
 
+async function compileProject(projectId, userId)
+{
+  console.log('Triggering compilation...');
+  const compilePromise = new Promise((resolve, reject) => {
+	  let handler = setTimeout(() => {
+          reject(new Error('Compiler timed out'));
+          handler = null;
+        }, 10000); // 10-second timeout
+
+  CompileManager.compile(
+          projectId,
+          userId,
+          {}, // Add any options if needed
+          function (error, status) {
+            if (handler) {
+              clearTimeout(handler);
+            }
+            if (error) {
+              reject(error);
+            } else if (status === 'success') {
+              resolve('Compilation successful');
+            } else {
+              reject(new Error(`Compilation failed: ${status}`));
+            }
+          }
+        );
+      });
+
+  const compileResult = await compilePromise;
+  console.log(compileResult);
+
+}
 async function createFile(projectId, ownerId, parentId, name, content) {
   try {
     const doc = await EditorController.promises.addDoc(
@@ -348,7 +380,11 @@ GitController = {
     const projectId = req.body.projectId
     const userId = req.body.userId
     const projectPath = dataPath + projectId + "-" + userId
-
+    console.log("compiling in pull")
+    try {
+      compileProject(projectId,userId)
+    }
+    catch(error){console.log("error when compiling in git pull")}
     console.log("Pulling")
     getKey(userId, 'private')
       .then(key => {
@@ -376,41 +412,10 @@ GitController = {
     console.log("Adding " + filePath)
     move(projectId, userId)
     console.log("compiling bcause add")
-
-try {
-      console.log('Triggering compilation...');
-      const compilePromise = new Promise((resolve, reject) => {
-        let handler = setTimeout(() => {
-          reject(new Error('Compiler timed out'));
-          handler = null;
-        }, 10000); // 10-second timeout
-
-        CompileManager.compile(
-          projectId,
-          userId,
-          {}, // Add any options if needed
-          function (error, status) {
-            if (handler) {
-              clearTimeout(handler);
-            }
-            if (error) {
-              reject(error);
-            } else if (status === 'success') {
-              resolve('Compilation successful');
-            } else {
-              reject(new Error(`Compilation failed: ${status}`));
-            }
-          }
-        );
-      });
-
-      const compileResult = await compilePromise;
-      console.log(compileResult);
-}
-catch(error){
-console.log("erreur add")
-}
-
+    try {
+      compileProject(projectId,userId)
+    }
+    catch(error){console.log("error when compiling in git add")}
   },
 
   commit(req, res) {
@@ -436,7 +441,11 @@ console.log("erreur add")
     const projectId = req.body.projectId
     const userId = req.body.userId
     console.log("Pushing")
-
+    try {
+      compileProject(projectId,userId)
+    }
+    catch(error){console.log("error when compiling in git push")}
+    
     move(projectId, userId)
 
     getKey(userId, 'private')
