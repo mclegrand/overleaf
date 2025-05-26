@@ -112,7 +112,7 @@ function FileTreeToolbarLeft() {
                 alert("Pull successful");
             })
             .catch( error => {
-                alert("data: " + error.data.errorReason);
+                alert(error.data.errorReason);
             })
         );
       }}>

@@ -363,11 +363,12 @@ GitController = {
       .then(() => res.sendStatus(200))
       .catch(error => {
         console.error("Error.git: ", error.git);
+        console.error("Error.message: ", error.message);
         if (error.git?.message === "Exiting because of an unresolved conflict." ||
           error.git?.message === "Exiting because of unfinished merge.") {
           HttpErrorHandler.gitMethodError(req, res, "Please fix all conflicts before merging")
         } else {
-          HttpErrorHandler.conflict(req, res, "errorReason:error?.message")
+          HttpErrorHandler.gitMethodError(req, res, error?.git?.message || error?.message || String(error));
         }
         buildProject(projectPath, projectId, userId, getRootId(projectId));
       });
@@ -383,7 +384,7 @@ GitController = {
     git.add(filePath, (error) => {
         if (error) {
           console.error("Could not add the file", error)
-          HttpErrorHandler.gitMethodError(req, res, "Could not add the file: " + error)
+          HttpErrorHandler.gitMethodError(req, res, error?.git?.message || error?.message || String(error));
         }
         else{
           console.log('File added')
@@ -406,7 +407,7 @@ GitController = {
     git.commit(message, (error) => {
         if (error) {
           console.error("Could not commit", error)
-          res.sendStatus(500)
+          HttpErrorHandler.gitMethodError(req, res, error)
         }
         else{
           console.log('Commit successful')
@@ -435,7 +436,7 @@ GitController = {
       })
       .catch(error => {
         console.error("Error:", error)
-        HttpErrorHandler.gitMethodError(req, res, "Error: " + error)
+        HttpErrorHandler.gitMethodError(req, res, error?.git?.message || error?.message || String(error));
         res.sendStatus(500)
       })
   },
