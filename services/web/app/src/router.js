@@ -316,6 +316,12 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     GitController.notStagedFiles
   )
 
+  webRouter.get(
+    '/git-branches',
+    AuthenticationController.requireLogin(),
+    GitController.branches
+  )
+
   webRouter.post(
     '/git-pull',
     AuthenticationController.requireLogin(),

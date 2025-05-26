@@ -134,6 +134,15 @@ async function getNotStaged() {
     }
 }
 
+async function getBranches() {
+  try {
+    return ["main1", "main2"]
+  } catch (error) {
+    console.error("Error fetching not staged files:", error);
+    return []
+  }
+}
+
 async function getModified() {
 
     try {
@@ -469,6 +478,19 @@ GitController = {
       console.error("Error:", error)
       res.json([])
     })
+  },
+
+  branches(req, res) {
+    const { projectId, userId } = req.query
+
+    getBranches()
+      .then(branchList => {
+        res.json(branchList)
+      })
+      .catch(error => {
+        console.error("Error:", error)
+        res.json([])
+      })
   },
 
   getKey(req, res) {

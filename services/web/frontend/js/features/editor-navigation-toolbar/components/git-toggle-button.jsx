@@ -13,7 +13,7 @@ import {
   postJSON,
 } from '../../../infrastructure/fetch-json'
 
-function Modal({ isOpen, onClose, onCommit, onPush, notStagedFiles, stagedFiles}) {
+function Modal({ isOpen, onClose, onCommit, onPush, notStagedFiles, stagedFiles, branches, selectedBranch, onSelectBranch}) {
   if (!isOpen) return null
 
   return (
@@ -21,6 +21,19 @@ function Modal({ isOpen, onClose, onCommit, onPush, notStagedFiles, stagedFiles}
         <button onClick={onClose} className="modal-close-button">X</button>
         <div className="modal-content">
           <h2 style={{ fontFamily: 'sans-serif', fontWeight: 500 }}>Git Menu</h2>
+          <div style={{ marginBottom: '15px' }}>
+            <label htmlFor="branch-select" style={{ color: 'black' }}>Select Branch</label>
+            <select
+              id="branch-select"
+              value={selectedBranch}
+              onChange={(e) => onSelectBranch(e.target.value)}
+              style={{ width: '100%', padding: '5px', color: 'dimgray' }}
+            >
+              {branches.map((branch, idx) => (
+                <option key={idx} value={branch}>{branch}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <label htmlFor="commit-message" style={{ color: 'black' }}>Commit message</label>
             <textarea id="commit-message" rows="4" style={{ color: 'dimgray', width: '100%' }}></textarea>
@@ -58,6 +71,8 @@ function GitToggleButton() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [notStagedFiles, setNotStagedFiles] = useState([])
   const [stagedFiles, setStagedFiles] = useState([])
+  const [branches, setBranches] = useState([])
+  const [selectedBranch, setSelectedBranch] = useState('')
 
   const classes = classNames(
     'btn',
@@ -67,6 +82,12 @@ function GitToggleButton() {
 
   useEffect(() => {
     if (isModalOpen) {
+      getJSON(`/git-branches?projectId=${projectId}&userId=${userId}`)
+        .then((data) => {
+          setBranches(data)
+          if (data.length > 0) setSelectedBranch(data[0])
+        })
+        .catch(console.error)
       getJSON(`/git-notstaged?projectId=${projectId}&userId=${userId}`).then(setNotStagedFiles).catch(console.error)
       getJSON(`/git-staged?projectId=${projectId}&userId=${userId}`).then(setStagedFiles).catch(console.error)
     }
@@ -121,6 +142,9 @@ function GitToggleButton() {
         onPush={handlePush}
         notStagedFiles={notStagedFiles}
         stagedFiles={stagedFiles}
+        branches={branches}
+        selectedBranch={selectedBranch}
+        onSelectBranch={setSelectedBranch}
       />
     </div>
   )
