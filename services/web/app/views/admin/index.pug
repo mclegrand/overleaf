@@ -108,4 +108,19 @@ block content
 										p Directory size: #{directorySizeBytes} bytes.
 									else
 										p Directory size could not be determined.
-
+									if typeof historySizeBytes !== 'undefined' && historySizeBytes !== null
+										p History size: #{historySizeBytes} bytes.
+									else
+										p History size could not be determined.
+									if userFilesUsage
+										h2 User Files Disk Usage
+										table.table
+											thead
+												tr
+													th User ID
+													th Disk Usage (bytes)
+											tbody
+												each usage, userId in userFilesUsage
+													tr
+														td #{userId}
+														td #{usage}

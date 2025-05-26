@@ -6,28 +6,57 @@ const TpdsUpdateSender = require('../ThirdPartyDataStore/TpdsUpdateSender')
 const TpdsProjectFlusher = require('../ThirdPartyDataStore/TpdsProjectFlusher')
 const EditorRealTimeController = require('../Editor/EditorRealTimeController')
 const SystemMessageManager = require('../SystemMessages/SystemMessageManager')
-const { readdir, stat } = require('fs/promises');
-const { join } = require('path');
 
-const dirSize = async dir => {
-  const files = await readdir( dir, { withFileTypes: true } );
+// for admin view
+const fs = require('fs')
+const path = require('path')
+const util = require('util')
+const readdir = util.promisify(fs.readdir)
+const stat = util.promisify(fs.stat)
 
-  const paths = files.map( async file => {
-    const path = join( dir, file.name );
-
-    if ( file.isDirectory() ) return await dirSize( path );
-
-    if ( file.isFile() ) {
-      const { size } = await stat( path );
-      
-      return size;
+async function dirSize(directoryPath) {
+  let totalSize = 0;
+  const entries = await readdir(directoryPath, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(directoryPath, entry.name);
+    if (entry.isDirectory()) {
+      totalSize += await dirSize(fullPath);
+    } else if (entry.isFile()) {
+      const fileStat = await stat(fullPath);
+      totalSize += fileStat.size;
     }
-
-    return 0;
-  } );
-
-  return ( await Promise.all( paths ) ).flat( Infinity ).reduce( ( i, size ) => i + size, 0 );
+  }
+  return totalSize;
 }
+
+async function getUserFilesDiskUsage(userFilesDir) {
+  let userUsageMap = {}; // userId -> summed bytes
+  let entries;
+  try {
+    entries = await readdir(userFilesDir, { withFileTypes: true });
+  } catch (err) {
+    // handle error or return empty object
+    return {};
+  }
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    // filename pattern: "${projectId}_${userId}"
+    const match = entry.name.match(/^[^_]+_(.+)$/);
+    if (!match) continue;
+    const userId = match[1];
+    const fullPath = path.join(userFilesDir, entry.name);
+    let fileStat;
+    try {
+      fileStat = await stat(fullPath);
+    } catch (err) {
+      continue;
+    }
+    if (!userUsageMap[userId]) userUsageMap[userId] = 0;
+    userUsageMap[userId] += fileStat.size;
+  }
+  return userUsageMap; // { userId: <total bytes>, ... }
+}
+
 
 const AdminController = {
   _sendDisconnectAllUsersMessage: delay => {
@@ -52,9 +81,15 @@ const AdminController = {
       )
     }
     const targetDir = '/var/lib/overleaf/data'
+    const historyDir = '/var/lib/overleaf/data/history'
+    const userFilesDir = '/var/lib/overleaf/data/user_files'
     let directorySizeBytes = null
+    let historySizeBytes = null
+    let userFilesUsage = null
     try {
       directorySizeBytes = await dirSize(targetDir)
+      historySizeBytes = await dirSize(historyDir)
+      userFilesUsage = await getUserFilesDiskUsage(userFilesDir)
     } catch (err) {
       logger.error('Failed to get directory size', { error: err, targetDir })
       directorySizeBytes = null
@@ -68,7 +103,9 @@ const AdminController = {
         title: 'System Admin',
         openSockets,
         systemMessages,
-	directorySizeBytes,
+        directorySizeBytes,
+        historySizeBytes,
+        userFilesUsage,
       })
     })
   },
