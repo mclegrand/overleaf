@@ -339,6 +339,13 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     AuthenticationController.requireLogin(),
     GitController.push
   )
+
+  webRouter.post(
+    '/git-switch-branch',
+    AuthenticationController.requireLogin(),
+    GitController.switch_branch
+  )
+
   webRouter.post(
     '/project/import',
     AuthenticationController.requireLogin(),

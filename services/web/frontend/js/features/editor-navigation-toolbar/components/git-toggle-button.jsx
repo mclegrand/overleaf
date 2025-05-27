@@ -129,6 +129,20 @@ function GitToggleButton() {
     setIsModalOpen(false)
   }
 
+  const handleSelectBranch = (branchName) => {
+    setSelectedBranch(branchName)
+
+    runAsync(
+      postJSON('/git-switch-branch', {
+        body: {
+          projectId: projectId,
+          userId: userId,
+          branch: branchName
+        }
+      })
+    ).catch(console.error)
+  }
+
   return (
     <div className="toolbar-item">
       <button className={classes} onClick={handleButtonClick}>
@@ -144,7 +158,7 @@ function GitToggleButton() {
         stagedFiles={stagedFiles}
         branches={branches}
         selectedBranch={selectedBranch}
-        onSelectBranch={setSelectedBranch}
+        onSelectBranch={handleSelectBranch}
       />
     </div>
   )

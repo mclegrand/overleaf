@@ -135,11 +135,21 @@ async function getNotStaged() {
 }
 
 async function getBranches() {
+  // git.fetch()
+  // try {
+  //   return ["main1", "main2"]
+  // } catch (error) {
+  //   console.error("Error fetching not staged files:", error);
+  //   return []
+  // }
+
   try {
-    return ["main1", "main2"]
-  } catch (error) {
-    console.error("Error fetching not staged files:", error);
-    return []
+    await git.fetch('origin');
+    console.error("fetched");
+    const branches = await git.branch(['-r']);
+    console.log('Remote branches:', branches.all);
+  } catch (err) {
+    console.error("Error fetching not staged files:", err);
   }
 }
 
@@ -344,14 +354,6 @@ GitController = {
     res.sendStatus(200)
   },
 
-  commit(req, res){
-    const id = req.body.id
-    const projectPath = dataPath + id
-    const filePath = req.body.filePath
-    console.log("Commit " + filePath + " in " + projectPath)
-    res.sendStatus(200)
-  },
-
   pull(req, res) {
     const projectId = req.body.projectId
     const userId = req.body.userId
@@ -483,6 +485,7 @@ GitController = {
   branches(req, res) {
     const { projectId, userId } = req.query
 
+    move(projectId, userId)
     getBranches()
       .then(branchList => {
         res.json(branchList)
@@ -491,6 +494,28 @@ GitController = {
         console.error("Error:", error)
         res.json([])
       })
+  },
+
+  switch_branch(req, res) {
+    const { projectId, userId, branchName} = req.query
+    console.log("switch branch")
+    // move(projectId, userId)
+    // const projectPath = dataPath + projectId + "-" + userId
+    // getKey(userId, 'private')
+    //   .then(key => {
+    //     const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
+    //     git = simpleGit().env({'GIT_SSH_COMMAND': GIT_SSH_COMMAND});
+    //     return move(projectId, userId)
+    //   })
+    //   .then(() => git.checkoutLocalBranch(branchName))
+    //   .then(update => {
+    //     buildProject(projectPath, projectId, userId, getRootId(projectId));
+    //   })
+    //   .then(() => res.sendStatus(200))
+    //   .catch(error => {
+    //     HttpErrorHandler.gitMethodError(req, res, error?.git?.message || error?.message || String(error));
+    //     buildProject(projectPath, projectId, userId, getRootId(projectId));
+    //   });
   },
 
   getKey(req, res) {
