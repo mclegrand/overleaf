@@ -41,9 +41,9 @@ async function getUserFilesDiskUsage(userFilesDir) {
   for (const entry of entries) {
     if (!entry.isFile()) continue;
     // filename pattern: "${projectId}_${userId}"
-    const match = entry.name.match(/^[^_]+_(.+)$/);
+    const match = entry.name.match( /^([^_]+)_([^_]+)$/)
     if (!match) continue;
-    const userId = match[1];
+    const projectId = match[1];
     const fullPath = path.join(userFilesDir, entry.name);
     let fileStat;
     try {
@@ -51,10 +51,10 @@ async function getUserFilesDiskUsage(userFilesDir) {
     } catch (err) {
       continue;
     }
-    if (!userUsageMap[userId]) userUsageMap[userId] = 0;
-    userUsageMap[userId] += fileStat.size;
+    if (!userUsageMap[projectId]) userUsageMap[projectId] = 0;
+    userUsageMap[projectId] += fileStat.size;
   }
-  return userUsageMap; // { userId: <total bytes>, ... }
+  return userUsageMap; // { projectId: <total bytes>, ... }
 }
 
 
