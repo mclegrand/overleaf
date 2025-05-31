@@ -1,3 +1,4 @@
+//GitController.js
 const path = require('path')
 const fs = require('fs-extra')
 const dataPath = "/var/lib/overleaf/data/git/"
@@ -58,8 +59,9 @@ async function resetDatabase(projectId, userId, projectPath) {
   }
 }
 
-async function buildProject(currentPath, projectId, ownerId, parentId){
+async function buildProject(currentPath, projectId, ownerId, parentId) {
 
+  resetDatabase(projectId, ownerId, currentPath)
   const items = await fs.readdir(currentPath)
 
   for (const item of items) {
@@ -141,6 +143,33 @@ async function getModified() {
     } catch (error) {
         console.error("Error fetching modified files:", error);
         return []
+    }
+}
+
+// historique des commits
+async function getCommitHistory(limit = 10) {
+    try {
+        const log = await git.log(['--oneline', `-${limit}`])
+        return log.all.map(commit => ({
+            hash: commit.hash,
+            message: commit.message,
+            date: commit.date
+        }))
+    } catch (error) {
+        console.error("Error fetching commit history:", error);
+        return []
+    }
+}
+
+// effectuer un reset hard vers un commit spécifique
+async function resetToCommit(commitHash) {
+    try {
+        await git.reset(['--hard', commitHash])
+        console.log(`Reset to commit ${commitHash} successful`)
+        return true
+    } catch (error) {
+        console.error("Error resetting to commit:", error);
+        throw error
     }
 }
 
@@ -347,14 +376,13 @@ GitController = {
 
     console.log("Pulling")
 
-    resetDatabase(projectId, userId, projectPath)
-    .then(() => getKey(userId, 'private'))
+    getKey(userId, 'private')
       .then(key => {
         const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
         git = simpleGit().env({'GIT_SSH_COMMAND': GIT_SSH_COMMAND});
         return move(projectId, userId)
       })
-      .then(() => git.pull())
+      .then(() => git.pull({'--no-rebase': null}))
       .then(update => {
         console.log("Repository pulled");
         return buildProject(projectPath, projectId, userId, getRootId(projectId));
@@ -363,6 +391,7 @@ GitController = {
       .catch(error => {
         console.error("Error:", error);
         res.sendStatus(500);
+        return buildProject(projectPath, projectId, userId, getRootId(projectId));
       });
   },
 
@@ -424,6 +453,49 @@ GitController = {
       })
       .catch(error => {
         console.error("Error:", error)
+        res.sendStatus(500)
+      })
+  },
+
+  // Route pour obtenir l'historique des commits
+  commitHistory(req, res) {
+    const { projectId, userId } = req.query
+    const limit = req.query.limit || 10
+
+    move(projectId, userId)
+
+    getCommitHistory(parseInt(limit))
+      .then(commits => {
+        res.json(commits)
+      })
+      .catch(error => {
+        console.error("Error fetching commit history:", error)
+        res.json([])
+      })
+  },
+
+  // Route pour effectuer un rollback
+  rollback(req, res) {
+    const projectId = req.body.projectId
+    const userId = req.body.userId
+    const commitHash = req.body.commitHash
+    const projectPath = dataPath + projectId + "-" + userId
+
+    console.log(`Rolling back to commit ${commitHash}`)
+
+    move(projectId, userId)
+
+    resetToCommit(commitHash)
+      .then(() => {
+        console.log("Rollback successful, rebuilding project")
+        return buildProject(projectPath, projectId, userId, getRootId(projectId))
+      })
+      .then(() => {
+        console.log('Rollback and rebuild successful')
+        res.sendStatus(200)
+      })
+      .catch(error => {
+        console.error("Error during rollback:", error)
         res.sendStatus(500)
       })
   },

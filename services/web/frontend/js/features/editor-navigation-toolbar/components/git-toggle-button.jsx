@@ -13,7 +13,10 @@ import {
   postJSON,
 } from '../../../infrastructure/fetch-json'
 
-function Modal({ isOpen, onClose, onCommit, onPush, notStagedFiles, stagedFiles}) {
+function Modal({ isOpen, onClose, onCommit, onPush, onRollback, notStagedFiles, stagedFiles, commitHistory}) {
+  const [activeTab, setActiveTab] = useState('commit')
+  const [selectedCommit, setSelectedCommit] = useState('')
+
   if (!isOpen) return null
 
   return (
@@ -21,30 +24,140 @@ function Modal({ isOpen, onClose, onCommit, onPush, notStagedFiles, stagedFiles}
         <button onClick={onClose} className="modal-close-button">X</button>
         <div className="modal-content">
           <h2 style={{ fontFamily: 'sans-serif', fontWeight: 500 }}>Git Menu</h2>
-          <div>
-            <label htmlFor="commit-message">Commit message</label>
-            <textarea id="commit-message" rows="4" style={{ width: '100%' }}></textarea>
+          
+          {/* Tabs */}
+          <div style={{ display: 'flex', marginBottom: '20px', borderBottom: '1px solid #ddd' }}>
+            <button 
+              onClick={() => setActiveTab('commit')}
+              style={{ 
+                padding: '10px 20px', 
+                border: 'none', 
+                backgroundColor: activeTab === 'commit' ? '#007bff' : 'transparent',
+                color: activeTab === 'commit' ? 'white' : 'black',
+                cursor: 'pointer'
+              }}
+            >
+              Commit & Push
+            </button>
+            <button 
+              onClick={() => setActiveTab('rollback')}
+              style={{ 
+                padding: '10px 20px', 
+                border: 'none', 
+                backgroundColor: activeTab === 'rollback' ? '#007bff' : 'transparent',
+                color: activeTab === 'rollback' ? 'white' : 'black',
+                cursor: 'pointer'
+              }}
+            >
+              Rollback
+            </button>
           </div>
-          <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <button onClick={onCommit} style={{ width: '100%', marginBottom: '10px' }}>Commit</button>
-            <button onClick={onPush} style={{ width: '100%' }}>Push</button>
-          </div>
-        <div style={{ marginTop: '20px' }}>
-          <h3>Modified files (not staged)</h3>
-          <ul>
-            {notStagedFiles.map((file, index) => (
-              <li key={index}>{file}</li>
-            ))}
-          </ul>
-        </div>
-        <div style={{ marginTop: '20px' }}>
-          <h3>Staged files</h3>
-          <ul>
-            {stagedFiles.map((file, index) => (
-              <li key={index}>{file}</li>
-            ))}
-          </ul>
-        </div>
+
+          {/* Commit & Push Tab */}
+          {activeTab === 'commit' && (
+            <>
+              <div>
+                <label htmlFor="commit-message" style={{ color: 'black' }}>Commit message</label>
+                <textarea id="commit-message" rows="4" style={{ color: 'dimgray', width: '100%' }}></textarea>
+              </div>
+              <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <button onClick={onCommit} style={{ color: 'black', width: '100%', marginBottom: '10px' }}>Commit</button>
+                <button onClick={onPush} style={{ color: 'black', width: '100%' }}>Push</button>
+              </div>
+              <div style={{ marginTop: '20px' }}>
+                <h3>Modified files (not staged)</h3>
+                <ul>
+                  {notStagedFiles.map((file, index) => (
+                    <li key={index} style={{ color: 'black' }}>{file}</li>
+                  ))}
+                </ul>
+              </div>
+              <div style={{ marginTop: '20px' }}>
+                <h3>Staged files</h3>
+                <ul>
+                  {stagedFiles.map((file, index) => (
+                    <li key={index} style={{ color: 'black' }}>{file}</li>
+                  ))}
+                </ul>
+              </div>
+            </>
+          )}
+
+          {/* Rollback Tab */}
+          {activeTab === 'rollback' && (
+            <>
+              <div style={{ marginBottom: '20px' }}>
+                <h3 style={{ color: 'black', marginBottom: '10px' }}>Recent Commits</h3>
+                <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #ddd', padding: '10px' }}>
+                  {commitHistory.length > 0 ? (
+                    commitHistory.map((commit, index) => (
+                      <div 
+                        key={commit.hash} 
+                        style={{ 
+                          marginBottom: '10px', 
+                          padding: '10px', 
+                          border: selectedCommit === commit.hash ? '2px solid #007bff' : '1px solid #eee',
+                          borderRadius: '5px',
+                          cursor: 'pointer',
+                          backgroundColor: selectedCommit === commit.hash ? '#f0f8ff' : 'white'
+                        }}
+                        onClick={() => setSelectedCommit(commit.hash)}
+                      >
+                        <div style={{ fontWeight: 'bold', color: 'black', fontSize: '12px' }}>
+                          {commit.hash.substring(0, 7)}
+                        </div>
+                        <div style={{ color: 'black', marginTop: '5px' }}>
+                          {commit.message}
+                        </div>
+                        {commit.date && (
+                          <div style={{ color: 'gray', fontSize: '11px', marginTop: '5px' }}>
+                            {new Date(commit.date).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ color: 'gray', textAlign: 'center' }}>
+                      No commit history available
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {selectedCommit && (
+                <div style={{ marginTop: '20px' }}>
+                  <div style={{ 
+                    padding: '10px', 
+                    backgroundColor: '#fff3cd', 
+                    border: '1px solid #ffeaa7', 
+                    borderRadius: '5px',
+                    marginBottom: '15px'
+                  }}>
+                    <strong style={{ color: '#856404' }}>⚠️ Warning:</strong>
+                    <div style={{ color: '#856404', marginTop: '5px' }}>
+                      Rolling back will reset your project to commit <code>{selectedCommit.substring(0, 7)}</code>. 
+                      All changes after this commit will be lost permanently.
+                    </div>
+                  </div>
+                  
+                  <button 
+                    onClick={() => onRollback(selectedCommit)}
+                    style={{ 
+                      backgroundColor: '#dc3545', 
+                      color: 'white', 
+                      border: 'none',
+                      padding: '10px 20px',
+                      borderRadius: '5px',
+                      cursor: 'pointer',
+                      width: '100%'
+                    }}
+                  >
+                    Rollback to this commit
+                  </button>
+                </div>
+              )}
+            </>
+          )}
       </div>
     </div>
   )
@@ -58,6 +171,7 @@ function GitToggleButton() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [notStagedFiles, setNotStagedFiles] = useState([])
   const [stagedFiles, setStagedFiles] = useState([])
+  const [commitHistory, setCommitHistory] = useState([])
 
   const classes = classNames(
     'btn',
@@ -67,8 +181,12 @@ function GitToggleButton() {
 
   useEffect(() => {
     if (isModalOpen) {
+      // Charger les données existantes
       getJSON(`/git-notstaged?projectId=${projectId}&userId=${userId}`).then(setNotStagedFiles).catch(console.error)
       getJSON(`/git-staged?projectId=${projectId}&userId=${userId}`).then(setStagedFiles).catch(console.error)
+      
+      // Charger l'historique des commits
+      getJSON(`/git-commits?projectId=${projectId}&userId=${userId}&limit=20`).then(setCommitHistory).catch(console.error)
     }
   }, [isModalOpen]);
 
@@ -84,6 +202,12 @@ function GitToggleButton() {
   const handleCommit = () => {
     const commitMessageInput = document.getElementById('commit-message')
     const message = commitMessageInput.value
+    
+    if (!message.trim()) {
+      alert('Please enter a commit message')
+      return
+    }
+    
     runAsync(
       postJSON('/git-commit', {
         body:{
@@ -108,6 +232,30 @@ function GitToggleButton() {
     setIsModalOpen(false)
   }
 
+  const handleRollback = (commitHash) => {
+    if (!commitHash) {
+      alert('Please select a commit to rollback to')
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to rollback to commit ${commitHash.substring(0, 7)}? This action cannot be undone and will permanently lose all changes after this commit.`
+    )
+
+    if (confirmed) {
+      runAsync(
+        postJSON('/git-rollback', {
+          body: {
+            projectId: projectId,
+            userId: userId,
+            commitHash: commitHash
+          }
+        })
+      )
+      setIsModalOpen(false)
+    }
+  }
+
   return (
     <div className="toolbar-item">
       <button className={classes} onClick={handleButtonClick}>
@@ -119,8 +267,10 @@ function GitToggleButton() {
         onClose={handleCloseModal}
         onCommit={handleCommit}
         onPush={handlePush}
+        onRollback={handleRollback}
         notStagedFiles={notStagedFiles}
         stagedFiles={stagedFiles}
+        commitHistory={commitHistory}
       />
     </div>
   )

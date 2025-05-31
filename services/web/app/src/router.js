@@ -333,6 +333,13 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     AuthenticationController.requireLogin(),
     GitController.push
   )
+
+  webRouter.post(
+    '/git-rollback',
+    AuthenticationController.requireLogin(),
+    GitController.push
+  )
+
   webRouter.post(
     '/project/import',
     AuthenticationController.requireLogin(),
