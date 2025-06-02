@@ -337,7 +337,7 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
   webRouter.post(
     '/git-rollback',
     AuthenticationController.requireLogin(),
-    GitController.push
+    GitController.rollback
   )
 
   webRouter.post(
