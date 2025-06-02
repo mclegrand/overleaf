@@ -467,6 +467,7 @@ GitController = {
     getCommitHistory(parseInt(limit))
       .then(commits => {
         res.json(commits)
+        console.log("Commit history fetched successfully")
       })
       .catch(error => {
         console.error("Error fetching commit history:", error)

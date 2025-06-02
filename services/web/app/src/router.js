@@ -328,6 +328,12 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     GitController.commit
   )
 
+  webRouter.get(
+  '/git-commits',
+  AuthenticationController.requireLogin(),
+  GitController.commitHistory
+)
+
   webRouter.post(
     '/git-push',
     AuthenticationController.requireLogin(),
