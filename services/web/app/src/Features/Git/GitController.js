@@ -23,6 +23,10 @@ function getRootId(projectId) {
   let decrementedHexString = decrementedValue.toString(16)
   return decrementedHexString
 }
+function getGitForProject(projectId, userId) {
+  const repoPath = dataPath + projectId + "-" + userId;
+  return simpleGit({ baseDir: repoPath });
+}
 
 async function createFolder(projectId, ownerId, parentId, name) {
   const doc = await EditorController.promises.addFolder(
@@ -139,8 +143,8 @@ function getStatus(){
       });
 }
 
-async function getStaged() {
-
+async function getStaged(projectId, userId) {
+  const git = getGitForProject(projectId, userId);
     try {
         const status = await git.status()
         const stagedFiles = status.staged
@@ -152,7 +156,8 @@ async function getStaged() {
     }
 }
 
-async function getNotStaged() {
+async function getNotStaged(projectId,userId) {
+  const git = getGitForProject(projectId, userId);
     console.log('OK')
     try {
         const status = await git.status()
@@ -382,7 +387,7 @@ GitController = {
     const projectPath = dataPath + projectId + "-" + userId
     console.log("compiling in pull")
     try {
-      compileProject(projectId,userId)
+      compileProject(projectId, userId)
     }
     catch(error){console.log("error when compiling in git pull")}
     console.log("Pulling")
@@ -413,9 +418,19 @@ GitController = {
     move(projectId, userId)
     console.log("compiling bcause add")
     try {
-      compileProject(projectId,userId)
+      await compileProject(projectId,userId)
     }
     catch(error){console.log("error when compiling in git add")}
+    git.add(filePath, (error) => {
+        if (error) {
+          console.error("Could not add the file", error)
+          res.sendStatus(500)
+        }
+        else{
+          console.log('File added')
+          res.sendStatus(200)
+        }
+     })
   },
 
   commit(req, res) {
@@ -470,7 +485,7 @@ GitController = {
 
     move(projectId, userId)
 
-    getStaged()
+    getStaged(projectId,userId)
     .then(stagedFilesList => {
       res.json(stagedFilesList)
     })
@@ -485,7 +500,7 @@ GitController = {
 
     move(projectId, userId)
 
-    getNotStaged()
+    getNotStaged(projectId,userId)
     .then(notStagedFilesList => {
       res.json(notStagedFilesList)
     })
