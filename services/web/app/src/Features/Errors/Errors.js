@@ -265,8 +265,6 @@ class InvalidInstitutionalEmailError extends OError {
   }
 }
 
-class GitPullError extends OError {}
-
 module.exports = {
   OError,
   BackwardCompatibleError,

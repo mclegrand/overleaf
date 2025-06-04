@@ -113,6 +113,12 @@ function GitToggleButton() {
           message: message
         }
       })
+      .then(response => {
+        alert("Commit successful");
+      })
+      .catch( error => {
+        alert(error.data.errorReason);
+      })
     )
     setIsModalOpen(false)
   }
@@ -124,6 +130,12 @@ function GitToggleButton() {
           projectId: projectId,
           userId: userId
         }
+      })
+      .then(response => {
+        alert("Push successful");
+      })
+      .catch( error => {
+        alert(error.data.errorReason);
       })
     )
     setIsModalOpen(false)

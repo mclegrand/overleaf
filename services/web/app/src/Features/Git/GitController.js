@@ -409,8 +409,9 @@ GitController = {
     const userId = req.body.userId
     const message = req.body.message
     console.log("Commit with message: " + message)
-    if (message === "") {
-      HttpErrorHandler.gitMethodError(req, res, "Please add a commit message before commiting.")
+    if (!message || message.trim() === "") {
+      console.log("Empty commit messages are not permitted")
+      HttpErrorHandler.gitMethodError(req, res, "Please add a commit message before committing.")
       return
     }
     move(projectId, userId)
@@ -448,7 +449,6 @@ GitController = {
       .catch(error => {
         console.error("Error:", error)
         HttpErrorHandler.gitMethodError(req, res, error?.git?.message || error?.message || String(error));
-        res.sendStatus(500)
       })
   },
 
