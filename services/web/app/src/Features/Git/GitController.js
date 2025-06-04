@@ -4,6 +4,8 @@ const dataPath = "/var/lib/overleaf/data/git/"
 const outputPath = "/var/lib/overleaf/data/compiles/"
 const simpleGit = require('simple-git')
 const EditorController = require('../Editor/EditorController')
+const Errors = require('../Errors/Errors')
+const HttpErrorHandler = require('../Errors/HttpErrorHandler')
 const crypto = require('crypto')
 const sshpk = require('sshpk')
 
@@ -347,7 +349,6 @@ GitController = {
     const projectPath = dataPath + projectId + "-" + userId
 
     console.log("Pulling")
-
     getKey(userId, 'private')
       .then(key => {
         const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
@@ -357,13 +358,19 @@ GitController = {
       .then(() => git.pull({'--no-rebase': null}))
       .then(update => {
         console.log("Repository pulled");
-        return buildProject(projectPath, projectId, userId, getRootId(projectId));
+        buildProject(projectPath, projectId, userId, getRootId(projectId));
       })
       .then(() => res.sendStatus(200))
       .catch(error => {
-        console.error("Error:", error);
-        res.sendStatus(500);
-        return buildProject(projectPath, projectId, userId, getRootId(projectId));
+        console.error("Error.git: ", error.git);
+        console.error("Error.message: ", error.message);
+        if (error.git?.message === "Exiting because of an unresolved conflict." ||
+          error.git?.message === "Exiting because of unfinished merge.") {
+          HttpErrorHandler.gitMethodError(req, res, "Please fix all conflicts before merging")
+        } else {
+          HttpErrorHandler.gitMethodError(req, res, error?.git?.message || error?.message || String(error));
+        }
+        buildProject(projectPath, projectId, userId, getRootId(projectId));
       });
   },
 
@@ -377,7 +384,7 @@ GitController = {
     git.add(filePath, (error) => {
         if (error) {
           console.error("Could not add the file", error)
-          res.sendStatus(500)
+          HttpErrorHandler.gitMethodError(req, res, error?.git?.message || error?.message || String(error));
         }
         else{
           console.log('File added')
@@ -391,12 +398,17 @@ GitController = {
     const userId = req.body.userId
     const message = req.body.message
     console.log("Commit with message: " + message)
+    if (!message || message.trim() === "") {
+      console.log("Empty commit messages are not permitted")
+      HttpErrorHandler.gitMethodError(req, res, "Please add a commit message before committing.")
+      return
+    }
     move(projectId, userId)
 
     git.commit(message, (error) => {
         if (error) {
           console.error("Could not commit", error)
-          res.sendStatus(500)
+          HttpErrorHandler.gitMethodError(req, res, error)
         }
         else{
           console.log('Commit successful')
@@ -425,7 +437,7 @@ GitController = {
       })
       .catch(error => {
         console.error("Error:", error)
-        res.sendStatus(500)
+        HttpErrorHandler.gitMethodError(req, res, error?.git?.message || error?.message || String(error));
       })
   },
 
