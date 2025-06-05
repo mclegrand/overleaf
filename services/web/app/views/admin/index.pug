@@ -102,14 +102,13 @@ block content
 									role="tabpanel"
 									id='vm-use'
 								)
-									h3 Vm use
-									p No data is currently available. Please Wait.
+									h2 Data usage of server
 									if typeof directorySizeBytes !== 'undefined' && directorySizeBytes !== null
 										p Directory size: #{directorySizeBytes} bytes.
 									else
 										p Directory size could not be determined.
 									if typeof historySizeBytes !== 'undefined' && historySizeBytes !== null
-										p History size: #{historySizeBytes} bytes.
+										p History folder size: #{historySizeBytes} bytes.
 									else
 										p History size could not be determined.
 									if userFilesUsage

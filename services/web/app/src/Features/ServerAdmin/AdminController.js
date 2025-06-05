@@ -13,48 +13,81 @@ const path = require('path')
 const util = require('util')
 const readdir = util.promisify(fs.readdir)
 const stat = util.promisify(fs.stat)
+const { db, ObjectId } = require('../../infrastructure/mongodb')
 
 async function dirSize(directoryPath) {
   let totalSize = 0;
-  const entries = await readdir(directoryPath, { withFileTypes: true });
+  const entries = await readdir(directoryPath, { withFileTypes: true })
   for (const entry of entries) {
-    const fullPath = path.join(directoryPath, entry.name);
+    const fullPath = path.join(directoryPath, entry.name)
     if (entry.isDirectory()) {
-      totalSize += await dirSize(fullPath);
+      totalSize += await dirSize(fullPath)
     } else if (entry.isFile()) {
-      const fileStat = await stat(fullPath);
-      totalSize += fileStat.size;
+      const fileStat = await stat(fullPath)
+      totalSize += fileStat.size
     }
   }
-  return totalSize;
+  return totalSize
+}
+
+async function getUserId(projectId) {
+  try {
+    const project = await db.projects.findOne(
+      { _id: new ObjectId(projectId) },
+      { projection: { owner_ref: 1 } }
+    )
+    if (!project) return null
+    return project.owner_ref ? project.owner_ref.toString() : null
+  } catch (err) {
+    console.error('Failed to fetch userId for projectId', projectId, err)
+    throw err
+  }
+}
+
+async function getEmail(userId) {
+  try {
+    const user = await db.users.findOne(
+      { _id: new ObjectId(userId) },
+      { projection: { email: 1 } }
+    )
+    return user ? user.email : null
+  } catch (err) {
+    console.error('Failed to fetch email for userId', userId, err)
+    throw err
+  }
 }
 
 async function getUserFilesDiskUsage(userFilesDir) {
-  let userUsageMap = {}; // userId -> summed bytes
-  let entries;
+  let userUsageMap = {} // userId -> summed bytes
+  let entries
   try {
-    entries = await readdir(userFilesDir, { withFileTypes: true });
+    entries = await readdir(userFilesDir, { withFileTypes: true })
   } catch (err) {
     // handle error or return empty object
-    return {};
+    return {}
   }
   for (const entry of entries) {
-    if (!entry.isFile()) continue;
+    if (!entry.isFile()) continue
     // filename pattern: "${projectId}_${userId}"
     const match = entry.name.match( /^([^_]+)_([^_]+)$/)
-    if (!match) continue;
-    const projectId = match[1];
-    const fullPath = path.join(userFilesDir, entry.name);
-    let fileStat;
+    if (!match) continue
+    const projectId = match[1]
+    const userId = await getUserId(projectId)
+    const email = await getEmail(userId)
+    const fullPath = path.join(userFilesDir, entry.name)
+    let fileStat
     try {
-      fileStat = await stat(fullPath);
+      fileStat = await stat(fullPath)
     } catch (err) {
-      continue;
+      continue
     }
-    if (!userUsageMap[projectId]) userUsageMap[projectId] = 0;
-    userUsageMap[projectId] += fileStat.size;
+    
+    if (!userUsageMap[email]) userUsageMap[email] = 0
+	  {
+            userUsageMap[email] += fileStat.size
+	  }
   }
-  return userUsageMap; // { projectId: <total bytes>, ... }
+  return userUsageMap 
 }
 
 
