@@ -96,6 +96,9 @@ function FileTreeItemMenuItems() {
                     filePath: selectedFilePath
                  }
               })
+               .catch( error => {
+                 alert(error.data.errorReason);
+               })
             )
       }}>Add</MenuItem>
       ) : null}
