@@ -461,11 +461,6 @@ GitController = {
     const projectId = req.body.projectId
     const userId = req.body.userId
     console.log("Pushing")
-    try {
-      compileProject(projectId,userId)
-    }
-    catch(error){console.log("error when compiling in git push")}
-
     move(projectId, userId)
 
     getKey(userId, 'private')
