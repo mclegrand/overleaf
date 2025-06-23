@@ -4,6 +4,8 @@ const dataPath = "/var/lib/overleaf/data/git/"
 const outputPath = "/var/lib/overleaf/data/compiles/"
 const simpleGit = require('simple-git')
 const EditorController = require('../Editor/EditorController')
+const CompileManager = require('../Compile/CompileManager');
+const ClsiCookieManager = require('../Compile/ClsiCookieManager');
 const Errors = require('../Errors/Errors')
 const HttpErrorHandler = require('../Errors/HttpErrorHandler')
 const crypto = require('crypto')
@@ -22,6 +24,10 @@ function getRootId(projectId) {
   let decrementedHexString = decrementedValue.toString(16)
   return decrementedHexString
 }
+function getGitForProject(projectId, userId) {
+  const repoPath = dataPath + projectId + "-" + userId;
+  return simpleGit({ baseDir: repoPath });
+}
 
 async function createFolder(projectId, ownerId, parentId, name) {
   const doc = await EditorController.promises.addFolder(
@@ -34,6 +40,38 @@ async function createFolder(projectId, ownerId, parentId, name) {
  return doc._id.toString()
 }
 
+async function compileProject(projectId, userId)
+{
+  console.log('Triggering compilation...');
+  const compilePromise = new Promise((resolve, reject) => {
+	  let handler = setTimeout(() => {
+          reject(new Error('Compiler timed out'));
+          handler = null;
+        }, 10000); // 10-second timeout
+
+  CompileManager.compile(
+          projectId,
+          userId,
+          {}, // Add any options if needed
+          function (error, status) {
+            if (handler) {
+              clearTimeout(handler);
+            }
+            if (error) {
+              reject(error);
+            } else if (status === 'success') {
+              resolve('Compilation successful');
+            } else {
+              reject(new Error(`Compilation failed: ${status}`));
+            }
+          }
+        );
+      });
+
+  const compileResult = await compilePromise;
+  console.log(compileResult);
+
+}
 async function createFile(projectId, ownerId, parentId, name, content) {
   try {
     const doc = await EditorController.promises.addDoc(
@@ -106,8 +144,8 @@ function getStatus(){
       });
 }
 
-async function getStaged() {
-
+async function getStaged(projectId, userId) {
+  const git = getGitForProject(projectId, userId);
     try {
         const status = await git.status()
         const stagedFiles = status.staged
@@ -119,7 +157,8 @@ async function getStaged() {
     }
 }
 
-async function getNotStaged() {
+async function getNotStaged(projectId,userId) {
+  const git = getGitForProject(projectId, userId);
     console.log('OK')
     try {
         const status = await git.status()
@@ -280,53 +319,46 @@ function resetFolder(src) {
     console.log(`${src} folder reset`)
 }
 
+
 async function gitUpdate(projectId, ownerId) {
-    console.log("Copying")
-    const src = outputPath + projectId + "-" + ownerId
-    const dest = dataPath + projectId + "-" + ownerId
-    const bannedFiles = ['output.aux', 'output.fdb_latexmk', 'output.fls', 'output.log', 'output.pdf', 'output.stdout', 'output.synctex.gz', '.project-sync-state'];
+const bannedFiles = [
+  'output.aux',
+  'output.fdb_latexmk',
+  'output.fls',
+  'output.log',
+  'output.pdf',
+  'output.stdout',
+  'output.stderr',
+  'output.synctex.gz',
+  '.project-sync-state'
+];
 
-    resetFolder(dest)
+  const src = path.join(outputPath, `${projectId}-${ownerId}`);
+  const dest = path.join(dataPath, `${projectId}-${ownerId}`);
 
-      fs.copy(src, dest, err => {
+  // Ensure the destination exists
+  await fs.ensureDir(dest);
 
-        if (err) {
-          console.error(`Error when copying ${src} to ${dest}:`, err)
-          return
-        }
+  // Read all files in the source directory
+  const files = await fs.readdir(src);
 
-        fs.readdir(dest, (err, files) => {
-        if (err) {
-            console.error(`Erreur when reading folder: ${err}`)
-            return
-        }
+  for (const file of files) {
+    if (bannedFiles.includes(file)) {
+      // Optionally, remove the banned file from the destination if it exists
+      const destFile = path.join(dest, file);
+      if (await fs.pathExists(destFile)) {
+        await fs.remove(destFile);
+      }
+      continue;
+    }
 
-        files.forEach(file => {
-
-            const filePath = path.join(dest, file)
-
-            fs.stat(filePath, (err, stats) => {
-
-                if (err) {
-                    console.error(`Error getting stats of file: ${filePath}, ${err}`);
-                    return;
-                }
-
-                if (bannedFiles.includes(path.basename(filePath))) {
-                   fs.remove(filePath, err => {
-                        if (err) {
-                            console.error(`Couldn't delete file: ${filePath}, ${err}`)
-                            return
-                        }
-                    });
-                }
-           });
-       });
-    console.log("Source: " + src)
-    console.log("Destination: " + dest)
-     })
-    })
+    // Copy file from src to dest
+    const srcFile = path.join(src, file);
+    const destFile = path.join(dest, file);
+    await fs.copy(srcFile, destFile, { overwrite: true });
+  }
 }
+
 
 GitController = {
 
@@ -347,7 +379,11 @@ GitController = {
     const projectId = req.body.projectId
     const userId = req.body.userId
     const projectPath = dataPath + projectId + "-" + userId
-
+    console.log("compiling in pull")
+    try {
+      compileProject(projectId, userId)
+    }
+    catch(error){console.log("error when compiling in git pull")}
     console.log("Pulling")
     getKey(userId, 'private')
       .then(key => {
@@ -374,13 +410,17 @@ GitController = {
       });
   },
 
-  add(req, res) {
+  async add(req, res) {
     const projectId = req.body.projectId
     const userId = req.body.userId
     const filePath = req.body.filePath
     console.log("Adding " + filePath)
     move(projectId, userId)
-
+    console.log("compiling because add")
+    try {
+      await compileProject(projectId,userId)
+    }
+    catch(error){console.log("error when compiling in git add")}
     git.add(filePath, (error) => {
         if (error) {
           console.error("Could not add the file", error)
@@ -421,7 +461,6 @@ GitController = {
     const projectId = req.body.projectId
     const userId = req.body.userId
     console.log("Pushing")
-
     move(projectId, userId)
 
     getKey(userId, 'private')
@@ -446,7 +485,7 @@ GitController = {
 
     move(projectId, userId)
 
-    getStaged()
+    getStaged(projectId,userId)
     .then(stagedFilesList => {
       res.json(stagedFilesList)
     })
@@ -461,7 +500,7 @@ GitController = {
 
     move(projectId, userId)
 
-    getNotStaged()
+    getNotStaged(projectId,userId)
     .then(notStagedFilesList => {
       res.json(notStagedFilesList)
     })
