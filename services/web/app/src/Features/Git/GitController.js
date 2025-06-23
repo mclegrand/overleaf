@@ -319,53 +319,46 @@ function resetFolder(src) {
     console.log(`${src} folder reset`)
 }
 
+
 async function gitUpdate(projectId, ownerId) {
-    console.log("Copying")
-    const src = outputPath + projectId + "-" + ownerId
-    const dest = dataPath + projectId + "-" + ownerId
-    const bannedFiles = ['output.aux', 'output.fdb_latexmk', 'output.fls', 'output.log', 'output.pdf', 'output.stdout', 'output.synctex.gz', '.project-sync-state'];
+const bannedFiles = [
+  'output.aux',
+  'output.fdb_latexmk',
+  'output.fls',
+  'output.log',
+  'output.pdf',
+  'output.stdout',
+  'output.stderr',
+  'output.synctex.gz',
+  '.project-sync-state'
+];
 
-    resetFolder(dest)
+  const src = path.join(outputPath, `${projectId}-${ownerId}`);
+  const dest = path.join(dataPath, `${projectId}-${ownerId}`);
 
-      fs.copy(src, dest, err => {
+  // Ensure the destination exists
+  await fs.ensureDir(dest);
 
-        if (err) {
-          console.error(`Error when copying ${src} to ${dest}:`, err)
-          return
-        }
+  // Read all files in the source directory
+  const files = await fs.readdir(src);
 
-        fs.readdir(dest, (err, files) => {
-        if (err) {
-            console.error(`Erreur when reading folder: ${err}`)
-            return
-        }
+  for (const file of files) {
+    if (bannedFiles.includes(file)) {
+      // Optionally, remove the banned file from the destination if it exists
+      const destFile = path.join(dest, file);
+      if (await fs.pathExists(destFile)) {
+        await fs.remove(destFile);
+      }
+      continue;
+    }
 
-        files.forEach(file => {
-
-            const filePath = path.join(dest, file)
-
-            fs.stat(filePath, (err, stats) => {
-
-                if (err) {
-                    console.error(`Error getting stats of file: ${filePath}, ${err}`);
-                    return;
-                }
-
-                if (bannedFiles.includes(path.basename(filePath))) {
-                   fs.remove(filePath, err => {
-                        if (err) {
-                            console.error(`Couldn't delete file: ${filePath}, ${err}`)
-                            return
-                        }
-                    });
-                }
-           });
-       });
-    console.log("Source: " + src)
-    console.log("Destination: " + dest)
-     })
-    })
+    // Copy file from src to dest
+    const srcFile = path.join(src, file);
+    const destFile = path.join(dest, file);
+    await fs.copy(srcFile, destFile, { overwrite: true });
+  }
 }
+
 
 GitController = {
 
