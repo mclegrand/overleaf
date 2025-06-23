@@ -14,6 +14,7 @@ block content
 								+bookmarkable-tabset-header('system-messages', 'System Messages', true)
 								+bookmarkable-tabset-header('open-sockets', 'Open Sockets')
 								+bookmarkable-tabset-header('open-close-editor', 'Open/Close Editor')
+								+bookmarkable-tabset-header('vm-use', 'Vm use')
 								if hasFeature('saas')
 									+bookmarkable-tabset-header('tpds', 'TPDS/Dropbox Management')
 
@@ -97,3 +98,28 @@ block content
 													input.form-control(type='text',  name='user_id', placeholder='user_id', required)
 												.form-group
 													button.btn-primary.btn(type='submit') Poll
+								.tab-pane(
+									role="tabpanel"
+									id='vm-use'
+								)
+									h2 Data usage of server
+									if typeof directorySizeBytes !== 'undefined' && directorySizeBytes !== null
+										p Directory size: #{directorySizeBytes} bytes.
+									else
+										p Directory size could not be determined.
+									if typeof historySizeBytes !== 'undefined' && historySizeBytes !== null
+										p History folder size: #{historySizeBytes} bytes.
+									else
+										p History size could not be determined.
+									if userFilesUsage
+										h2 User Files Disk Usage
+										table.table
+											thead
+												tr
+													th User ID
+													th Disk Usage (bytes)
+											tbody
+												each usage, userId in userFilesUsage
+													tr
+														td #{userId}
+														td #{usage}
