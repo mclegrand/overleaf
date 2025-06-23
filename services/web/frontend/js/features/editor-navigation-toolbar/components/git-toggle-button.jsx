@@ -1,3 +1,6 @@
+
+// git-toggle-button.jsx - Corrections pour l'affichage et le rollback
+
 import PropTypes from 'prop-types'
 import classNames from 'classnames'
 import { useTranslation } from 'react-i18next'
@@ -13,7 +16,7 @@ import {
   postJSON,
 } from '../../../infrastructure/fetch-json'
 
-function Modal({ isOpen, onClose, onCommit, onPush, onRollback, notStagedFiles, stagedFiles, commitHistory}) {
+function Modal({ isOpen, onClose, onCommit, onPush, onRollback, notStagedFiles, stagedFiles, commitHistory, isRollbackLoading}) {
   const [activeTab, setActiveTab] = useState('commit')
   const [selectedCommit, setSelectedCommit] = useState('')
 
@@ -103,21 +106,26 @@ function Modal({ isOpen, onClose, onCommit, onPush, onRollback, notStagedFiles, 
                         }}
                         onClick={() => setSelectedCommit(commit.hash)}
                       >
-                        <div style={{ fontWeight: 'bold', color: 'black', fontSize: '12px' }}>
+                        <div style={{ fontWeight: 'bold', color: '#007bff', fontSize: '12px', fontFamily: 'monospace' }}>
                           {commit.hash.substring(0, 7)}
                         </div>
-                        <div style={{ color: 'black', marginTop: '5px' }}>
-                          {commit.message}
+                        <div style={{ color: 'black', marginTop: '5px', fontWeight: '500' }}>
+                          {commit.message || 'No commit message'}
                         </div>
+                        {commit.author && (
+                          <div style={{ color: 'gray', fontSize: '11px', marginTop: '3px' }}>
+                            by {commit.author}
+                          </div>
+                        )}
                         {commit.date && (
-                          <div style={{ color: 'gray', fontSize: '11px', marginTop: '5px' }}>
+                          <div style={{ color: 'gray', fontSize: '11px', marginTop: '3px' }}>
                             {new Date(commit.date).toLocaleString()}
                           </div>
                         )}
                       </div>
                     ))
                   ) : (
-                    <div style={{ color: 'gray', textAlign: 'center' }}>
+                    <div style={{ color: 'gray', textAlign: 'center', padding: '20px' }}>
                       No commit history available
                     </div>
                   )}
@@ -142,17 +150,18 @@ function Modal({ isOpen, onClose, onCommit, onPush, onRollback, notStagedFiles, 
                   
                   <button 
                     onClick={() => onRollback(selectedCommit)}
+                    disabled={isRollbackLoading}
                     style={{ 
-                      backgroundColor: '#dc3545', 
+                      backgroundColor: isRollbackLoading ? '#6c757d' : '#dc3545', 
                       color: 'white', 
                       border: 'none',
                       padding: '10px 20px',
                       borderRadius: '5px',
-                      cursor: 'pointer',
+                      cursor: isRollbackLoading ? 'not-allowed' : 'pointer',
                       width: '100%'
                     }}
                   >
-                    Rollback to this commit
+                    {isRollbackLoading ? 'Rolling back...' : 'Rollback to this commit'}
                   </button>
                 </div>
               )}
@@ -172,6 +181,7 @@ function GitToggleButton() {
   const [notStagedFiles, setNotStagedFiles] = useState([])
   const [stagedFiles, setStagedFiles] = useState([])
   const [commitHistory, setCommitHistory] = useState([])
+  const [isRollbackLoading, setIsRollbackLoading] = useState(false)
 
   const classes = classNames(
     'btn',
@@ -182,13 +192,25 @@ function GitToggleButton() {
   useEffect(() => {
     if (isModalOpen) {
       // Charger les données existantes
-      getJSON(`/git-notstaged?projectId=${projectId}&userId=${userId}`).then(setNotStagedFiles).catch(console.error)
-      getJSON(`/git-staged?projectId=${projectId}&userId=${userId}`).then(setStagedFiles).catch(console.error)
-      
-      // Charger l'historique des commits
-      getJSON(`/git-commits?projectId=${projectId}&userId=${userId}&limit=20`).then(setCommitHistory).catch(console.error)
+      loadGitData()
     }
   }, [isModalOpen]);
+
+  const loadGitData = async () => {
+    try {
+      const [notStaged, staged, commits] = await Promise.all([
+        getJSON(`/git-notstaged?projectId=${projectId}&userId=${userId}`),
+        getJSON(`/git-staged?projectId=${projectId}&userId=${userId}`),
+        getJSON(`/git-commits?projectId=${projectId}&userId=${userId}&limit=20`)
+      ])
+      
+      setNotStagedFiles(notStaged)
+      setStagedFiles(staged)
+      setCommitHistory(commits)
+    } catch (error) {
+      console.error('Error loading git data:', error)
+    }
+  }
 
   const handleButtonClick = (event) => {
     event.stopPropagation()
@@ -216,8 +238,13 @@ function GitToggleButton() {
           message: message
         }
       })
-    )
-    setIsModalOpen(false)
+    ).then(() => {
+      // Recharger les données après le commit
+      loadGitData()
+    })
+    
+    // Vider le champ de message
+    commitMessageInput.value = ''
   }
 
   const handlePush = () => {
@@ -229,10 +256,9 @@ function GitToggleButton() {
         }
       })
     )
-    setIsModalOpen(false)
   }
 
-  const handleRollback = (commitHash) => {
+  const handleRollback = async (commitHash) => {
     if (!commitHash) {
       alert('Please select a commit to rollback to')
       return
@@ -243,16 +269,32 @@ function GitToggleButton() {
     )
 
     if (confirmed) {
-      runAsync(
-        postJSON('/git-rollback', {
+      setIsRollbackLoading(true)
+      
+      try {
+        const response = await postJSON('/git-rollback', {
           body: {
             projectId: projectId,
             userId: userId,
             commitHash: commitHash
           }
         })
-      )
-      setIsModalOpen(false)
+        
+        if (response.success) {
+          alert(`Successfully rolled back to commit ${commitHash.substring(0, 7)}. Please refresh the page to see the changes.`)
+          // Fermer la modal et rafraîchir la page
+          setIsModalOpen(false)
+          window.location.reload()
+        } else {
+          throw new Error(response.error || 'Rollback failed')
+        }
+        
+      } catch (error) {
+        console.error('Rollback error:', error)
+        alert(`Rollback failed: ${error.message}. Please check the console for more details.`)
+      } finally {
+        setIsRollbackLoading(false)
+      }
     }
   }
 
@@ -271,6 +313,7 @@ function GitToggleButton() {
         notStagedFiles={notStagedFiles}
         stagedFiles={stagedFiles}
         commitHistory={commitHistory}
+        isRollbackLoading={isRollbackLoading}
       />
     </div>
   )
