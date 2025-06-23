@@ -143,6 +143,20 @@ function getStatus(){
         });
       });
 }
+async function safeGitCheckout(branchName) {
+  try {
+    if (fs.existsSync(lockFile)) {
+      console.warn('Lock file exists. Attempting to remove it...');
+      fs.unlinkSync(lockFile);
+      console.log('Lock file removed.');
+    }
+
+    await git.checkout(branchName);
+    console.log(`Checked out branch: ${branchName}`);
+  } catch (err) {
+    console.error('Git operation failed:', err.message);
+  }
+}
 
 async function getStaged(projectId, userId) {
   const git = getGitForProject(projectId, userId);
@@ -173,22 +187,35 @@ async function getNotStaged(projectId,userId) {
     }
 }
 
-async function getBranches() {
-  // git.fetch()
-  // try {
-  //   return ["main1", "main2"]
-  // } catch (error) {
-  //   console.error("Error fetching not staged files:", error);
-  //   return []
-  // }
+async function getBranches(projectId, userId) {
+    try {
+      const key = await getKey(userId, 'private')
+      const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
+      git = simpleGit().env({'GIT_SSH_COMMAND': GIT_SSH_COMMAND});
+      move(projectId, userId);
+      await git.fetch('origin');
+      console.log("fetched");
+      const branches = await git.branch(['-r']);
+      console.log('Remote branches:', branches.all);
+      return branches.all;
+    } catch (err) {
+      console.error("Error fetching branches:", err);
+      return []
+    }
+}
 
+async function getCurrentBranch(projectId, userId) {
   try {
-    await git.fetch('origin');
-    console.error("fetched");
-    const branches = await git.branch(['-r']);
-    console.log('Remote branches:', branches.all);
+    const key = await getKey(userId, 'private')
+    const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
+    git = simpleGit().env({'GIT_SSH_COMMAND': GIT_SSH_COMMAND});
+    move(projectId, userId);
+    const stat = await git.status();
+    console.log("Current Branch: ", stat.current);
+    return stat.current;
   } catch (err) {
-    console.error("Error fetching not staged files:", err);
+    console.error("Error fetching current branches:", err);
+    return "";
   }
 }
 
@@ -533,41 +560,96 @@ GitController = {
     })
   },
 
+  currentBranch(req, res) {
+    const { projectId, userId } = req.query
+    move(projectId, userId)
+    getCurrentBranch(projectId, userId)
+      .then(currBranch=> {
+        res.json(currBranch)
+      })
+      .catch(error => {
+        console.error("Error fetching current Branch:", error)
+        res.json("")
+      })
+  },
+
   branches(req, res) {
     const { projectId, userId } = req.query
-
     move(projectId, userId)
-    getBranches()
+    getBranches(projectId, userId)
       .then(branchList => {
         res.json(branchList)
       })
       .catch(error => {
-        console.error("Error:", error)
+        console.error("Error fetching branches:", error)
         res.json([])
       })
   },
 
-  switch_branch(req, res) {
-    const { projectId, userId, branchName} = req.query
-    console.log("switch branch")
-    // move(projectId, userId)
-    // const projectPath = dataPath + projectId + "-" + userId
-    // getKey(userId, 'private')
-    //   .then(key => {
-    //     const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
-    //     git = simpleGit().env({'GIT_SSH_COMMAND': GIT_SSH_COMMAND});
-    //     return move(projectId, userId)
-    //   })
-    //   .then(() => git.checkoutLocalBranch(branchName))
-    //   .then(update => {
-    //     buildProject(projectPath, projectId, userId, getRootId(projectId));
-    //   })
-    //   .then(() => res.sendStatus(200))
-    //   .catch(error => {
-    //     HttpErrorHandler.gitMethodError(req, res, error?.git?.message || error?.message || String(error));
-    //     buildProject(projectPath, projectId, userId, getRootId(projectId));
-    //   });
+  async switch_branch(req, res) {
+    const { projectId, userId, branchName } = req.body;
+    const projectPath = dataPath + projectId + "-" + userId;
+    console.log("switch branch to: ", branchName)
+
+    try {
+
+      const key = await getKey(userId, 'private');
+      const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
+      git = simpleGit(projectPath).env({ GIT_SSH_COMMAND });
+      await move(projectId, userId);
+      await git.fetch('origin');
+
+      var stat = await git.branch();
+      console.log("Current Branch:", stat.current);
+
+      await git.checkout(branchName);
+
+      stat = await git.branch();
+      console.log("Switched to Branch:", stat.current);
+
+      await buildProject(projectPath, projectId, userId, getRootId(projectId));
+
+      res.sendStatus(200);
+    } catch (error) {
+      console.error("Git checkout failed:", error);
+      HttpErrorHandler.gitMethodError(req, res, error);
+
+      // still attempt to build the project in case of partial failure
+      await buildProject(projectPath, projectId, userId, getRootId(projectId));
+    }
   },
+  //
+  // switch_branch(req, res) {
+  //   // const { projectId, userId, branchName} = req.query
+  //   const { projectId, userId, branchName } = req.body;
+  //   const projectPath = dataPath + projectId + "-" + userId
+  //   console.log("switch branch to ", branchName)
+  //   move(projectId, userId)
+  //   getKey(userId, 'private')
+  //     .then(key => {
+  //       const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
+  //       git = simpleGit().env({'GIT_SSH_COMMAND': GIT_SSH_COMMAND});
+  //       return move(projectId, userId)
+  //     })
+  //     .then(() => {
+  //       const stat = git.status();
+  //       console.log("switch from current branch: ", stat.current )
+  //     })
+  //     .then(() => git.checkout(branchName))
+  //     .then(() => {
+  //       const stat = git.status();
+  //       console.log("Switched Branch: ", stat.current )
+  //     })
+  //     .then(update => {
+  //       buildProject(projectPath, projectId, userId, getRootId(projectId));
+  //     })
+  //     .then(() => res.sendStatus(200))
+  //     .catch(error => {
+  //       console.error(error);
+  //       HttpErrorHandler.gitMethodError(req, res, error);
+  //       buildProject(projectPath, projectId, userId, getRootId(projectId));
+  //     });
+  // },
 
   getKey(req, res) {
     function getUserIdFromUrl(url) {

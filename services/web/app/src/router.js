@@ -317,6 +317,12 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
   )
 
   webRouter.get(
+    '/git-currentbranch',
+    AuthenticationController.requireLogin(),
+    GitController.currentBranch
+  )
+
+  webRouter.get(
     '/git-branches',
     AuthenticationController.requireLogin(),
     GitController.branches

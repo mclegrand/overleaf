@@ -28,11 +28,27 @@ function Modal({ isOpen, onClose, onCommit, onPush, notStagedFiles, stagedFiles,
               value={selectedBranch}
               onChange={(e) => onSelectBranch(e.target.value)}
               style={{ width: '100%', padding: '5px', color: 'dimgray' }}
+              disabled={branches.length === 0} // optional: disable dropdown until ready
             >
-              {branches.map((branch, idx) => (
-                <option key={idx} value={branch}>{branch}</option>
-              ))}
+              {branches.length === 0 ? (
+                <option>Loading branches...</option>
+              ) : (
+                branches.map((branch, idx) => (
+                  <option key={idx} value={branch}>{branch}</option>
+                ))
+              )}
             </select>
+
+            {/*<select*/}
+            {/*  id="branch-select"*/}
+            {/*  value={selectedBranch}*/}
+            {/*  onChange={(e) => onSelectBranch(e.target.value)}*/}
+            {/*  style={{ width: '100%', padding: '5px', color: 'dimgray' }}*/}
+            {/*>*/}
+            {/*  {branches.map((branch, idx) => (*/}
+            {/*    <option key={idx} value={branch}>{branch}</option>*/}
+            {/*  ))}*/}
+            {/*</select>*/}
           </div>
           <div>
             <label htmlFor="commit-message" style={{ color: 'black' }}>Commit message</label>
@@ -85,7 +101,7 @@ function GitToggleButton() {
       getJSON(`/git-branches?projectId=${projectId}&userId=${userId}`)
         .then((data) => {
           setBranches(data)
-          if (data.length > 0) setSelectedBranch(data[0])
+          if (data.length > 0) getJSON(`/git-currentbranch?projectId=${projectId}&userId=${userId}`).then(setSelectedBranch).catch(console.error)
         })
         .catch(console.error)
       getJSON(`/git-notstaged?projectId=${projectId}&userId=${userId}`).then(setNotStagedFiles).catch(console.error)
@@ -149,7 +165,7 @@ function GitToggleButton() {
         body: {
           projectId: projectId,
           userId: userId,
-          branch: branchName
+          branchName: branchName
         }
       })
     ).catch(console.error)
