@@ -39,16 +39,6 @@ function Modal({ isOpen, onClose, onCommit, onPush, notStagedFiles, stagedFiles,
               )}
             </select>
 
-            {/*<select*/}
-            {/*  id="branch-select"*/}
-            {/*  value={selectedBranch}*/}
-            {/*  onChange={(e) => onSelectBranch(e.target.value)}*/}
-            {/*  style={{ width: '100%', padding: '5px', color: 'dimgray' }}*/}
-            {/*>*/}
-            {/*  {branches.map((branch, idx) => (*/}
-            {/*    <option key={idx} value={branch}>{branch}</option>*/}
-            {/*  ))}*/}
-            {/*</select>*/}
           </div>
           <div>
             <label htmlFor="commit-message" style={{ color: 'black' }}>Commit message</label>
@@ -98,14 +88,24 @@ function GitToggleButton() {
 
   useEffect(() => {
     if (isModalOpen) {
-      getJSON(`/git-branches?projectId=${projectId}&userId=${userId}`)
-        .then((data) => {
-          setBranches(data)
-          if (data.length > 0) getJSON(`/git-currentbranch?projectId=${projectId}&userId=${userId}`).then(setSelectedBranch).catch(console.error)
-        })
-        .catch(console.error)
-      getJSON(`/git-notstaged?projectId=${projectId}&userId=${userId}`).then(setNotStagedFiles).catch(console.error)
-      getJSON(`/git-staged?projectId=${projectId}&userId=${userId}`).then(setStagedFiles).catch(console.error)
+      async function fetchGitData() {
+        try {
+          const branchesData = await getJSON(`/git-branches?projectId=${projectId}&userId=${userId}`);
+          setBranches(branchesData);
+
+          const currentBranch = await getJSON(`/git-currentbranch?projectId=${projectId}&userId=${userId}`);
+          setSelectedBranch(currentBranch);
+
+          const notStaged = await getJSON(`/git-notstaged?projectId=${projectId}&userId=${userId}`);
+          setNotStagedFiles(notStaged);
+
+          const staged = await getJSON(`/git-staged?projectId=${projectId}&userId=${userId}`);
+          setStagedFiles(staged);
+        } catch (error) {
+          console.error(error);
+        }
+      }
+      fetchGitData();
     }
   }, [isModalOpen]);
 
@@ -157,18 +157,32 @@ function GitToggleButton() {
     setIsModalOpen(false)
   }
 
-  const handleSelectBranch = (branchName) => {
-    setSelectedBranch(branchName)
+  const handleSelectBranch = async (branchName) => {
+    setSelectedBranch(branchName);  // optimistic UI update
 
-    runAsync(
-      postJSON('/git-switch-branch', {
-        body: {
-          projectId: projectId,
-          userId: userId,
-          branchName: branchName
-        }
-      })
-    ).catch(console.error)
+    try {
+      await runAsync(
+        postJSON('/git-switch-branch', {
+          body: { projectId, userId, branchName }
+        })
+      );
+
+      // Refresh the file lists and current branch after switching branch
+      const notStaged = await getJSON(`/git-notstaged?projectId=${projectId}&userId=${userId}`);
+      setNotStagedFiles(notStaged);
+
+      const staged = await getJSON(`/git-staged?projectId=${projectId}&userId=${userId}`);
+      setStagedFiles(staged);
+
+      // Optionally, refetch branches and current branch to stay in sync
+      const branchesData = await getJSON(`/git-branches?projectId=${projectId}&userId=${userId}`);
+      setBranches(branchesData);
+
+      // const currentBranch = await getJSON(`/git-currentbranch?projectId=${projectId}&userId=${userId}`);
+      // setSelectedBranch(currentBranch);
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   return (
