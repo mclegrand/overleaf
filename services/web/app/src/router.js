@@ -316,6 +316,24 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     GitController.notStagedFiles
   )
 
+  webRouter.get(
+    '/git-currentbranch',
+    AuthenticationController.requireLogin(),
+    GitController.currentBranch
+  )
+
+  webRouter.get(
+    '/git-branches',
+    AuthenticationController.requireLogin(),
+    GitController.branches
+  )
+
+  webRouter.post(
+    '/git-create-branch',
+    AuthenticationController.requireLogin(),
+    GitController.createBranch
+  )
+
   webRouter.post(
     '/git-pull',
     AuthenticationController.requireLogin(),
@@ -333,6 +351,13 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     AuthenticationController.requireLogin(),
     GitController.push
   )
+
+  webRouter.post(
+    '/git-switch-branch',
+    AuthenticationController.requireLogin(),
+    GitController.switch_branch
+  )
+
   webRouter.post(
     '/project/import',
     AuthenticationController.requireLogin(),
