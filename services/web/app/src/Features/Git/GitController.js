@@ -51,45 +51,17 @@ async function createFile(projectId, ownerId, parentId, name, content) {
 }
 
 async function resetDatabase(projectId, userId, projectPath) {
-    try {
-        console.log("Resetting database for project:", projectId)
-        
-        // Vérifier que le chemin existe
-        if (!fs.existsSync(projectPath)) {
-            console.log("Project path does not exist, skipping database reset")
-            return
-        }
-        
-        const items = await fs.readdir(projectPath)
-        
-        // Supprimer chaque élément de manière séquentielle
-        for (const item of items) {
-            if (item !== '.git') { // Ne pas toucher au dossier .git
-                try {
-                    await new Promise((resolve, reject) => {
-                        EditorController.deleteEntityWithPath(projectId, item, 'unknown', userId, (err) => {
-                            if (err) {
-                                console.warn(`Warning: Could not delete ${item}:`, err)
-                            }
-                            resolve() // Continuer même en cas d'erreur
-                        })
-                    })
-                } catch (error) {
-                    console.warn(`Warning: Error deleting ${item}:`, error)
-                }
-            }
-        }
-        
-        console.log("Database reset completed")
-    } catch (error) {
-        console.error("Error in resetDatabase:", error)
-        // Ne pas faire échouer le processus pour cette erreur
-    }
+
+  const items = await fs.readdir(projectPath)
+
+  for (const item of items) {
+    EditorController.deleteEntityWithPath(projectId, item, 'unknown', userId, () => {})
+  }
 }
 
 async function buildProject(currentPath, projectId, ownerId, parentId) {
 
-  resetDatabase(projectId, ownerId, currentPath)
+  await resetDatabase(projectId, ownerId, currentPath)
   const items = await fs.readdir(currentPath)
 
   for (const item of items) {
@@ -177,18 +149,14 @@ async function getModified() {
 // historique des commits
 async function getCommitHistory(limit = 10) {
     try {
-        // Utilisation de --pretty=format pour avoir plus d'informations
-        const log = await git.log(['--pretty=format:%H|%s|%ad|%an', '--date=iso', `-${limit}`])
-        return log.all.map(commit => {
-            // Parse du format personnalisé
-            const parts = commit.message.split('|')
-            return {
-                hash: commit.hash,
-                message: parts[1] || commit.message, // Message complet du commit
-                date: parts[2] || commit.date,
-                author: parts[3] || 'Unknown'
-            }
-        })
+        // Utilisation du format standard de simple-git
+        const log = await git.log([`-${limit}`])
+        return log.all.map(commit => ({
+            hash: commit.hash,
+            message: commit.message,
+            date: commit.date,
+            author: commit.author_name || 'Unknown'
+        }))
     } catch (error) {
         console.error("Error fetching commit history:", error);
         return []
@@ -198,14 +166,31 @@ async function getCommitHistory(limit = 10) {
 // effectuer un reset hard vers un commit spécifique
 async function resetToCommit(commitHash, projectId, ownerId) {
     try {
-        const cleanHash = commitHash.trim().split(/\s+/)[0]
+        // Extraire seulement le hash si c'est au format personnalisé
+        let cleanHash = commitHash.trim()
+        
+        // Si le hash contient des pipes (ancien format), extraire seulement le hash
+        if (cleanHash.includes('|')) {
+            cleanHash = cleanHash.split('|')[0]
+        }
+        
+        // Prendre seulement les premiers caractères si c'est un hash tronqué
+        cleanHash = cleanHash.split(/\s+/)[0]
+        
         console.log(`Resetting to commit: ${cleanHash}`)
+        
+        // Vérifier que le commit existe
+        try {
+            await git.show([cleanHash, '--format=format:', '--name-only'])
+        } catch (error) {
+            throw new Error(`Commit ${cleanHash} not found in repository`)
+        }
         
         // Reset hard vers le commit
         await git.reset(['--hard', cleanHash])
         
         // Nettoyage du workspace
-        await git.clean('-fd')
+        await git.clean('f')
         
         console.log(`Reset to commit ${cleanHash} successful`)
         return true
@@ -219,10 +204,9 @@ async function rebuildProjectAfterRollback(projectPath, projectId, ownerId) {
         console.log("Starting project rebuild after rollback...")
         
         // Supprimer tous les fichiers/dossiers existants dans Overleaf
-        await resetDatabase(projectId, ownerId, projectPath)
-        
-        // Attendre un peu pour que la suppression soit effective
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        console.log(projectId)
+        console.log(ownerId)
+        console.log(projectPath)
         
         // Reconstruire le projet depuis les fichiers Git
         await buildProject(projectPath, projectId, ownerId, getRootId(projectId))
@@ -539,32 +523,34 @@ GitController = {
     console.log(`Rolling back to commit ${commitHash}`)
     console.log(`Project path: ${projectPath}`)
     
-    const cleanCommitHash = commitHash ? commitHash.trim().split(/\s+/)[0] : ''
-    
-    if (!cleanCommitHash) {
-        console.error("No valid commit hash provided")
-        res.status(400).json({ error: "No valid commit hash provided" })
+    if (!commitHash || !commitHash.trim()) {
+        console.error("No commit hash provided")
+        res.status(400).json({ error: "No commit hash provided" })
         return
     }
 
-    console.log(`Clean commit hash: ${cleanCommitHash}`)
-
     move(projectId, userId)
 
-    resetToCommit(cleanCommitHash)
+    resetToCommit(commitHash, projectId, userId)
       .then(() => {
         console.log("Rollback successful, rebuilding project")
         return rebuildProjectAfterRollback(projectPath, projectId, userId)
       })
       .then(() => {
         console.log('Rollback and rebuild successful')
-        res.sendStatus(200)
+        res.json({ 
+          success: true, 
+          message: 'Rollback and rebuild successful' 
+        })
       })
       .catch(error => {
         console.error("Error during rollback:", error)
-        res.status(500).json({ error: error.message })
+      res.status(500).json({ 
+        success: false,
+        error: error.message || 'Rollback failed'
       })
-  },
+    })
+},
 
   stagedFiles(req, res) {
     const { projectId, userId } = req.query

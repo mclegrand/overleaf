@@ -271,30 +271,24 @@ function GitToggleButton() {
     if (confirmed) {
       setIsRollbackLoading(true)
       
-      try {
-        const response = await postJSON('/git-rollback', {
-          body: {
-            projectId: projectId,
-            userId: userId,
-            commitHash: commitHash
-          }
-        })
-        
-        if (response.success) {
-          alert(`Successfully rolled back to commit ${commitHash.substring(0, 7)}. Please refresh the page to see the changes.`)
-          // Fermer la modal et rafraîchir la page
-          setIsModalOpen(false)
-          window.location.reload()
-        } else {
-          throw new Error(response.error || 'Rollback failed')
+      const response = await postJSON('/git-rollback', {
+        body: {
+          projectId: projectId,
+          userId: userId,
+          commitHash: commitHash
         }
-        
-      } catch (error) {
-        console.error('Rollback error:', error)
-        alert(`Rollback failed: ${error.message}. Please check the console for more details.`)
-      } finally {
-        setIsRollbackLoading(false)
+      })
+      
+      if (response.success) {
+        alert(`Successfully rolled back to commit ${commitHash.substring(0, 7)}. Please refresh the page to see the changes.`)
+        // Fermer la modal et rafraîchir la page
+        setIsModalOpen(false)
+        window.location.reload()
+      } else {
+        throw new Error(response.error || 'Rollback failed')
       }
+      
+      setIsRollbackLoading(false)
     }
   }
 
