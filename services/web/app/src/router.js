@@ -1,3 +1,4 @@
+//router.js
 const AdminController = require('./Features/ServerAdmin/AdminController')
 const ErrorController = require('./Features/Errors/ErrorController')
 const { GitController } = require('./Features/Git/GitController')
@@ -346,10 +347,22 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     GitController.commit
   )
 
+  webRouter.get(
+  '/git-commits',
+  AuthenticationController.requireLogin(),
+  GitController.commitHistory
+  )
+
   webRouter.post(
     '/git-push',
     AuthenticationController.requireLogin(),
     GitController.push
+  )
+
+  webRouter.post(
+    '/git-rollback',
+    AuthenticationController.requireLogin(),
+    GitController.rollback
   )
 
   webRouter.post(

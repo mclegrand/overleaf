@@ -1,3 +1,4 @@
+//GitController.js
 const path = require('path')
 const fs = require('fs-extra')
 const dataPath = "/var/lib/overleaf/data/git/"
@@ -15,6 +16,7 @@ const gitOptions = {
   baseDir: dataPath,
   privateKey: ""
 }
+const bannedFiles = ['output.aux', 'output.fdb_latexmk', 'output.fls', 'output.log', 'output.pdf', 'output.stdout', 'output.synctex.gz', '.project-sync-state'];
 
 var git = simpleGit(gitOptions)
 
@@ -94,13 +96,15 @@ async function resetDatabase(projectId, userId, projectPath) {
   const items = await fs.readdir(projectPath)
 
   for (const item of items) {
+    if(!bannedFiles.includes(item)) {
     EditorController.deleteEntityWithPath(projectId, item, 'unknown', userId, () => {})
+    }
   }
 }
 
-async function buildProject(currentPath, projectId, ownerId, parentId) {
+async function buildProject(currentPath, projectId, ownerId, parentId, rollbacked = false) {
+  rollbacked ? await resetDatabase(projectId, ownerId, outputPath + "/" + projectId + "-" + ownerId) : await resetDatabase(projectId, ownerId, currentPath)
 
-  resetDatabase(projectId, ownerId, currentPath)
   const items = await fs.readdir(currentPath)
 
   for (const item of items) {
@@ -112,7 +116,7 @@ async function buildProject(currentPath, projectId, ownerId, parentId) {
       await buildProject(itemPath, projectId, ownerId, newFolderId)
     } else if (stat.isFile()) {
       const data = fs.readFileSync(itemPath, 'utf8')
-      lines = data.split(/\r?\n/)
+      const lines = data.split(/\r?\n/)
       const docId = await createFile(projectId, ownerId, parentId, item, lines)
     }
   }
@@ -231,6 +235,79 @@ async function getModified() {
     } catch (error) {
         console.error("Error fetching modified files:", error);
         return []
+    }
+}
+
+// historique des commits
+async function getCommitHistory(limit = 10) {
+    try {
+        // Utilisation du format standard de simple-git
+        const log = await git.log([`-${limit}`])
+        return log.all.map(commit => ({
+            hash: commit.hash,
+            message: commit.message,
+            date: commit.date,
+            author: commit.author_name || 'Unknown'
+        }))
+    } catch (error) {
+        console.error("Error fetching commit history:", error);
+        return []
+    }
+}
+
+// effectuer un reset hard vers un commit spécifique
+async function resetToCommit(commitHash, projectId, ownerId) {
+    try {
+        // Extraire seulement le hash si c'est au format personnalisé
+        let cleanHash = commitHash.trim()
+        
+        // Si le hash contient des pipes (ancien format), extraire seulement le hash
+        if (cleanHash.includes('|')) {
+            cleanHash = cleanHash.split('|')[0]
+        }
+        
+        // Prendre seulement les premiers caractères si c'est un hash tronqué
+        cleanHash = cleanHash.split(/\s+/)[0]
+        
+        console.log(`Resetting to commit: ${cleanHash}`)
+        
+        // Vérifier que le commit existe
+        try {
+            await git.show([cleanHash, '--format=format:', '--name-only'])
+        } catch (error) {
+            throw new Error(`Commit ${cleanHash} not found in repository`)
+        }
+        
+        // Reset hard vers le commit
+        await git.reset(['--hard', cleanHash])
+        
+        // Nettoyage du workspace
+        await git.clean('f')
+        
+        console.log(`Reset to commit ${cleanHash} successful`)
+        return true
+    } catch (error) {
+        console.error("Error resetting to commit:", error);
+        throw error
+    }
+}
+async function rebuildProjectAfterRollback(projectPath, projectId, ownerId) {
+    try {
+        console.log("Starting project rebuild after rollback...")
+        
+        // Supprimer tous les fichiers/dossiers existants dans Overleaf
+        console.log(projectId)
+        console.log(ownerId)
+        console.log(projectPath)
+        
+        // Reconstruire le projet depuis les fichiers Git
+        await buildProject(projectPath, projectId, ownerId, getRootId(projectId),true)
+        
+        console.log("Project rebuild completed successfully")
+        return true
+    } catch (error) {
+        console.error("Error rebuilding project:", error)
+        throw error
     }
 }
 
@@ -367,19 +444,13 @@ function resetFolder(src) {
     console.log(`${src} folder reset`)
 }
 
-
 async function gitUpdate(projectId, ownerId) {
-const bannedFiles = [
-  'output.aux',
-  'output.fdb_latexmk',
-  'output.fls',
-  'output.log',
-  'output.pdf',
-  'output.stdout',
-  'output.stderr',
-  'output.synctex.gz',
-  '.project-sync-state'
-];
+  console.log("Copying")
+  const src = outputPath + projectId + "-" + ownerId
+  const dest = dataPath + projectId + "-" + ownerId
+
+  resetFolder(dest)
+
 
   const src = path.join(outputPath, `${projectId}-${ownerId}`);
   const dest = path.join(dataPath, `${projectId}-${ownerId}`);
@@ -438,6 +509,7 @@ GitController = {
       })
       .then(() => res.sendStatus(200))
       .catch(error => {
+        res.sendStatus(500);
         console.error("Error.git: ", error.git);
         console.error("Error.message: ", error.message);
         if (error.git?.message === "Exiting because of an unresolved conflict." ||
@@ -446,7 +518,7 @@ GitController = {
         } else {
           HttpErrorHandler.gitMethodError(req, res, error?.git?.message || error?.message || String(error));
         }
-        buildProject(projectPath, projectId, userId, getRootId(projectId));
+        return buildProject(projectPath, projectId, userId, getRootId(projectId));
       });
   },
 
@@ -519,6 +591,63 @@ GitController = {
         HttpErrorHandler.gitMethodError(req, res, error?.git?.message || error?.message || String(error));
       })
   },
+
+  // Route pour obtenir l'historique des commits
+  commitHistory(req, res) {
+    const { projectId, userId } = req.query
+    const limit = req.query.limit || 10
+
+    move(projectId, userId)
+
+    getCommitHistory(parseInt(limit))
+      .then(commits => {
+        res.json(commits)
+        console.log("Commit history fetched successfully")
+      })
+      .catch(error => {
+        console.error("Error fetching commit history:", error)
+        res.json([])
+      })
+  },
+
+  // Route pour effectuer un rollback
+  rollback(req, res) {
+    const projectId = req.body.projectId
+    const userId = req.body.userId
+    const commitHash = req.body.commitHash
+    const projectPath = dataPath + projectId + "-" + userId
+
+    console.log(`Rolling back to commit ${commitHash}`)
+    console.log(`Project path: ${projectPath}`)
+    
+    if (!commitHash || !commitHash.trim()) {
+        console.error("No commit hash provided")
+        res.status(400).json({ error: "No commit hash provided" })
+        return
+    }
+
+    move(projectId, userId)
+
+    resetToCommit(commitHash, projectId, userId)
+      .then(() => {
+        console.log("Rollback successful, rebuilding project")
+        return rebuildProjectAfterRollback(projectPath, projectId, userId)
+      })
+      .then(() => {
+        console.log('Rollback and rebuild successful')
+        res.json({ 
+          success: true, 
+          message: 'Rollback and rebuild successful' 
+        })
+      })
+      .catch(error => {
+        console.error("Error during rollback:", error)
+      res.status(500).json({ 
+        success: false,
+        error: error.message || 'Rollback failed'
+      })
+    })
+},
 
   stagedFiles(req, res) {
     const { projectId, userId } = req.query
