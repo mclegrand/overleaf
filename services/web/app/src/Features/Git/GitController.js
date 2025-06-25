@@ -12,6 +12,7 @@ const gitOptions = {
   baseDir: dataPath,
   privateKey: ""
 }
+const bannedFiles = ['output.aux', 'output.fdb_latexmk', 'output.fls', 'output.log', 'output.pdf', 'output.stdout', 'output.synctex.gz', '.project-sync-state'];
 
 var git = simpleGit(gitOptions)
 
@@ -55,13 +56,14 @@ async function resetDatabase(projectId, userId, projectPath) {
   const items = await fs.readdir(projectPath)
 
   for (const item of items) {
+    if(!bannedFiles.includes(item)) {
     EditorController.deleteEntityWithPath(projectId, item, 'unknown', userId, () => {})
+    }
   }
 }
 
-async function buildProject(currentPath, projectId, ownerId, parentId) {
-
-  await resetDatabase(projectId, ownerId, currentPath)
+async function buildProject(currentPath, projectId, ownerId, parentId, rollbacked = false) {
+  rollbacked ? await resetDatabase(projectId, ownerId, outputPath + "/" + projectId + "-" + ownerId) : await resetDatabase(projectId, ownerId, currentPath)
   const items = await fs.readdir(currentPath)
 
   for (const item of items) {
@@ -209,7 +211,7 @@ async function rebuildProjectAfterRollback(projectPath, projectId, ownerId) {
         console.log(projectPath)
         
         // Reconstruire le projet depuis les fichiers Git
-        await buildProject(projectPath, projectId, ownerId, getRootId(projectId))
+        await buildProject(projectPath, projectId, ownerId, getRootId(projectId),true)
         
         console.log("Project rebuild completed successfully")
         return true
@@ -356,7 +358,6 @@ async function gitUpdate(projectId, ownerId) {
     console.log("Copying")
     const src = outputPath + projectId + "-" + ownerId
     const dest = dataPath + projectId + "-" + ownerId
-    const bannedFiles = ['output.aux', 'output.fdb_latexmk', 'output.fls', 'output.log', 'output.pdf', 'output.stdout', 'output.synctex.gz', '.project-sync-state'];
 
     resetFolder(dest)
 
