@@ -5,6 +5,10 @@ const dataPath = "/var/lib/overleaf/data/git/"
 const outputPath = "/var/lib/overleaf/data/compiles/"
 const simpleGit = require('simple-git')
 const EditorController = require('../Editor/EditorController')
+const CompileManager = require('../Compile/CompileManager');
+const ClsiCookieManager = require('../Compile/ClsiCookieManager');
+const Errors = require('../Errors/Errors')
+const HttpErrorHandler = require('../Errors/HttpErrorHandler')
 const crypto = require('crypto')
 const sshpk = require('sshpk')
 
@@ -22,6 +26,10 @@ function getRootId(projectId) {
   let decrementedHexString = decrementedValue.toString(16)
   return decrementedHexString
 }
+function getGitForProject(projectId, userId) {
+  const repoPath = dataPath + projectId + "-" + userId;
+  return simpleGit({ baseDir: repoPath });
+}
 
 async function createFolder(projectId, ownerId, parentId, name) {
   const doc = await EditorController.promises.addFolder(
@@ -34,6 +42,38 @@ async function createFolder(projectId, ownerId, parentId, name) {
  return doc._id.toString()
 }
 
+async function compileProject(projectId, userId)
+{
+  console.log('Triggering compilation...');
+  const compilePromise = new Promise((resolve, reject) => {
+	  let handler = setTimeout(() => {
+          reject(new Error('Compiler timed out'));
+          handler = null;
+        }, 10000); // 10-second timeout
+
+  CompileManager.compile(
+          projectId,
+          userId,
+          {}, // Add any options if needed
+          function (error, status) {
+            if (handler) {
+              clearTimeout(handler);
+            }
+            if (error) {
+              reject(error);
+            } else if (status === 'success') {
+              resolve('Compilation successful');
+            } else {
+              reject(new Error(`Compilation failed: ${status}`));
+            }
+          }
+        );
+      });
+
+  const compileResult = await compilePromise;
+  console.log(compileResult);
+
+}
 async function createFile(projectId, ownerId, parentId, name, content) {
   try {
     const doc = await EditorController.promises.addDoc(
@@ -64,6 +104,7 @@ async function resetDatabase(projectId, userId, projectPath) {
 
 async function buildProject(currentPath, projectId, ownerId, parentId, rollbacked = false) {
   rollbacked ? await resetDatabase(projectId, ownerId, outputPath + "/" + projectId + "-" + ownerId) : await resetDatabase(projectId, ownerId, currentPath)
+
   const items = await fs.readdir(currentPath)
 
   for (const item of items) {
@@ -106,9 +147,23 @@ function getStatus(){
         });
       });
 }
+async function safeGitCheckout(branchName) {
+  try {
+    if (fs.existsSync(lockFile)) {
+      console.warn('Lock file exists. Attempting to remove it...');
+      fs.unlinkSync(lockFile);
+      console.log('Lock file removed.');
+    }
 
-async function getStaged() {
+    await git.checkout(branchName);
+    console.log(`Checked out branch: ${branchName}`);
+  } catch (err) {
+    console.error('Git operation failed:', err.message);
+  }
+}
 
+async function getStaged(projectId, userId) {
+  const git = getGitForProject(projectId, userId);
     try {
         const status = await git.status()
         const stagedFiles = status.staged
@@ -120,7 +175,8 @@ async function getStaged() {
     }
 }
 
-async function getNotStaged() {
+async function getNotStaged(projectId,userId) {
+  const git = getGitForProject(projectId, userId);
     console.log('OK')
     try {
         const status = await git.status()
@@ -133,6 +189,40 @@ async function getNotStaged() {
         console.error("Error fetching not staged files:", error);
         return []
     }
+}
+
+async function getBranches(projectId, userId) {
+    try {
+      const key = await getKey(userId, 'private')
+      const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
+      git = simpleGit().env({'GIT_SSH_COMMAND': GIT_SSH_COMMAND});
+      move(projectId, userId);
+      await git.fetch('origin');
+      console.log("fetched");
+      const branches = await git.branch(['-r']);
+      console.log('Remote branches:', branches.all);
+      return branches.all;
+    } catch (err) {
+      console.error("Error fetching branches:", err);
+      return []
+    }
+}
+
+async function getCurrentBranch(projectId, userId) {
+  try {
+    const key = await getKey(userId, 'private')
+    const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
+    git = simpleGit().env({'GIT_SSH_COMMAND': GIT_SSH_COMMAND});
+    move(projectId, userId);
+    const br = await git.branch(["-r"]);
+    const stat = await git.status();
+    console.log("Current Branch: ", br.current);
+    console.log("Current Branch (status): ", stat.current);
+    return `origin/${stat.current}`;
+  } catch (err) {
+    console.error("Error fetching current branches:", err);
+    return "";
+  }
 }
 
 async function getModified() {
@@ -355,51 +445,39 @@ function resetFolder(src) {
 }
 
 async function gitUpdate(projectId, ownerId) {
-    console.log("Copying")
-    const src = outputPath + projectId + "-" + ownerId
-    const dest = dataPath + projectId + "-" + ownerId
+  console.log("Copying")
+  const src = outputPath + projectId + "-" + ownerId
+  const dest = dataPath + projectId + "-" + ownerId
 
-    resetFolder(dest)
+  resetFolder(dest)
 
-      fs.copy(src, dest, err => {
 
-        if (err) {
-          console.error(`Error when copying ${src} to ${dest}:`, err)
-          return
-        }
+  const src = path.join(outputPath, `${projectId}-${ownerId}`);
+  const dest = path.join(dataPath, `${projectId}-${ownerId}`);
 
-        fs.readdir(dest, (err, files) => {
-        if (err) {
-            console.error(`Erreur when reading folder: ${err}`)
-            return
-        }
+  // Ensure the destination exists
+  await fs.ensureDir(dest);
 
-        files.forEach(file => {
+  // Read all files in the source directory
+  const files = await fs.readdir(src);
 
-            const filePath = path.join(dest, file)
+  for (const file of files) {
+    if (bannedFiles.includes(file)) {
+      // Optionally, remove the banned file from the destination if it exists
+      const destFile = path.join(dest, file);
+      if (await fs.pathExists(destFile)) {
+        await fs.remove(destFile);
+      }
+      continue;
+    }
 
-            fs.stat(filePath, (err, stats) => {
-
-                if (err) {
-                    console.error(`Error getting stats of file: ${filePath}, ${err}`);
-                    return;
-                }
-
-                if (bannedFiles.includes(path.basename(filePath))) {
-                   fs.remove(filePath, err => {
-                        if (err) {
-                            console.error(`Couldn't delete file: ${filePath}, ${err}`)
-                            return
-                        }
-                    });
-                }
-           });
-       });
-    console.log("Source: " + src)
-    console.log("Destination: " + dest)
-     })
-    })
+    // Copy file from src to dest
+    const srcFile = path.join(src, file);
+    const destFile = path.join(dest, file);
+    await fs.copy(srcFile, destFile, { overwrite: true });
+  }
 }
+
 
 GitController = {
 
@@ -412,9 +490,12 @@ GitController = {
     const projectId = req.body.projectId
     const userId = req.body.userId
     const projectPath = dataPath + projectId + "-" + userId
-
+    console.log("compiling in pull")
+    try {
+      compileProject(projectId, userId)
+    }
+    catch(error){console.log("error when compiling in git pull")}
     console.log("Pulling")
-
     getKey(userId, 'private')
       .then(key => {
         const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
@@ -424,27 +505,38 @@ GitController = {
       .then(() => git.pull({'--no-rebase': null}))
       .then(update => {
         console.log("Repository pulled");
-        return buildProject(projectPath, projectId, userId, getRootId(projectId));
+        buildProject(projectPath, projectId, userId, getRootId(projectId));
       })
       .then(() => res.sendStatus(200))
       .catch(error => {
-        console.error("Error:", error);
         res.sendStatus(500);
+        console.error("Error.git: ", error.git);
+        console.error("Error.message: ", error.message);
+        if (error.git?.message === "Exiting because of an unresolved conflict." ||
+          error.git?.message === "Exiting because of unfinished merge.") {
+          HttpErrorHandler.gitMethodError(req, res, "Please fix all conflicts before merging")
+        } else {
+          HttpErrorHandler.gitMethodError(req, res, error?.git?.message || error?.message || String(error));
+        }
         return buildProject(projectPath, projectId, userId, getRootId(projectId));
       });
   },
 
-  add(req, res) {
+  async add(req, res) {
     const projectId = req.body.projectId
     const userId = req.body.userId
     const filePath = req.body.filePath
     console.log("Adding " + filePath)
     move(projectId, userId)
-
+    console.log("compiling because add")
+    try {
+      await compileProject(projectId,userId)
+    }
+    catch(error){console.log("error when compiling in git add")}
     git.add(filePath, (error) => {
         if (error) {
           console.error("Could not add the file", error)
-          res.sendStatus(500)
+          HttpErrorHandler.gitMethodError(req, res, error?.git?.message || error?.message || String(error));
         }
         else{
           console.log('File added')
@@ -458,12 +550,17 @@ GitController = {
     const userId = req.body.userId
     const message = req.body.message
     console.log("Commit with message: " + message)
+    if (!message || message.trim() === "") {
+      console.log("Empty commit messages are not permitted")
+      HttpErrorHandler.gitMethodError(req, res, "Please add a commit message before committing.")
+      return
+    }
     move(projectId, userId)
 
     git.commit(message, (error) => {
         if (error) {
           console.error("Could not commit", error)
-          res.sendStatus(500)
+          HttpErrorHandler.gitMethodError(req, res, error)
         }
         else{
           console.log('Commit successful')
@@ -476,7 +573,6 @@ GitController = {
     const projectId = req.body.projectId
     const userId = req.body.userId
     console.log("Pushing")
-
     move(projectId, userId)
 
     getKey(userId, 'private')
@@ -492,7 +588,7 @@ GitController = {
       })
       .catch(error => {
         console.error("Error:", error)
-        res.sendStatus(500)
+        HttpErrorHandler.gitMethodError(req, res, error?.git?.message || error?.message || String(error));
       })
   },
 
@@ -558,7 +654,7 @@ GitController = {
 
     move(projectId, userId)
 
-    getStaged()
+    getStaged(projectId,userId)
     .then(stagedFilesList => {
       res.json(stagedFilesList)
     })
@@ -573,7 +669,7 @@ GitController = {
 
     move(projectId, userId)
 
-    getNotStaged()
+    getNotStaged(projectId,userId)
     .then(notStagedFilesList => {
       res.json(notStagedFilesList)
     })
@@ -582,6 +678,102 @@ GitController = {
       res.json([])
     })
   },
+
+  currentBranch(req, res) {
+    const { projectId, userId } = req.query
+    move(projectId, userId)
+    getCurrentBranch(projectId, userId)
+      .then(currBranch=> {
+        res.json(currBranch)
+      })
+      .catch(error => {
+        console.error("Error fetching current Branch:", error)
+        res.json("")
+      })
+  },
+
+  branches(req, res) {
+    const { projectId, userId } = req.query
+    move(projectId, userId)
+    getBranches(projectId, userId)
+      .then(branchList => {
+        res.json(branchList)
+      })
+      .catch(error => {
+        console.error("Error fetching branches:", error)
+        res.json([])
+      })
+  },
+
+  async switch_branch(req, res) {
+    const { projectId, userId, branchName } = req.body;
+    const projectPath = dataPath + projectId + "-" + userId;
+    console.log("switch branch to: ", branchName)
+
+    try {
+
+      const key = await getKey(userId, 'private');
+      const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
+      git = simpleGit(projectPath).env({ GIT_SSH_COMMAND });
+      await move(projectId, userId);
+      await git.fetch('origin');
+
+      const [, localBranch] = branchName.split('/');
+      const localBranches = await git.branchLocal();
+
+      var stat = await git.status();
+      var br = await git.branch();
+      console.log("Current Branch:", br.current);
+      console.log("Current Branch (status): ",stat.current)
+
+      if (localBranches.all.includes(localBranch)) {
+        await git.checkout(localBranch);
+      } else {
+        await git.checkout(['-b', localBranch, branchName]);
+      }
+
+      br = await git.branch();
+      stat = await git.status();
+      console.log("Switched to Branch:", br.current);
+      console.log("Switched to Branch (status): ", stat.current);
+      console.log("Status: ", stat)
+
+      await buildProject(projectPath, projectId, userId, getRootId(projectId));
+
+      res.sendStatus(200);
+    } catch (error) {
+      console.error("Git checkout failed:", error);
+      HttpErrorHandler.gitMethodError(req, res, error);
+
+      // still attempt to build the project in case of partial failure
+      await buildProject(projectPath, projectId, userId, getRootId(projectId));
+    }
+  },
+
+  async createBranch(req, res) {
+    console.log("Here at create Branch");
+    const { projectId, userId, newBranchName } = req.body;
+    const projectPath = dataPath + projectId + "-" + userId;
+    try {
+      const key = await getKey(userId, 'private');
+      const GIT_SSH_COMMAND = `ssh -o StrictHostKeyChecking=no -i ${key}`;
+      git = simpleGit(projectPath).env({GIT_SSH_COMMAND});
+
+      await move(projectId, userId);
+      const BranchCreationSummary = await git.checkoutLocalBranch(newBranchName);
+      console.log("created new branch: ", newBranchName)
+
+      await git.push(['-u', 'origin', newBranchName])
+      console.log(`Branch '${newBranchName}' pushed to origin`)
+
+      res.sendStatus(200);
+
+      } catch (error) {
+        console.error("Create branch failed:", error);
+        await buildProject(projectPath, projectId, userId, getRootId(projectId));
+        HttpErrorHandler.gitMethodError(req, res, error?.git?.message || error?.message || String(error));
+      }
+    },
 
   getKey(req, res) {
     function getUserIdFromUrl(url) {

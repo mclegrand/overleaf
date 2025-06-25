@@ -40,5 +40,6 @@ build-community:
 	  --tag $(OVERLEAF_BRANCH) \
 	  $(MONOREPO_ROOT)
 
+	docker tag $(OVERLEAF_TAG) sharelatex/sharelatex:$(BRANCH_NAME)
 
 .PHONY: all build-base build-community

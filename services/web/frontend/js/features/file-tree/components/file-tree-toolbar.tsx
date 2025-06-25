@@ -95,6 +95,30 @@ function FileTreeToolbarLeft() {
           <Icon type="upload" fw accessibilityLabel={t('upload')} />
         </Button>
       </Tooltip>
+      <Tooltip
+        id="pull"
+        description='Pull'
+        overlayProps={{ placement: 'bottom' }}
+      >
+      <Button onClick={() => {
+        runAsync(
+            postJSON('/git-pull', {
+              body:{
+                projectId: projectId,
+                userId: userId
+              }
+            })
+            .then(response => {
+                alert("Pull successful");
+            })
+            .catch( error => {
+                alert(error.data.errorReason);
+            })
+        );
+      }}>
+        <Icon type="repeat" fw accessibilityLabel={t('pull')} />
+      </Button>
+    </Tooltip>
     </div>
   )
 }
