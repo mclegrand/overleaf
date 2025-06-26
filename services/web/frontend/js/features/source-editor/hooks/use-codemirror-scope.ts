@@ -185,7 +185,7 @@ function useCodeMirrorScope(view: EditorView) {
 
     if (currentDocument) {
       if (trackChanges) {
-        currentDocument.setTrackChangesUserId(userId ?? 'anonymous')
+        currentDocument.setTrackChangesUserId(userId ?? 'anonymous-user')
       } else {
         currentDocument.setTrackChangesUserId(null)
       }
