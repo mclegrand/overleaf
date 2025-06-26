@@ -48,6 +48,7 @@ function getClient() {
         'secure',
         'auth',
         'ignoreTLS',
+        'tls',
         'logger',
         'name'
       )
@@ -59,7 +60,7 @@ function getClient() {
     )
     client = {
       async sendMail(options) {
-        logger.debug({ options }, 'Would send email if enabled.')
+        logger.info({ options }, 'Would send email if enabled.')
       },
     }
   }

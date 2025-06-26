@@ -1,6 +1,5 @@
 // Needed since eslint gets confused by mocha-each
 /* eslint-disable mocha/prefer-arrow-callback */
-import '../../../helpers/bootstrap-3'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import CodemirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
 import { mockScope } from '../helpers/mock-scope'
@@ -107,9 +106,10 @@ function checkBordersWithNoMultiColumn(
 describe('<CodeMirrorEditor/> Table editor', function () {
   beforeEach(function () {
     cy.interceptEvents()
-    cy.interceptSpelling()
+
     cy.interceptMathJax()
-    cy.interceptCompile('compile', Number.MAX_SAFE_INTEGER)
+    cy.interceptCompile({ prefix: 'compile', times: Number.MAX_SAFE_INTEGER })
+    cy.intercept('/project/*/doc/*/metadata', { body: {} })
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
   })
 
@@ -178,7 +178,9 @@ cell 3 & cell 4 \\\\
     })
 
     it('Adds and removes borders when theme is changed', function () {
+      // Add a blank line above the table to allow room for the table toolbar
       mountEditor(`
+
 \\begin{tabular}{c|c}
     cell 1 & cell 2 \\\\
     cell 3 & cell 4 \\\\
@@ -215,8 +217,45 @@ cell 3 & cell 4 \\\\
       )
     })
 
-    it('Changes the column alignment with dropdown buttons', function () {
+    it('Correctly sets borders for booktabs', function () {
+      // Add a blank line above the table to allow room for the table toolbar
       mountEditor(`
+
+\\begin{tabular}{c|c}
+    cell 1 & cell 2 \\\\
+    cell 3 & cell 4 \\\\
+    cell 5 & cell 6 \\\\
+\\end{tabular}
+`)
+      checkBordersWithNoMultiColumn(
+        [false, false, false, false],
+        [false, true, false]
+      )
+      cy.get('.table-generator-floating-toolbar').should('not.exist')
+      cy.get('.table-generator-cell').first().click()
+      cy.get('.table-generator-floating-toolbar').as('toolbar').should('exist')
+      cy.get('@toolbar').findByText('Custom borders').click({ force: true })
+      cy.get('.table-generator').findByText('Booktabs').click()
+      // The element is partially covered, but we can still click it
+      cy.get('.cm-line').first().click({ force: true })
+      // Table should be unchanged
+      checkTable([
+        ['cell 1', 'cell 2'],
+        ['cell 3', 'cell 4'],
+        ['cell 5', 'cell 6'],
+      ])
+      checkBordersWithNoMultiColumn(
+        [true, true, false, true],
+        [false, false, false]
+      )
+      cy.get('.table-generator-cell').first().click()
+      cy.get('@toolbar').findByText('Booktabs').should('exist')
+    })
+
+    it('Changes the column alignment with dropdown buttons', function () {
+      // Add a blank line above the table to allow room for the table toolbar
+      mountEditor(`
+
 \\begin{tabular}{cc}
     cell 1 & cell 2 \\\\
     cell 3 & cell 4 \\\\
@@ -269,7 +308,9 @@ cell 3 & cell 4 \\\\
     })
 
     it('Removes rows and columns', function () {
+      // Add a blank line above the table to allow room for the table toolbar
       mountEditor(`
+
 \\begin{tabular}{|c|c|c|}
     \\hline
     cell 1 & cell 2 & cell 3 \\\\ \\hline
@@ -304,7 +345,9 @@ cell 3 & cell 4 \\\\
     })
 
     it('Removes rows correctly when removing from the left', function () {
+      // Add a blank line above the table to allow room for the table toolbar
       mountEditor(`
+
 \\begin{tabular}{|c|c|c|}\\hline
     cell 1&cell 2&cell 3 \\\\\\hline
 \\end{tabular}
@@ -324,7 +367,9 @@ cell 3 & cell 4 \\\\
     })
 
     it('Merges and unmerged cells', function () {
+      // Add a blank line above the table to allow room for the table toolbar
       mountEditor(`
+
 \\begin{tabular}{ccc}
     cell 1 & cell 2 & cell 3 \\\\
     cell 4 & cell 5 & cell 6 \\\\
@@ -333,6 +378,7 @@ cell 3 & cell 4 \\\\
       cy.get('.table-generator-cell').first().click()
       cy.get('.table-generator-cell').first().type('{shift}{rightarrow}')
       cy.get('.table-generator-floating-toolbar').as('toolbar').should('exist')
+      cy.get('@toolbar').scrollIntoView()
       cy.get('@toolbar').findByLabelText('Merge cells').click()
       checkTable([
         [{ text: 'cell 1 cell 2', colspan: 2 }, 'cell 3'],
@@ -346,7 +392,9 @@ cell 3 & cell 4 \\\\
     })
 
     it('Adds rows and columns', function () {
+      // Add a blank line above the table to allow room for the table toolbar
       mountEditor(`
+
 \\begin{tabular}{c}
     cell 1
 \\end{tabular}
@@ -398,7 +446,9 @@ cell 3 & cell 4 \\\\
     })
 
     it('Removes the table on toolbar button click', function () {
+      // Add a blank line above the table to allow room for the table toolbar
       mountEditor(`
+
 \\begin{tabular}{c}
     cell 1
 \\end{tabular}`)
@@ -409,7 +459,9 @@ cell 3 & cell 4 \\\\
     })
 
     it('Moves the caption when using dropdown', function () {
+      // Add a blank line above the table to allow room for the table toolbar
       mountEditor(`
+
 \\begin{table}
   \\caption{Table caption}
   \\label{tab:table}
@@ -456,7 +508,9 @@ cell 3 & cell 4 \\\\
     })
 
     it('Renders a table with custom column spacing', function () {
+      // Add a blank line above the table to allow room for the table toolbar
       mountEditor(`
+
 \\begin{tabular}{@{}c@{}l!{}}
   cell 1 & cell 2 \\\\
   cell 3 & cell 4 \\\\
@@ -498,8 +552,10 @@ cell 3 & cell 4 \\\\
 
     describe('Fixed width columns', function () {
       it('Can add fixed width columns', function () {
+        // Add a blank line above the table to allow room for the table toolbar
         // Check that no column indicators exist
         mountEditor(`
+
         \\begin{tabular}{cc}
         cell 1 & cell 2\\\\
         cell 3 & cell 4 \\\\
@@ -525,7 +581,10 @@ cell 3 & cell 4 \\\\
           .should('be.focused')
           .type('20')
         // Change the unit to inches
-        cy.get('@modal').findAllByLabelText('Length unit').first().click()
+        cy.get('@modal')
+          .findAllByLabelText(/Length unit/)
+          .first()
+          .click()
         cy.get('@modal')
           .findByRole('listbox')
           .as('dropdown')
@@ -564,16 +623,18 @@ cell 3 & cell 4 \\\\
             .as('modal')
             .should('be.visible')
           cy.get('@modal')
-            .findAllByLabelText('Length unit')
+            .findAllByLabelText(/Length unit/)
             .first()
-            .should('have.text', expectedUnit)
+            .should('have.value', expectedUnit)
           cy.get('@modal').findByText('Cancel').click()
         }
       )
 
-      it(`It can justify fixed width cells`, function () {
+      it(`Can justify fixed width cells`, function () {
+        // Add a blank line above the table to allow room for the table toolbar
         // Check that no column indicators exist
         mountEditor(`
+
         \\begin{tabular}{>{\\raggedright\\arraybackslash}p{2cm}c}
         cell 1 & cell 2\\\\
         cell 3 & cell 4 \\\\

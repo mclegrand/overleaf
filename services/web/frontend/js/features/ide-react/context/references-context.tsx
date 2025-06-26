@@ -16,16 +16,19 @@ import { useFileTreeData } from '@/shared/context/file-tree-data-context'
 import { findDocEntityById } from '@/features/ide-react/util/find-doc-entity-by-id'
 import { IdeEvents } from '@/features/ide-react/create-ide-event-emitter'
 import { debugConsole } from '@/utils/debugging'
+import useEventListener from '@/shared/hooks/use-event-listener'
 
 export const ReferencesContext = createContext<
   | {
       referenceKeys: Set<string>
-      indexAllReferences: (shouldBroadcast: boolean) => void
+      indexAllReferences: (shouldBroadcast: boolean) => Promise<void>
     }
   | undefined
 >(undefined)
 
-export const ReferencesProvider: FC = ({ children }) => {
+export const ReferencesProvider: FC<React.PropsWithChildren> = ({
+  children,
+}) => {
   const { fileTreeData } = useFileTreeData()
   const { eventEmitter, projectId } = useIdeReactContext()
   const { socket } = useConnectionContext()
@@ -37,8 +40,8 @@ export const ReferencesProvider: FC = ({ children }) => {
   >({})
 
   const indexAllReferences = useCallback(
-    (shouldBroadcast: boolean) => {
-      postJSON(`/project/${projectId}/references/indexAll`, {
+    async (shouldBroadcast: boolean) => {
+      return postJSON(`/project/${projectId}/references/indexAll`, {
         body: {
           shouldBroadcast,
         },
@@ -59,7 +62,7 @@ export const ReferencesProvider: FC = ({ children }) => {
       // avoid reindexing references if the bib file has not changed since the
       // last time they were indexed
       const docId = doc.doc_id
-      const snapshot = doc._doc.snapshot
+      const snapshot = doc.getSnapshot()
       const now = Date.now()
       const sha1 = generateSHA1Hash(
         'blob ' + snapshot.length + '\x00' + snapshot
@@ -99,6 +102,13 @@ export const ReferencesProvider: FC = ({ children }) => {
       eventEmitter.off('document:closed', handleDocClosed)
     }
   }, [eventEmitter, fileTreeData, indexReferencesIfDocModified])
+
+  useEventListener(
+    'reference:added',
+    useCallback(() => {
+      indexAllReferences(true)
+    }, [indexAllReferences])
+  )
 
   useEffect(() => {
     const handleProjectJoined = () => {

@@ -108,6 +108,26 @@ const EditorController = {
     )
   },
 
+  appendToDoc(projectId, docId, docLines, source, userId, callback) {
+    ProjectEntityUpdateHandler.appendToDoc(
+      projectId,
+      docId,
+      docLines,
+      source,
+      userId,
+      function (err, doc) {
+        if (err) {
+          OError.tag(err, 'error appending to doc', {
+            projectId,
+            docId,
+          })
+          return callback(err)
+        }
+        callback(err, doc)
+      }
+    )
+  },
+
   upsertDoc(projectId, folderId, docName, docLines, source, userId, callback) {
     ProjectEntityUpdateHandler.upsertDoc(
       projectId,
@@ -287,6 +307,7 @@ const EditorController = {
       projectId,
       folderId,
       folderName,
+      userId,
       (err, folder, folderId) => {
         if (err) {
           OError.tag(err, 'could not add folder', {
@@ -313,11 +334,12 @@ const EditorController = {
     )
   },
 
-  mkdirp(projectId, path, callback) {
+  mkdirp(projectId, path, userId, callback) {
     logger.debug({ projectId, path }, "making directories if they don't exist")
     ProjectEntityUpdateHandler.mkdirp(
       projectId,
       path,
+      userId,
       (err, newFolders, lastFolder) => {
         if (err) {
           OError.tag(err, 'could not mkdirp', {
@@ -608,6 +630,24 @@ const EditorController = {
           projectId,
           'rootDocUpdated',
           newRootDocID
+        )
+        callback()
+      }
+    )
+  },
+
+  setMainBibliographyDoc(projectId, newBibliographyDocId, callback) {
+    ProjectEntityUpdateHandler.setMainBibliographyDoc(
+      projectId,
+      newBibliographyDocId,
+      function (err) {
+        if (err) {
+          return callback(err)
+        }
+        EditorRealTimeController.emitToRoom(
+          projectId,
+          'mainBibliographyDocUpdated',
+          newBibliographyDocId
         )
         callback()
       }

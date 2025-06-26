@@ -1,5 +1,5 @@
-import { callbackify } from 'util'
-import { setTimeout } from 'timers/promises'
+import { callbackify } from 'node:util'
+import { setTimeout } from 'node:timers/promises'
 import logger from '@overleaf/logger'
 import Metrics from '@overleaf/metrics'
 import Settings from '@overleaf/settings'
@@ -38,6 +38,9 @@ async function requestResync(projectId, opts = {}) {
     const body = {}
     if (opts.historyRangesMigration) {
       body.historyRangesMigration = opts.historyRangesMigration
+    }
+    if (opts.resyncProjectStructureOnly) {
+      body.resyncProjectStructureOnly = opts.resyncProjectStructureOnly
     }
     await fetchNothing(
       `${Settings.apis.web.url}/project/${projectId}/history/resync`,

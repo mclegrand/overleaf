@@ -1,7 +1,6 @@
-const Stream = require('stream')
+const Stream = require('node:stream')
 const bunyan = require('bunyan')
 const GCPManager = require('./gcp-manager')
-const SentryManager = require('./sentry-manager')
 const Serializers = require('./serializers')
 const {
   FileLogLevelChecker,
@@ -15,8 +14,10 @@ const LoggingManager = {
   initialize(name) {
     this.isProduction =
       (process.env.NODE_ENV || '').toLowerCase() === 'production'
+    const isTest = (process.env.NODE_ENV || '').toLowerCase() === 'test'
     this.defaultLevel =
-      process.env.LOG_LEVEL || (this.isProduction ? 'info' : 'debug')
+      process.env.LOG_LEVEL ||
+      (this.isProduction ? 'info' : isTest ? 'fatal' : 'debug')
     this.loggerName = name
     this.logger = bunyan.createLogger({
       name,
@@ -31,10 +32,6 @@ const LoggingManager = {
     this._setupRingBuffer()
     this._setupLogLevelChecker()
     return this
-  },
-
-  initializeErrorReporting(dsn, options) {
-    this.sentryManager = new SentryManager()
   },
 
   /**
@@ -68,9 +65,6 @@ const LoggingManager = {
       })
     }
     this.logger.error(attributes, message, ...Array.from(args))
-    if (this.sentryManager) {
-      this.sentryManager.captureExceptionRateLimited(attributes, message)
-    }
   },
 
   /**
@@ -98,9 +92,6 @@ const LoggingManager = {
    */
   fatal(attributes, message) {
     this.logger.fatal(attributes, message)
-    if (this.sentryManager) {
-      this.sentryManager.captureException(attributes, message, 'fatal')
-    }
   },
 
   _getOutputStreamConfig() {

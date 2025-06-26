@@ -15,13 +15,7 @@ export default function HelpContactUs() {
 
   return (
     <>
-      <LeftMenuButton
-        onClick={showModalWithAnalytics}
-        icon={{
-          type: 'question',
-          fw: true,
-        }}
-      >
+      <LeftMenuButton onClick={showModalWithAnalytics} icon="contact_support">
         {t('contact_us')}
       </LeftMenuButton>
       {modal}

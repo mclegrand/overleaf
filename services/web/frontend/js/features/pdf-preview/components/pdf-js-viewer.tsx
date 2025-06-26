@@ -1,11 +1,4 @@
-import {
-  memo,
-  MouseEventHandler,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { debounce, throttle } from 'lodash'
 import PdfViewerControlsToolbar from './pdf-viewer-controls-toolbar'
 import { useProjectContext } from '../../../shared/context/project-context'
@@ -22,6 +15,7 @@ import { debugConsole } from '@/utils/debugging'
 import { usePdfPreviewContext } from '@/features/pdf-preview/components/pdf-preview-provider'
 import usePresentationMode from '../hooks/use-presentation-mode'
 import useMouseWheelZoom from '../hooks/use-mouse-wheel-zoom'
+import { PDFJS } from '../util/pdf-js'
 
 type PdfJsViewerProps = {
   url: string
@@ -68,27 +62,24 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
 
   // create the viewer when the container is mounted
   const handleContainer = useCallback(
-    parent => {
+    (parent: HTMLDivElement | null) => {
       if (parent) {
-        const wrapper = new PDFJSWrapper(parent.firstChild)
-        wrapper
-          .init()
-          .then(() => {
-            setPdfJsWrapper(wrapper)
-          })
-          .catch(error => {
-            setLoadingError(true)
-            captureException(error)
-          })
-
-        return () => {
-          setPdfJsWrapper(null)
-          wrapper.destroy()
+        try {
+          setPdfJsWrapper(new PDFJSWrapper(parent.firstChild as HTMLDivElement))
+        } catch (error: any) {
+          setLoadingError(true)
+          captureException(error)
         }
       }
     },
     [setLoadingError]
   )
+
+  useEffect(() => {
+    return () => {
+      setPdfJsWrapper(null)
+    }
+  }, [])
 
   const [startFetch, setStartFetch] = useState(0)
 
@@ -153,6 +144,10 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
       setRawScale(scale.scale)
     }
 
+    const handlePageChanging = (event: { pageNumber: number }) => {
+      setPage(event.pageNumber)
+    }
+
     // `pagesinit` fires when the data for rendering the first page is ready.
     pdfJsWrapper.eventBus.on('pagesinit', handlePagesinit)
     // `pagerendered` fires when a page was actually rendered.
@@ -160,12 +155,15 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
     // Once a page has been rendered we can set the initial current page number.
     pdfJsWrapper.eventBus.on('pagerendered', handleRenderedInitialPageNumber)
     pdfJsWrapper.eventBus.on('scalechanging', handleScaleChanged)
+    // `pagechanging` fires when the page number changes.
+    pdfJsWrapper.eventBus.on('pagechanging', handlePageChanging)
 
     return () => {
       pdfJsWrapper.eventBus.off('pagesinit', handlePagesinit)
       pdfJsWrapper.eventBus.off('pagerendered', handleRendered)
       pdfJsWrapper.eventBus.off('pagerendered', handleRenderedInitialPageNumber)
       pdfJsWrapper.eventBus.off('scalechanging', handleScaleChanged)
+      pdfJsWrapper.eventBus.off('pagechanging', handlePageChanging)
     }
   }, [pdfJsWrapper, firstRenderDone, startFetch])
 
@@ -177,10 +175,10 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
       setStartFetch(performance.now())
 
       const abortController = new AbortController()
-      const handleFetchError = (err: Error) => {
+      const handleFetchError = (err: any) => {
         if (abortController.signal.aborted) return
         // The error is already logged at the call-site with additional context.
-        if (err instanceof pdfJsWrapper.PDFJS.MissingPDFException) {
+        if (err instanceof PDFJS.ResponseException && err.missing) {
           setError('rendering-error-expected')
         } else {
           setError('rendering-error')
@@ -189,7 +187,9 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
       pdfJsWrapper
         .loadDocument({ url, pdfFile, abortController, handleFetchError })
         .then(doc => {
-          setTotalPages(doc.numPages)
+          if (doc) {
+            setTotalPages(doc.numPages)
+          }
         })
         .catch(error => {
           if (abortController.signal.aborted) return
@@ -198,7 +198,6 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
         })
       return () => {
         abortController.abort()
-        pdfJsWrapper.abortDocumentLoading()
       }
     }
   }, [pdfJsWrapper, url, pdfFile, setError, setStartFetch])
@@ -254,7 +253,7 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
         if (!textLayerDiv.dataset.listeningForDoubleClick) {
           textLayerDiv.dataset.listeningForDoubleClick = true
 
-          const doubleClickListener: MouseEventHandler = event => {
+          const doubleClickListener = (event: MouseEvent) => {
             const clickPosition = pdfJsWrapper.clickPosition(
               event,
               textLayerDiv.closest('.page').querySelector('canvas'),
@@ -355,7 +354,7 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
 
       for (const highlight of highlights) {
         try {
-          const element = buildHighlightElement(highlight, pdfJsWrapper)
+          const element = buildHighlightElement(highlight, pdfJsWrapper.viewer)
           elements.push(element)
           intersectionObserver.observe(element)
         } catch (error) {
@@ -393,7 +392,7 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
 
   // set the scale in response to zoom option changes
   const setZoom = useCallback(
-    zoom => {
+    (zoom: any) => {
       switch (zoom) {
         case 'zoom-in':
           if (pdfJsWrapper) {
@@ -438,8 +437,8 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
   }, [pdfJsWrapper])
 
   const handleKeyDown = useCallback(
-    event => {
-      if (!initialised) {
+    (event: React.KeyboardEvent) => {
+      if (!initialised || !pdfJsWrapper) {
         return
       }
       if (event.metaKey || event.ctrlKey) {
@@ -448,26 +447,30 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
           case '=':
             event.preventDefault()
             setZoom('zoom-in')
+            pdfJsWrapper.container.focus()
             break
 
           case '-':
             event.preventDefault()
             setZoom('zoom-out')
+            pdfJsWrapper.container.focus()
             break
 
           case '0':
             event.preventDefault()
             setZoom('page-width')
+            pdfJsWrapper.container.focus()
             break
 
           case '9':
             event.preventDefault()
             setZoom('page-height')
+            pdfJsWrapper.container.focus()
             break
         }
       }
     },
-    [initialised, setZoom]
+    [initialised, setZoom, pdfJsWrapper]
   )
 
   useMouseWheelZoom(pdfJsWrapper, setScale)
@@ -494,12 +497,7 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >
-      <div
-        className="pdfjs-viewer-inner"
-        tabIndex={0}
-        onKeyDown={handleKeyDown}
-        role="tabpanel"
-      >
+      <div className="pdfjs-viewer-inner" tabIndex={0} role="tabpanel">
         <div className="pdfViewer" />
       </div>
       {toolbarInfoLoaded && (
@@ -510,6 +508,7 @@ function PdfJsViewer({ url, pdfFile }: PdfJsViewerProps) {
           setPage={handlePageChange}
           page={page}
           totalPages={totalPages}
+          pdfContainer={pdfJsWrapper?.container}
         />
       )}
     </div>

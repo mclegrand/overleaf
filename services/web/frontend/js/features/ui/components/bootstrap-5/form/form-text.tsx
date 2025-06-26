@@ -1,72 +1,56 @@
-import { Form } from 'react-bootstrap-5'
-import { MergeAndOverride } from '../../../../../../../types/utils'
+import { Form, FormTextProps as BS5FormTextProps } from 'react-bootstrap'
 import MaterialIcon from '@/shared/components/material-icon'
 import classnames from 'classnames'
+import { MergeAndOverride } from '../../../../../../../types/utils'
 
-type FormTextProps = MergeAndOverride<
-  React.ComponentProps<(typeof Form)['Text']>,
-  | {
-      isInfo?: boolean
-      isError?: never
-      isWarning?: never
-      isSuccess?: never
-    }
-  | {
-      isInfo?: never
-      isError?: boolean
-      isWarning?: never
-      isSuccess?: never
-    }
-  | {
-      isInfo?: never
-      isError?: never
-      isWarning?: boolean
-      isSuccess?: never
-    }
-  | {
-      isInfo?: never
-      isError?: never
-      isWarning?: never
-      isSuccess?: boolean
-    }
+type TextType = 'default' | 'info' | 'success' | 'warning' | 'error'
+
+export type FormTextProps = MergeAndOverride<
+  BS5FormTextProps,
+  {
+    type?: TextType
+  }
 >
 
-export const getFormTextColor = ({
-  isError,
-  isSuccess,
-  isWarning,
-}: {
-  isError?: boolean
-  isSuccess?: boolean
-  isWarning?: boolean
-}) => ({
-  'text-danger': isError,
-  'text-success': isSuccess,
-  'text-warning': isWarning,
-})
+const typeClassMap: Partial<Record<TextType, string>> = {
+  error: 'text-danger',
+  success: 'text-success',
+  warning: 'text-warning',
+}
+
+export const getFormTextClass = (type?: TextType) =>
+  typeClassMap[type || 'default']
+
+function FormTextIcon({ type }: { type?: TextType }) {
+  switch (type) {
+    case 'info':
+      return <MaterialIcon type="info" className="text-info" />
+    case 'success':
+      return <MaterialIcon type="check_circle" />
+    case 'warning':
+      return <MaterialIcon type="warning" />
+    case 'error':
+      return <MaterialIcon type="error" />
+    default:
+      return null
+  }
+}
 
 function FormText({
-  isInfo,
-  isError,
-  isWarning,
-  isSuccess,
+  type = 'default',
   children,
   className,
   ...rest
 }: FormTextProps) {
   return (
     <Form.Text
-      className={classnames(
-        className,
-        getFormTextColor({ isError, isSuccess, isWarning })
-      )}
+      className={classnames(className, getFormTextClass(type))}
       {...rest}
     >
-      {isInfo && <MaterialIcon type="info" className="text-info" />}
-      {isError && <MaterialIcon type="error" />}
-      {isWarning && <MaterialIcon type="warning" />}
-      {isSuccess && <MaterialIcon type="check_circle" />}
-      {children}
+      <span className="form-text-inner">
+        <FormTextIcon type={type} />
+        {children}
+      </span>
     </Form.Text>
   )
 }

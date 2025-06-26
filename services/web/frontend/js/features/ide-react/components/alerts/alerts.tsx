@@ -2,10 +2,9 @@ import { useTranslation } from 'react-i18next'
 import { LostConnectionAlert } from './lost-connection-alert'
 import { useConnectionContext } from '@/features/ide-react/context/connection-context'
 import { debugging } from '@/utils/debugging'
-import { Alert } from 'react-bootstrap'
-import useScopeValue from '@/shared/hooks/use-scope-value'
 import { createPortal } from 'react-dom'
 import { useGlobalAlertsContainer } from '@/features/ide-react/context/global-alerts-context'
+import OLNotification from '@/features/ui/components/ol/ol-notification'
 
 export function Alerts() {
   const { t } = useTranslation()
@@ -18,18 +17,19 @@ export function Alerts() {
   } = useConnectionContext()
   const globalAlertsContainer = useGlobalAlertsContainer()
 
-  const [synctexError] = useScopeValue('sync_tex_error')
-
   if (!globalAlertsContainer) {
     return null
   }
 
   return createPortal(
     <>
-      {connectionState.forceDisconnected ? (
-        <Alert bsStyle="danger" className="small">
-          <strong>{t('disconnected')}</strong>
-        </Alert>
+      {connectionState.forceDisconnected &&
+      // hide "disconnected" banner when displaying out of sync modal
+      connectionState.error !== 'out-of-sync' ? (
+        <OLNotification
+          type="error"
+          content={<strong>{t('disconnected')}</strong>}
+        />
       ) : null}
 
       {connectionState.reconnectAt ? (
@@ -40,23 +40,10 @@ export function Alerts() {
       ) : null}
 
       {isStillReconnecting ? (
-        <Alert bsStyle="warning" className="small">
-          <strong>{t('reconnecting')}…</strong>
-        </Alert>
-      ) : null}
-
-      {synctexError ? (
-        <Alert bsStyle="warning" className="small">
-          <strong>{t('synctex_failed')}</strong>
-          <a
-            href="/learn/how-to/SyncTeX_Errors"
-            target="_blank"
-            id="synctex-more-info-button"
-            className="alert-link-as-btn pull-right"
-          >
-            {t('more_info')}
-          </a>
-        </Alert>
+        <OLNotification
+          type="warning"
+          content={<strong>{t('reconnecting')}…</strong>}
+        />
       ) : null}
 
       {connectionState.inactiveDisconnect ||
@@ -64,15 +51,19 @@ export function Alerts() {
         (connectionState.error === 'rate-limited' ||
           connectionState.error === 'unable-to-connect') &&
         !secondsUntilReconnect()) ? (
-        <Alert bsStyle="warning" className="small">
-          <strong>{t('editor_disconected_click_to_reconnect')}</strong>
-        </Alert>
+        <OLNotification
+          type="warning"
+          content={
+            <strong>{t('editor_disconected_click_to_reconnect')}</strong>
+          }
+        />
       ) : null}
 
       {debugging ? (
-        <Alert bsStyle="warning" className="small">
-          <strong>Connected: {isConnected.toString()}</strong>
-        </Alert>
+        <OLNotification
+          type="warning"
+          content={<strong>Connected: {isConnected.toString()}</strong>}
+        />
       ) : null}
     </>,
     globalAlertsContainer

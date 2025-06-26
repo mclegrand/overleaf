@@ -12,6 +12,11 @@ export const unconfirmedUserData: UserEmailData = {
   default: false,
 }
 
+export const untrustedUserData = {
+  ...confirmedUserData,
+  lastConfirmedAt: '2024-01-01T10:59:44.139Z',
+}
+
 export const professionalUserData: UserEmailData & {
   affiliation: Affiliation
 } = {
@@ -24,6 +29,7 @@ export const professionalUserData: UserEmailData & {
     department: 'Art History',
     institution: {
       commonsAccount: false,
+      writefullCommonsAccount: false,
       confirmed: true,
       id: 1,
       isUniversity: false,
@@ -56,6 +62,7 @@ export const unconfirmedCommonsUserData: UserEmailData & {
     department: 'Art History',
     institution: {
       commonsAccount: true,
+      writefullCommonsAccount: false,
       confirmed: true,
       id: 1,
       isUniversity: false,
@@ -85,6 +92,7 @@ export const ssoUserData: UserEmailData = {
     department: 'Art History',
     institution: {
       commonsAccount: true,
+      writefullCommonsAccount: false,
       confirmed: true,
       id: 2,
       isUniversity: true,
@@ -109,6 +117,7 @@ export const ssoUserData: UserEmailData = {
 export const fakeUsersData = [
   { ...confirmedUserData },
   { ...unconfirmedUserData },
+  { ...untrustedUserData },
   { ...professionalUserData },
   { ...unconfirmedCommonsUserData },
 ]

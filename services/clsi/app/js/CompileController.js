@@ -1,3 +1,4 @@
+const Path = require('node:path')
 const RequestParser = require('./RequestParser')
 const CompileManager = require('./CompileManager')
 const Settings = require('@overleaf/settings')
@@ -5,6 +6,7 @@ const Metrics = require('./Metrics')
 const ProjectPersistenceManager = require('./ProjectPersistenceManager')
 const logger = require('@overleaf/logger')
 const Errors = require('./Errors')
+const { notifyCLSICacheAboutBuild } = require('./CLSICacheHandler')
 
 let lastSuccessfulCompileTimestamp = 0
 
@@ -29,101 +31,135 @@ function compile(req, res, next) {
         if (error) {
           return next(error)
         }
-        CompileManager.doCompileWithLock(request, (error, result) => {
-          let { buildId, outputFiles, stats, timings } = result || {}
-          let code, status
-          if (outputFiles == null) {
-            outputFiles = []
-          }
-          if (error instanceof Errors.AlreadyCompilingError) {
-            code = 423 // Http 423 Locked
-            status = 'compile-in-progress'
-          } else if (error instanceof Errors.FilesOutOfSyncError) {
-            code = 409 // Http 409 Conflict
-            status = 'retry'
-            logger.warn(
-              {
+        const stats = {}
+        const timings = {}
+        CompileManager.doCompileWithLock(
+          request,
+          stats,
+          timings,
+          (error, result) => {
+            let { buildId, outputFiles } = result || {}
+            let code, status
+            if (outputFiles == null) {
+              outputFiles = []
+            }
+            if (error instanceof Errors.AlreadyCompilingError) {
+              code = 423 // Http 423 Locked
+              status = 'compile-in-progress'
+            } else if (error instanceof Errors.FilesOutOfSyncError) {
+              code = 409 // Http 409 Conflict
+              status = 'retry'
+              logger.warn(
+                {
+                  projectId: request.project_id,
+                  userId: request.user_id,
+                },
+                'files out of sync, please retry'
+              )
+            } else if (
+              error?.code === 'EPIPE' ||
+              error instanceof Errors.TooManyCompileRequestsError
+            ) {
+              // docker returns EPIPE when shutting down
+              code = 503 // send 503 Unavailable response
+              status = 'unavailable'
+            } else if (error?.terminated) {
+              status = 'terminated'
+            } else if (error?.validate) {
+              status = `validation-${error.validate}`
+            } else if (error?.timedout) {
+              status = 'timedout'
+              logger.debug(
+                { err: error, projectId: request.project_id },
+                'timeout running compile'
+              )
+            } else if (error) {
+              status = 'error'
+              code = 500
+              logger.error(
+                { err: error, projectId: request.project_id },
+                'error running compile'
+              )
+            } else {
+              if (
+                outputFiles.some(
+                  file => file.path === 'output.pdf' && file.size > 0
+                )
+              ) {
+                status = 'success'
+                lastSuccessfulCompileTimestamp = Date.now()
+              } else if (request.stopOnFirstError) {
+                status = 'stopped-on-first-error'
+              } else {
+                status = 'failure'
+                logger.warn(
+                  { projectId: request.project_id, outputFiles },
+                  'project failed to compile successfully, no output.pdf generated'
+                )
+              }
+
+              // log an error if any core files are found
+              if (outputFiles.some(file => file.path === 'core')) {
+                logger.error(
+                  { projectId: request.project_id, req, outputFiles },
+                  'core file found in output'
+                )
+              }
+            }
+
+            if (error) {
+              outputFiles = error.outputFiles || []
+              buildId = error.buildId
+            }
+
+            let clsiCacheShard
+            if (
+              status === 'success' &&
+              request.editorId &&
+              request.populateClsiCache
+            ) {
+              clsiCacheShard = notifyCLSICacheAboutBuild({
                 projectId: request.project_id,
                 userId: request.user_id,
+                buildId: outputFiles[0].build,
+                editorId: request.editorId,
+                outputFiles,
+                compileGroup: request.compileGroup,
+                options: {
+                  compiler: request.compiler,
+                  draft: request.draft,
+                  imageName: request.imageName
+                    ? Path.basename(request.imageName)
+                    : undefined,
+                  rootResourcePath: request.rootResourcePath,
+                  stopOnFirstError: request.stopOnFirstError,
+                },
+              })
+            }
+
+            timer.done()
+            res.status(code || 200).send({
+              compile: {
+                status,
+                error: error?.message || error,
+                stats,
+                timings,
+                buildId,
+                clsiCacheShard,
+                outputUrlPrefix: Settings.apis.clsi.outputUrlPrefix,
+                outputFiles: outputFiles.map(file => ({
+                  url:
+                    `${Settings.apis.clsi.url}/project/${request.project_id}` +
+                    (request.user_id != null
+                      ? `/user/${request.user_id}`
+                      : '') +
+                    `/build/${file.build}/output/${file.path}`,
+                  ...file,
+                })),
               },
-              'files out of sync, please retry'
-            )
-          } else if (
-            error?.code === 'EPIPE' ||
-            error instanceof Errors.TooManyCompileRequestsError
-          ) {
-            // docker returns EPIPE when shutting down
-            code = 503 // send 503 Unavailable response
-            status = 'unavailable'
-          } else if (error?.terminated) {
-            status = 'terminated'
-          } else if (error?.validate) {
-            status = `validation-${error.validate}`
-          } else if (error?.timedout) {
-            status = 'timedout'
-            logger.debug(
-              { err: error, projectId: request.project_id },
-              'timeout running compile'
-            )
-          } else if (error) {
-            status = 'error'
-            code = 500
-            logger.error(
-              { err: error, projectId: request.project_id },
-              'error running compile'
-            )
-          } else {
-            if (
-              outputFiles.some(
-                file => file.path === 'output.pdf' && file.size > 0
-              )
-            ) {
-              status = 'success'
-              lastSuccessfulCompileTimestamp = Date.now()
-            } else if (request.stopOnFirstError) {
-              status = 'stopped-on-first-error'
-            } else {
-              status = 'failure'
-              logger.warn(
-                { projectId: request.project_id, outputFiles },
-                'project failed to compile successfully, no output.pdf generated'
-              )
-            }
-
-            // log an error if any core files are found
-            if (outputFiles.some(file => file.path === 'core')) {
-              logger.error(
-                { projectId: request.project_id, req, outputFiles },
-                'core file found in output'
-              )
-            }
+            })
           }
-
-          if (error) {
-            outputFiles = error.outputFiles || []
-            buildId = error.buildId
-          }
-
-          timer.done()
-          res.status(code || 200).send({
-            compile: {
-              status,
-              error: error?.message || error,
-              stats,
-              timings,
-              buildId,
-              outputUrlPrefix: Settings.apis.clsi.outputUrlPrefix,
-              outputFiles: outputFiles.map(file => ({
-                url:
-                  `${Settings.apis.clsi.url}/project/${request.project_id}` +
-                  (request.user_id != null ? `/user/${request.user_id}` : '') +
-                  (file.build != null ? `/build/${file.build}` : '') +
-                  `/output/${file.path}`,
-                ...file,
-              })),
-            },
-          })
-        })
+        )
       }
     )
   })
@@ -154,30 +190,27 @@ function clearCache(req, res, next) {
 }
 
 function syncFromCode(req, res, next) {
-  const { file } = req.query
+  const { file, editorId, buildId } = req.query
+  const compileFromClsiCache = req.query.compileFromClsiCache === 'true'
   const line = parseInt(req.query.line, 10)
   const column = parseInt(req.query.column, 10)
   const { imageName } = req.query
   const projectId = req.params.project_id
   const userId = req.params.user_id
-
-  if (imageName && !_isImageNameAllowed(imageName)) {
-    return res.status(400).send('invalid image')
-  }
-
   CompileManager.syncFromCode(
     projectId,
     userId,
     file,
     line,
     column,
-    imageName,
-    function (error, pdfPositions) {
+    { imageName, editorId, buildId, compileFromClsiCache },
+    function (error, pdfPositions, downloadedFromCache) {
       if (error) {
         return next(error)
       }
       res.json({
         pdf: pdfPositions,
+        downloadedFromCache,
       })
     }
   )
@@ -187,26 +220,24 @@ function syncFromPdf(req, res, next) {
   const page = parseInt(req.query.page, 10)
   const h = parseFloat(req.query.h)
   const v = parseFloat(req.query.v)
-  const { imageName } = req.query
+  const { imageName, editorId, buildId } = req.query
+  const compileFromClsiCache = req.query.compileFromClsiCache === 'true'
   const projectId = req.params.project_id
   const userId = req.params.user_id
-
-  if (imageName && !_isImageNameAllowed(imageName)) {
-    return res.status(400).send('invalid image')
-  }
   CompileManager.syncFromPdf(
     projectId,
     userId,
     page,
     h,
     v,
-    imageName,
-    function (error, codePositions) {
+    { imageName, editorId, buildId, compileFromClsiCache },
+    function (error, codePositions, downloadedFromCache) {
       if (error) {
         return next(error)
       }
       res.json({
         code: codePositions,
+        downloadedFromCache,
       })
     }
   )
@@ -217,9 +248,6 @@ function wordcount(req, res, next) {
   const projectId = req.params.project_id
   const userId = req.params.user_id
   const { image } = req.query
-  if (image && !_isImageNameAllowed(image)) {
-    return res.status(400).send('invalid image')
-  }
   logger.debug({ image, file, projectId }, 'word count request')
 
   CompileManager.wordcount(
@@ -240,12 +268,6 @@ function wordcount(req, res, next) {
 
 function status(req, res, next) {
   res.send('OK')
-}
-
-function _isImageNameAllowed(imageName) {
-  const ALLOWED_IMAGES =
-    Settings.clsi && Settings.clsi.docker && Settings.clsi.docker.allowedImages
-  return !ALLOWED_IMAGES || ALLOWED_IMAGES.includes(imageName)
 }
 
 module.exports = {

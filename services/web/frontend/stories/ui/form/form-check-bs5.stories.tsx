@@ -1,13 +1,10 @@
 import { useRef, useLayoutEffect } from 'react'
-import { Form } from 'react-bootstrap-5'
+import { Form } from 'react-bootstrap'
 import type { Meta, StoryObj } from '@storybook/react'
 
 const meta: Meta<(typeof Form)['Check']> = {
-  title: 'Shared / Components / Bootstrap 5 / Form',
+  title: 'Shared / Components / Form',
   component: Form.Check,
-  parameters: {
-    bootstrap5: true,
-  },
   argTypes: {
     id: {
       table: {

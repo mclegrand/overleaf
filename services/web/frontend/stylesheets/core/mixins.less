@@ -709,36 +709,6 @@
   }
 }
 
-// List Groups
-// -------------------------
-.list-group-item-variant(@state; @background; @color) {
-  .list-group-item-@{state} {
-    color: @color;
-    background-color: @background;
-
-    a& {
-      color: @color;
-
-      .list-group-item-heading {
-        color: inherit;
-      }
-
-      &:hover,
-      &:focus {
-        color: @color;
-        background-color: darken(@background, 5%);
-      }
-      &.active,
-      &.active:hover,
-      &.active:focus {
-        color: #fff;
-        background-color: @color;
-        border-color: @color;
-      }
-    }
-  }
-}
-
 // Button variants
 // -------------------------
 // Easily pump out default styles, as well as :hover, :focus, :active,
@@ -948,11 +918,11 @@
 // -----------
 
 // Centered container element
-.container-fixed() {
+.container-fixed(@gutter: @grid-gutter-width) {
   margin-right: auto;
   margin-left: auto;
-  padding-left: (@grid-gutter-width / 2);
-  padding-right: (@grid-gutter-width / 2);
+  padding-left: (@gutter / 2);
+  padding-right: (@gutter / 2);
   &:extend(.clearfix all);
 }
 
@@ -1077,7 +1047,7 @@
 // Used only by Bootstrap to generate the correct number of grid classes given
 // any value of `@grid-columns`.
 
-.make-grid-columns() {
+.make-grid-columns(@gutter: @grid-gutter-width) {
   // Common styles for all sizes of grid columns, widths 1-12
   .col(@index) when (@index = 1) {
     // initial
@@ -1096,8 +1066,8 @@
       // Prevent columns from collapsing when empty
       min-height: 1px;
       // Inner gutter via padding
-      padding-left: (@grid-gutter-width / 2);
-      padding-right: (@grid-gutter-width / 2);
+      padding-left: (@gutter / 2);
+      padding-right: (@gutter / 2);
     }
   }
   .col(1); // kickstart it

@@ -11,7 +11,7 @@
  */
 const sinon = require('sinon')
 const SandboxedModule = require('sandboxed-module')
-const path = require('path')
+const path = require('node:path')
 const modulePath = '../../../app/js/DocumentUpdaterManager'
 const _ = require('lodash')
 
@@ -79,7 +79,7 @@ describe('DocumentUpdaterManager', function () {
       })
 
       it('should get the document from the document updater', function () {
-        const url = `${this.settings.apis.documentupdater.url}/project/${this.project_id}/doc/${this.doc_id}?fromVersion=${this.fromVersion}`
+        const url = `${this.settings.apis.documentupdater.url}/project/${this.project_id}/doc/${this.doc_id}?fromVersion=${this.fromVersion}&historyOTSupport=true`
         return this.request.get.calledWith(url).should.equal(true)
       })
 

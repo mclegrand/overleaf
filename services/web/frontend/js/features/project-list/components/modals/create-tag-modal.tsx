@@ -18,9 +18,9 @@ import OLModal, {
 import OLFormGroup from '@/features/ui/components/ol/ol-form-group'
 import OLFormLabel from '@/features/ui/components/ol/ol-form-label'
 import OLButton from '@/features/ui/components/ol/ol-button'
-import OLNotification from '@/features/ui/components/ol/ol-notification'
 import OLFormControl from '@/features/ui/components/ol/ol-form-control'
 import OLForm from '@/features/ui/components/ol/ol-form'
+import Notification from '@/shared/components/notification'
 
 type CreateTagModalProps = {
   id: string
@@ -55,7 +55,7 @@ export default function CreateTagModal({
   }, [runAsync, tagName, selectedColor, onCreate])
 
   const handleSubmit = useCallback(
-    e => {
+    (e: React.FormEvent) => {
       e.preventDefault()
       runCreateTag()
     },
@@ -104,10 +104,10 @@ export default function CreateTagModal({
           </OLFormGroup>
         </OLForm>
         {validationError && (
-          <OLNotification type="error" content={validationError} />
+          <Notification type="error" content={validationError} />
         )}
         {isError && (
-          <OLNotification
+          <Notification
             type="error"
             content={t('generic_something_went_wrong')}
           />
@@ -129,9 +129,6 @@ export default function CreateTagModal({
             status === 'pending' || !tagName?.length || !!validationError
           }
           isLoading={isLoading}
-          bs3Props={{
-            loading: isLoading ? `${t('creating')}…` : t('create'),
-          }}
         >
           {t('create')}
         </OLButton>

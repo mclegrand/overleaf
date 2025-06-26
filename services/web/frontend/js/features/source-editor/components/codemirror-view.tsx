@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect } from 'react'
-import { useCodeMirrorViewContext } from './codemirror-editor'
+import { useCodeMirrorViewContext } from './codemirror-context'
 import useCodeMirrorScope from '../hooks/use-codemirror-scope'
 import useScopeValueSetterOnly from '@/shared/hooks/use-scope-value-setter-only'
 
@@ -10,7 +10,7 @@ function CodeMirrorView() {
 
   // append the editor view dom to the container node when mounted
   const containerRef = useCallback(
-    node => {
+    (node: HTMLDivElement) => {
       if (node) {
         node.appendChild(view.dom)
       }

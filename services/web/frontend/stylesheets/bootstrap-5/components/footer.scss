@@ -1,54 +1,86 @@
 @use 'sass:map';
 
+// Max width of the sidebar
+$footer-width-delta: 320px;
+
+@mixin footer-container-up($bp) {
+  $size: map.get($grid-breakpoints, $bp);
+
+  @supports (container-type: inline-size) {
+    @container fatfooter (width >= #{$size}) {
+      @content;
+    }
+  }
+
+  @supports not (container-type: inline-size) {
+    @at-root {
+      .project-ds-nav-page & {
+        @media (min-width: #{$size + $footer-width-delta}) {
+          @content;
+        }
+      }
+
+      :not(.project-ds-nav-page *) & {
+        @media (min-width: #{$size}) {
+          @content;
+        }
+      }
+    }
+  }
+}
+
+@mixin footer-container-down($bp) {
+  $size: map.get($grid-breakpoints, $bp);
+
+  @supports (container-type: inline-size) {
+    @container fatfooter (width < #{$size}) {
+      @content;
+    }
+  }
+
+  @supports not (container-type: inline-size) {
+    @at-root {
+      .project-ds-nav-page & {
+        @media (max-width: #{$size + $footer-width-delta}) {
+          @content;
+        }
+      }
+
+      :not(.project-ds-nav-page *) & {
+        @media (max-width: #{$size}) {
+          @content;
+        }
+      }
+    }
+  }
+}
+
 footer.site-footer {
+  --link-color: var(--link-web);
+  --link-hover-color: var(--link-web-hover);
+  --link-visited-color: var(--link-web-visited);
+  --link-text-decoration: none;
+  --link-hover-text-decoration: underline;
+
   background-color: var(--bg-light-primary);
   border-top: 1px solid var(--border-primary-dark);
-  position: absolute;
-  bottom: 0;
-  width: 100%;
 
   @include body-sm;
 
-  height: $footer-height;
+  min-height: $thin-footer-height;
+  line-height: $thin-footer-height - 1; // Hack — in Chrome, using the full $footer-height would generate vertical scrolling
 
-  ul {
+  ul.site-footer-items {
     list-style: none;
-    margin: var(--spacing-00);
+    margin: 0;
 
-    li {
+    > li {
       display: inline-block;
-      margin: var(--spacing-07) var(--spacing-04);
+      margin: 0 var(--spacing-04);
     }
 
     i {
       font-size: var(--font-size-05);
-    }
-  }
-
-  li.lng-option {
-    text-align: left;
-    display: list-item;
-
-    img {
-      vertical-align: text-bottom;
-    }
-
-    a:hover,
-    a:focus {
-      color: var(--content-primary-dark);
-
-      &:visited {
-        color: var(--content-primary-dark);
-      }
-    }
-  }
-
-  a {
-    color: var(--content-secondary-dark);
-
-    &:hover,
-    &:focus {
-      color: var(--content-secondary-dark);
     }
   }
 }
@@ -62,31 +94,58 @@ footer.site-footer {
   vertical-align: middle;
 }
 
+#language-picker-toggle {
+  text-decoration: none;
+  cursor: pointer;
+
+  &::after {
+    display: none;
+  }
+
+  &:hover {
+    .language-picker-text {
+      text-decoration: var(--link-hover-text-decoration);
+    }
+  }
+
+  .material-symbols {
+    vertical-align: -0.1875rem;
+  }
+}
+
+.language-picker .dropdown-menu {
+  .dropdown-item {
+    &.active {
+      color: var(--green-70);
+    }
+
+    &:hover {
+      text-decoration: none;
+    }
+  }
+}
+
 .fat-footer {
-  background: var(--bg-dark-primary);
-  color: var(--content-secondary-dark);
+  --footer-text-color: var(--content-secondary-dark);
+  --footer-background-color: var(--bg-dark-primary);
+  --link-color: var(--footer-text-color);
+  --link-hover-color: var(--footer-text-color);
+  --link-visited-color: var(--footer-text-color);
+  --link-text-decoration: none;
+  --link-hover-text-decoration: underline;
+
+  container-name: fatfooter;
+  container-type: inline-size;
+  background: var(--footer-background-color);
+  color: var(--footer-text-color);
   display: flex;
   flex-direction: column;
 
   .fat-footer-container {
     margin: var(--spacing-11) auto;
 
-    @include media-breakpoint-down(sm) {
+    @include footer-container-down(sm) {
       margin: var(--spacing-11) 0;
-    }
-  }
-
-  a {
-    color: var(--content-secondary-dark);
-    text-decoration: none;
-
-    &:hover {
-      color: var(--content-secondary-dark);
-      text-decoration: underline;
-    }
-
-    &:visited {
-      color: var(--content-secondary-dark);
     }
   }
 
@@ -111,7 +170,7 @@ footer.site-footer {
   }
 
   .footer-section-heading {
-    color: var(--content-secondary-dark);
+    color: var(--footer-text-color);
 
     @include heading-sm;
 
@@ -138,7 +197,7 @@ footer.site-footer {
     @include body-sm;
 
     #language-picker-toggle {
-      color: var(--content-secondary-dark);
+      color: var(--footer-text-color);
     }
 
     .fat-footer-base-meta a:not(.dropdown-toggle) {
@@ -149,16 +208,6 @@ footer.site-footer {
       .dropdown-header {
         display: none; /* hiding rather than removing as still needed in the thin footer */
       }
-
-      .dropdown-item {
-        &.active {
-          color: var(--green-70);
-        }
-
-        &:hover {
-          text-decoration: none;
-        }
-      }
     }
   }
 
@@ -167,7 +216,32 @@ footer.site-footer {
     white-space: nowrap;
   }
 
-  @include media-breakpoint-down(md) {
+  .fat-footer-social {
+    &.x-logo svg path {
+      fill: var(--footer-text-color);
+    }
+
+    &.facebook-logo svg,
+    &.linkedin-logo svg {
+      path.background {
+        fill: var(--footer-text-color);
+      }
+    }
+
+    &.facebook-logo svg {
+      path.text {
+        fill: transparent;
+      }
+    }
+
+    &.linkedin-logo svg {
+      path.text {
+        fill: var(--footer-background-color);
+      }
+    }
+  }
+
+  @include footer-container-down(md) {
     .fat-footer-sections {
       grid-template-columns: repeat(2, 1fr);
       grid-template-rows: repeat(4, auto);
@@ -204,7 +278,7 @@ footer.site-footer {
         gap: var(--spacing-09);
         justify-content: center;
 
-        @include media-breakpoint-down(sm) {
+        @include footer-container-down(sm) {
           gap: var(--spacing-06);
         }
       }
@@ -214,17 +288,13 @@ footer.site-footer {
         margin-top: var(--spacing-00);
       }
 
-      .fat-footer-social {
-        @include heading-lg;
-      }
-
       .fat-footer-base-copyright {
         order: 2;
       }
     }
   }
 
-  @include media-breakpoint-up(md) {
+  @include footer-container-up(md) {
     .fat-footer-container {
       width: (map.get($grid-breakpoints, 'md') - ($spacing-04 * 2));
     }
@@ -263,14 +333,12 @@ footer.site-footer {
       }
 
       .fat-footer-social {
-        margin: var(--spacing-07) var(--spacing-02);
-
-        @include heading-lg;
+        margin: var(--spacing-07) var(--spacing-03);
       }
     }
   }
 
-  @include media-breakpoint-up(lg) {
+  @include footer-container-up(lg) {
     .fat-footer-container {
       width: (map.get($grid-breakpoints, 'lg') - $spacing-07);
     }
@@ -280,7 +348,7 @@ footer.site-footer {
     }
   }
 
-  @include media-breakpoint-up(xl) {
+  @include footer-container-up(xl) {
     .fat-footer-container {
       width: (map.get($grid-breakpoints, 'xl') - $spacing-09);
     }
@@ -327,31 +395,26 @@ footer.site-footer {
       white-space: nowrap;
       padding-top: var(--spacing-00);
     }
+
+    .cookie-banner-content a,
+    .cookie-banner-actions .btn-link {
+      color: var(--link-ui);
+    }
   }
 }
 
-.website-redesign-fat-footer {
+.website-redesign-fat-footer,
+.website-redesign .fat-footer {
+  --footer-text-color: var(--content-primary);
+
   .fat-footer-container {
-    @include media-breakpoint-down(sm) {
+    @include footer-container-down(sm) {
       margin: var(--spacing-11) 0;
     }
   }
 
   &.fat-footer {
     background: var(--content-primary-dark);
-    color: var(--content-primary);
-
-    a {
-      color: var(--content-primary);
-
-      &:visited {
-        color: var(--content-primary);
-      }
-    }
-
-    .footer-section-heading {
-      color: var(--content-primary);
-    }
 
     h2 {
       font-weight: 400;
@@ -359,6 +422,37 @@ footer.site-footer {
 
     .fat-footer-base {
       color: var(--content-primary);
+
+      #language-picker-toggle {
+        color: inherit;
+      }
+    }
+
+    // This is duplication of fill colours in the SVGs themselves. This could be fixed by using :has() but that's not
+    // supported in older versions of browsers and these logos need to be correct.
+    .fat-footer-social {
+      &.x-logo svg path {
+        fill: #0f1419;
+      }
+
+      &.facebook-logo svg,
+      &.linkedin-logo svg {
+        path.text {
+          fill: #fff;
+        }
+      }
+
+      &.facebook-logo svg {
+        path.background {
+          fill: #0866ff;
+        }
+      }
+
+      &.linkedin-logo svg {
+        path.background {
+          fill: #0b66c3;
+        }
+      }
     }
   }
 
@@ -366,7 +460,7 @@ footer.site-footer {
     background-image: url('../../../../public/img/ol-brand/overleaf-black.svg');
   }
 
-  @include media-breakpoint-down(sm) {
+  @include footer-container-down(sm) {
     .fat-footer-sections {
       grid-template-columns: repeat(1, 1fr);
       grid-template-rows: repeat(6, auto);

@@ -64,6 +64,7 @@ async function getUserFilesDiskUsage(userFilesDir) {
     entries = await readdir(userFilesDir, { withFileTypes: true })
   } catch (err) {
     // handle error or return empty object
+    console.log(err)
     return {}
   }
   for (const entry of entries) {
@@ -79,7 +80,8 @@ async function getUserFilesDiskUsage(userFilesDir) {
     try {
       fileStat = await stat(fullPath)
     } catch (err) {
-      continue
+      console.log("path:" , fullPath)
+      console.log(err)
     }
     
     if (!userUsageMap[email]) userUsageMap[email] = 0

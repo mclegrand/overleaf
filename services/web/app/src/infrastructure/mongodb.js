@@ -1,114 +1,116 @@
-const mongodb = require('mongodb')
+const mongodb = require('mongodb-legacy')
 const OError = require('@overleaf/o-error')
 const Settings = require('@overleaf/settings')
 const Mongoose = require('./Mongoose')
+const { addConnectionDrainer } = require('./GracefulShutdown')
 
 // Ensure Mongoose is using the same mongodb instance as the mongodb module,
 // otherwise we will get multiple versions of the ObjectId class. Mongoose
 // patches ObjectId, so loading multiple versions of the mongodb module can
 // cause problems with ObjectId comparisons.
-if (Mongoose.mongo !== mongodb) {
+if (Mongoose.mongo.ObjectId !== mongodb.ObjectId) {
   throw new OError(
     'FATAL ERROR: Mongoose is using a different mongodb instance'
   )
 }
 
-const { getNativeDb } = Mongoose
 const { ObjectId, ReadPreference } = mongodb
-
-if (
-  typeof global.beforeEach === 'function' &&
-  process.argv.join(' ').match(/unit/)
-) {
-  throw new Error(
-    'It looks like unit tests are running, but you are connecting to Mongo. Missing a stub?'
-  )
-}
 
 const READ_PREFERENCE_PRIMARY = ReadPreference.primary.mode
 const READ_PREFERENCE_SECONDARY = Settings.mongo.hasSecondaries
   ? ReadPreference.secondary.mode
   : ReadPreference.secondaryPreferred.mode
 
-let setupDbPromise
-async function waitForDb() {
-  if (!setupDbPromise) {
-    setupDbPromise = setupDb()
-  }
-  await setupDbPromise
+const mongoClient = new mongodb.MongoClient(
+  Settings.mongo.url,
+  Settings.mongo.options
+)
+
+addConnectionDrainer('mongodb', async () => {
+  await mongoClient.close()
+})
+
+const internalDb = mongoClient.db()
+const db = {
+  contacts: internalDb.collection('contacts'),
+  deletedProjects: internalDb.collection('deletedProjects'),
+  deletedSubscriptions: internalDb.collection('deletedSubscriptions'),
+  deletedUsers: internalDb.collection('deletedUsers'),
+  dropboxEntities: internalDb.collection('dropboxEntities'),
+  dropboxProjects: internalDb.collection('dropboxProjects'),
+  docHistory: internalDb.collection('docHistory'),
+  docHistoryIndex: internalDb.collection('docHistoryIndex'),
+  docSnapshots: internalDb.collection('docSnapshots'),
+  docs: internalDb.collection('docs'),
+  feedbacks: internalDb.collection('feedbacks'),
+  githubSyncEntityVersions: internalDb.collection('githubSyncEntityVersions'),
+  githubSyncProjectStates: internalDb.collection('githubSyncProjectStates'),
+  githubSyncUserCredentials: internalDb.collection('githubSyncUserCredentials'),
+  globalMetrics: internalDb.collection('globalMetrics'),
+  grouppolicies: internalDb.collection('grouppolicies'),
+  groupAuditLogEntries: internalDb.collection('groupAuditLogEntries'),
+  institutions: internalDb.collection('institutions'),
+  messages: internalDb.collection('messages'),
+  migrations: internalDb.collection('migrations'),
+  notifications: internalDb.collection('notifications'),
+  oauthAccessTokens: internalDb.collection('oauthAccessTokens'),
+  oauthApplications: internalDb.collection('oauthApplications'),
+  oauthAuthorizationCodes: internalDb.collection('oauthAuthorizationCodes'),
+  projectAuditLogEntries: internalDb.collection('projectAuditLogEntries'),
+  projectHistoryChunks: internalDb.collection('projectHistoryChunks'),
+  projectHistoryFailures: internalDb.collection('projectHistoryFailures'),
+  projectHistoryGlobalBlobs: internalDb.collection('projectHistoryGlobalBlobs'),
+  projectHistoryLabels: internalDb.collection('projectHistoryLabels'),
+  projectHistorySyncState: internalDb.collection('projectHistorySyncState'),
+  projectInvites: internalDb.collection('projectInvites'),
+  projects: internalDb.collection('projects'),
+  publishers: internalDb.collection('publishers'),
+  rooms: internalDb.collection('rooms'),
+  samlCache: internalDb.collection('samlCache'),
+  samlLogs: internalDb.collection('samlLogs'),
+  spellingPreferences: internalDb.collection('spellingPreferences'),
+  splittests: internalDb.collection('splittests'),
+  ssoConfigs: internalDb.collection('ssoConfigs'),
+  subscriptions: internalDb.collection('subscriptions'),
+  surveys: internalDb.collection('surveys'),
+  systemmessages: internalDb.collection('systemmessages'),
+  tags: internalDb.collection('tags'),
+  teamInvites: internalDb.collection('teamInvites'),
+  tokens: internalDb.collection('tokens'),
+  userAuditLogEntries: internalDb.collection('userAuditLogEntries'),
+  users: internalDb.collection('users'),
+  onboardingDataCollection: internalDb.collection('onboardingDataCollection'),
+  scriptLogs: internalDb.collection('scriptLogs'),
 }
 
-const db = {}
-async function setupDb() {
-  const internalDb = await getNativeDb()
-
-  db.contacts = internalDb.collection('contacts')
-  db.deletedFiles = internalDb.collection('deletedFiles')
-  db.deletedProjects = internalDb.collection('deletedProjects')
-  db.deletedSubscriptions = internalDb.collection('deletedSubscriptions')
-  db.deletedUsers = internalDb.collection('deletedUsers')
-  db.dropboxEntities = internalDb.collection('dropboxEntities')
-  db.dropboxProjects = internalDb.collection('dropboxProjects')
-  db.docHistory = internalDb.collection('docHistory')
-  db.docHistoryIndex = internalDb.collection('docHistoryIndex')
-  db.docSnapshots = internalDb.collection('docSnapshots')
-  db.docs = internalDb.collection('docs')
-  db.feedbacks = internalDb.collection('feedbacks')
-  db.githubSyncEntityVersions = internalDb.collection(
-    'githubSyncEntityVersions'
-  )
-  db.githubSyncProjectStates = internalDb.collection('githubSyncProjectStates')
-  db.githubSyncUserCredentials = internalDb.collection(
-    'githubSyncUserCredentials'
-  )
-  db.globalMetrics = internalDb.collection('globalMetrics')
-  db.grouppolicies = internalDb.collection('grouppolicies')
-  db.institutions = internalDb.collection('institutions')
-  db.messages = internalDb.collection('messages')
-  db.migrations = internalDb.collection('migrations')
-  db.notifications = internalDb.collection('notifications')
-  db.oauthAccessTokens = internalDb.collection('oauthAccessTokens')
-  db.oauthApplications = internalDb.collection('oauthApplications')
-  db.oauthAuthorizationCodes = internalDb.collection('oauthAuthorizationCodes')
-  db.projectAuditLogEntries = internalDb.collection('projectAuditLogEntries')
-  db.projectHistoryChunks = internalDb.collection('projectHistoryChunks')
-  db.projectHistoryFailures = internalDb.collection('projectHistoryFailures')
-  db.projectHistoryLabels = internalDb.collection('projectHistoryLabels')
-  db.projectHistoryMetaData = internalDb.collection('projectHistoryMetaData')
-  db.projectHistorySyncState = internalDb.collection('projectHistorySyncState')
-  db.projectInvites = internalDb.collection('projectInvites')
-  db.projects = internalDb.collection('projects')
-  db.publishers = internalDb.collection('publishers')
-  db.rooms = internalDb.collection('rooms')
-  db.samlCache = internalDb.collection('samlCache')
-  db.samlLogs = internalDb.collection('samlLogs')
-  db.spellingPreferences = internalDb.collection('spellingPreferences')
-  db.splittests = internalDb.collection('splittests')
-  db.ssoConfigs = internalDb.collection('ssoConfigs')
-  db.subscriptions = internalDb.collection('subscriptions')
-  db.surveys = internalDb.collection('surveys')
-  db.systemmessages = internalDb.collection('systemmessages')
-  db.tags = internalDb.collection('tags')
-  db.teamInvites = internalDb.collection('teamInvites')
-  db.templates = internalDb.collection('templates')
-  db.tokens = internalDb.collection('tokens')
-  db.userAuditLogEntries = internalDb.collection('userAuditLogEntries')
-  db.users = internalDb.collection('users')
-  db.userstubs = internalDb.collection('userstubs')
-  db.onboardingDataCollection = internalDb.collection(
-    'onboardingDataCollection'
-  )
-}
+const connectionPromise = mongoClient.connect()
 
 async function getCollectionNames() {
-  const internalDb = await getNativeDb()
+  const internalDb = mongoClient.db()
 
   const collections = await internalDb.collections()
   return collections.map(collection => collection.collectionName)
 }
 
+async function cleanupTestDatabase() {
+  ensureTestDatabase()
+  const collectionNames = await getCollectionNames()
+  const collections = []
+  for (const name of collectionNames) {
+    if (name in db && name !== 'migrations') {
+      collections.push(db[name])
+    }
+  }
+  await Promise.all(collections.map(coll => coll.deleteMany({})))
+}
+
 async function dropTestDatabase() {
-  const internalDb = await getNativeDb()
+  ensureTestDatabase()
+  await mongoClient.db().dropDatabase()
+}
+
+function ensureTestDatabase() {
+  const internalDb = mongoClient.db()
   const dbName = internalDb.databaseName
   const env = process.env.NODE_ENV
 
@@ -117,25 +119,29 @@ async function dropTestDatabase() {
       `Refusing to clear database '${dbName}' in environment '${env}'`
     )
   }
-
-  await internalDb.dropDatabase()
 }
 
 /**
  * WARNING: Consider using a pre-populated collection from `db` to avoid typos!
  */
 async function getCollectionInternal(name) {
-  const internalDb = await getNativeDb()
+  const internalDb = mongoClient.db()
   return internalDb.collection(name)
+}
+
+async function waitForDb() {
+  await connectionPromise
 }
 
 module.exports = {
   db,
   ObjectId,
+  connectionPromise,
+  waitForDb,
   getCollectionNames,
   getCollectionInternal,
+  cleanupTestDatabase,
   dropTestDatabase,
-  waitForDb,
   READ_PREFERENCE_PRIMARY,
   READ_PREFERENCE_SECONDARY,
 }

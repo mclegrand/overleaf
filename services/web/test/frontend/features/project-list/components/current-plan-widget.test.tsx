@@ -7,7 +7,7 @@ import {
   IndividualPlanSubscription,
 } from '../../../../../types/project/dashboard/subscription'
 import { DeepReadonly } from '../../../../../types/utils'
-import * as eventTracking from '../../../../../frontend/js/infrastructure/event-tracking'
+import * as eventTracking from '@/infrastructure/event-tracking'
 import CurrentPlanWidget from '../../../../../frontend/js/features/project-list/components/current-plan-widget/current-plan-widget'
 
 describe('<CurrentPlanWidget />', function () {
@@ -15,6 +15,8 @@ describe('<CurrentPlanWidget />', function () {
     /click to find out how you could benefit from overleaf premium features/i
   const paidPlanTooltipMessage =
     /click to find out how to make the most of your overleaf premium features/i
+  const pausedTooltipMessage =
+    /click to unpause and reactivate your overleaf premium features/i
 
   let sendMBSpy: sinon.SinonSpy
 
@@ -23,6 +25,30 @@ describe('<CurrentPlanWidget />', function () {
   })
   afterEach(function () {
     sendMBSpy.restore()
+  })
+
+  describe('paused', function () {
+    beforeEach(function () {
+      window.metaAttributesCache.set('ol-usersBestSubscription', {
+        type: 'individual',
+        subscription: {
+          recurlyStatus: {
+            state: 'paused',
+          },
+        },
+      })
+
+      render(<CurrentPlanWidget />)
+    })
+
+    it('shows text and tooltip on mouseover', async function () {
+      const link = screen.getByRole('link', {
+        name: /plan is paused/i,
+      })
+      fireEvent.mouseOver(link)
+
+      await screen.findByRole('tooltip', { name: pausedTooltipMessage })
+    })
   })
 
   describe('free plan', function () {
@@ -34,13 +60,13 @@ describe('<CurrentPlanWidget />', function () {
       render(<CurrentPlanWidget />)
     })
 
-    it('shows text and tooltip on mouseover', function () {
+    it('shows text and tooltip on mouseover', async function () {
       const link = screen.getByRole('link', {
         name: /you’re on the free plan/i,
       })
       fireEvent.mouseOver(link)
 
-      screen.getByRole('tooltip', { name: freePlanTooltipMessage })
+      await screen.findByRole('tooltip', { name: freePlanTooltipMessage })
     })
 
     it('clicks on upgrade button', function () {
@@ -130,7 +156,7 @@ describe('<CurrentPlanWidget />', function () {
         })
       })
 
-      it('shows text and tooltip on mouseover', function () {
+      it('shows text and tooltip on mouseover', async function () {
         render(<CurrentPlanWidget />)
 
         const link = screen.getByRole('link', {
@@ -138,10 +164,10 @@ describe('<CurrentPlanWidget />', function () {
         })
         fireEvent.mouseOver(link)
 
-        screen.getByRole('tooltip', {
+        await screen.findByRole('tooltip', {
           name: new RegExp(`on the ${subscription.plan.name}`, 'i'),
         })
-        screen.getByRole('tooltip', { name: paidPlanTooltipMessage })
+        await screen.findByRole('tooltip', { name: paidPlanTooltipMessage })
       })
     })
 
@@ -163,7 +189,7 @@ describe('<CurrentPlanWidget />', function () {
         })
       })
 
-      it('shows text and tooltip on mouseover (without subscription team name)', function () {
+      it('shows text and tooltip on mouseover (without subscription team name)', async function () {
         render(<CurrentPlanWidget />)
 
         const link = screen.getByRole('link', {
@@ -172,16 +198,16 @@ describe('<CurrentPlanWidget />', function () {
         fireEvent.mouseOver(link)
 
         expect(subscription.subscription.teamName).to.be.undefined
-        screen.getByRole('tooltip', {
+        await screen.findByRole('tooltip', {
           name: new RegExp(
             `on the ${subscription.plan.name} plan as a member of a group subscription`,
             'i'
           ),
         })
-        screen.getByRole('tooltip', { name: paidPlanTooltipMessage })
+        await screen.findByRole('tooltip', { name: paidPlanTooltipMessage })
       })
 
-      it('shows text and tooltip on mouseover (with subscription team name)', function () {
+      it('shows text and tooltip on mouseover (with subscription team name)', async function () {
         const newSubscription = {
           ...subscription,
           subscription: {
@@ -201,18 +227,18 @@ describe('<CurrentPlanWidget />', function () {
         })
         fireEvent.mouseOver(link)
 
-        screen.getByRole('tooltip', {
+        await screen.findByRole('tooltip', {
           name: new RegExp(
             `on the ${newSubscription.plan.name} plan as a member of a group subscription, ${newSubscription.subscription.teamName}`,
             'i'
           ),
         })
-        screen.getByRole('tooltip', { name: paidPlanTooltipMessage })
+        await screen.findByRole('tooltip', { name: paidPlanTooltipMessage })
       })
     })
 
     describe('commons', function () {
-      it('shows text and tooltip on mouseover', function () {
+      it('shows text and tooltip on mouseover', async function () {
         const subscription = {
           type: 'commons',
           plan: {
@@ -234,13 +260,13 @@ describe('<CurrentPlanWidget />', function () {
         })
         fireEvent.mouseOver(link)
 
-        screen.getByRole('tooltip', {
+        await screen.findByRole('tooltip', {
           name: new RegExp(
             `on the ${subscription.plan.name} plan because of your affiliation with ${subscription.subscription.name}`,
             'i'
           ),
         })
-        screen.getByRole('tooltip', { name: paidPlanTooltipMessage })
+        await screen.findByRole('tooltip', { name: paidPlanTooltipMessage })
       })
     })
   })

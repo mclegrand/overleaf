@@ -451,9 +451,9 @@ async function gitUpdate(projectId, ownerId) {
 
   resetFolder(dest)
 
-
-  const src = path.join(outputPath, `${projectId}-${ownerId}`);
-  const dest = path.join(dataPath, `${projectId}-${ownerId}`);
+  //
+  // const src = path.join(outputPath, `${projectId}-${ownerId}`);
+  // const dest = path.join(dataPath, `${projectId}-${ownerId}`);
 
   // Ensure the destination exists
   await fs.ensureDir(dest);

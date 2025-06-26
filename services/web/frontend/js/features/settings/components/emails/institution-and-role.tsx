@@ -115,7 +115,7 @@ function InstitutionAndRole({ userEmailData }: InstitutionAndRoleProps) {
           >
             {!affiliation.department && !affiliation.role
               ? t('add_role_and_department')
-              : t('change')}
+              : t('change_email')}
           </OLButton>
         </div>
       ) : (
@@ -145,11 +145,7 @@ function InstitutionAndRole({ userEmailData }: InstitutionAndRoleProps) {
               type="submit"
               disabled={!role || !department}
               isLoading={isLoading}
-              bs3Props={{
-                loading: isLoading
-                  ? `${t('saving')}…`
-                  : t('save_or_cancel-save'),
-              }}
+              loadingLabel={t('saving')}
             >
               {t('save_or_cancel-save')}
             </OLButton>

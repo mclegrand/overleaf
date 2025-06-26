@@ -6,7 +6,7 @@ const tk = require('timekeeper')
 const moment = require('moment')
 const { Project } = require('../helpers/models/Project')
 const { DeletedProject } = require('../helpers/models/DeletedProject')
-const { ObjectId, ReadPreference } = require('mongodb')
+const { ObjectId, ReadPreference } = require('mongodb-legacy')
 const Errors = require('../../../../app/src/Features/Errors/Errors')
 
 describe('ProjectDeleter', function () {
@@ -36,6 +36,7 @@ describe('ProjectDeleter', function () {
           deleterId: '588f3ddae8ebc1bac07c9fa4',
           deleterIpAddress: '172.19.0.1',
           deletedProjectId: '5cf9270b4eff6e186cf8b05e',
+          deletedProjectOwnerId: this.user._id,
         },
         project: {
           _id: '5cf9270b4eff6e186cf8b05e',
@@ -99,10 +100,6 @@ describe('ProjectDeleter', function () {
     }
 
     this.db = {
-      deletedFiles: {
-        indexExists: sinon.stub().resolves(false),
-        deleteMany: sinon.stub(),
-      },
       projects: {
         insertOne: sinon.stub().resolves(),
       },
@@ -140,6 +137,9 @@ describe('ProjectDeleter', function () {
     }
     this.ProjectDeleter = SandboxedModule.require(modulePath, {
       requires: {
+        '../../infrastructure/Modules': {
+          promises: { hooks: { fire: sinon.stub().resolves() } },
+        },
         '../../infrastructure/Features': this.Features,
         '../Editor/EditorRealTimeController': this.EditorRealTimeController,
         '../../models/Project': { Project },
@@ -276,6 +276,7 @@ describe('ProjectDeleter', function () {
         deletedProjectOwnerId: this.project.owner_ref,
         deletedProjectCollaboratorIds: this.project.collaberator_refs,
         deletedProjectReadOnlyIds: this.project.readOnly_refs,
+        deletedProjectReviewerIds: this.project.reviewer_refs,
         deletedProjectReadWriteTokenAccessIds:
           this.project.tokenAccessReadAndWrite_refs,
         deletedProjectReadOnlyTokenAccessIds:
@@ -394,7 +395,7 @@ describe('ProjectDeleter', function () {
             $lt: new Date(moment().subtract(90, 'days')),
           },
           project: {
-            $ne: null,
+            $type: 'object',
           },
         })
         .chain('exec')
@@ -500,6 +501,16 @@ describe('ProjectDeleter', function () {
         expect(this.ProjectAuditLogEntry.deleteMany).to.have.been.calledWith({
           projectId: this.deletedProjects[0].project._id,
         })
+      })
+
+      it('should log a completed deletion', async function () {
+        expect(this.logger.info).to.have.been.calledWith(
+          {
+            projectId: this.deletedProjects[0].project._id,
+            userId: this.user._id,
+          },
+          'expired deleted project successfully'
+        )
       })
     })
 
@@ -825,6 +836,7 @@ function dummyProject() {
     rootFolder: [],
     collaberator_refs: [new ObjectId(), new ObjectId()],
     readOnly_refs: [new ObjectId(), new ObjectId()],
+    reviewer_refs: [new ObjectId()],
     tokenAccessReadAndWrite_refs: [new ObjectId(), new ObjectId()],
     tokenAccessReadOnly_refs: [new ObjectId(), new ObjectId()],
     owner_ref: new ObjectId(),

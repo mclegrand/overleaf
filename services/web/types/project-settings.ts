@@ -1,5 +1,5 @@
-import { OverallTheme } from '../frontend/js/features/source-editor/extensions/theme'
 import { Brand } from './helpers/brand'
+import { OverallTheme } from '@/shared/utils/styles'
 
 export type AllowedImageName = {
   imageDesc: string
@@ -17,17 +17,15 @@ export type MainDocument = {
 
 export type ProjectCompiler = 'pdflatex' | 'latex' | 'xelatex' | 'lualatex'
 
-export type Keybindings = 'default' | 'vim' | 'emacs'
-
 export type OverallThemeMeta = {
   name: string
   path: string
   val: OverallTheme
 }
 
-export type PdfViewer = 'pdfjs' | 'native'
-
 export type SpellCheckLanguage = {
   name: string
   code: string
+  dic?: string
+  server?: false
 }

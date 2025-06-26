@@ -18,24 +18,24 @@ import {
 import { changeCase, duplicateSelection } from '../commands/ranges'
 import { selectNextOccurrence, selectPrevOccurrence } from '../commands/select'
 import { cloneSelectionVertically } from '../commands/cursor'
-import { dispatchEditorEvent } from './changes/change-manager'
 import {
   deleteToVisualLineEnd,
   deleteToVisualLineStart,
 } from './visual-line-selection'
+import { emitShortcutEvent } from '@/features/source-editor/extensions/toolbar/utils/analytics'
 
 const toggleReviewPanel = () => {
-  dispatchEditorEvent('toggle-review-panel')
+  window.dispatchEvent(new Event('ui.toggle-review-panel'))
   return true
 }
 
 const addNewCommentFromKbdShortcut = () => {
-  dispatchEditorEvent('add-new-comment')
+  window.dispatchEvent(new Event('add-new-review-comment'))
   return true
 }
 
 const toggleTrackChangesFromKbdShortcut = () => {
-  dispatchEditorEvent('toggle-track-changes')
+  window.dispatchEvent(new Event('toggle-track-changes'))
   return true
 }
 
@@ -46,11 +46,11 @@ export const shortcuts = Prec.high(
   keymap.of([
     {
       key: 'Tab',
-      run: indentMore,
+      run: indentMore, // note: not using indentWithTab as the user may want to insert tab spaces within a line
     },
     {
       key: 'Shift-Tab',
-      run: indentLess,
+      run: indentLess, // note: not using indentWithTab as the user may want to insert tab spaces within a line
     },
     {
       key: 'Mod-y',
@@ -104,7 +104,10 @@ export const shortcuts = Prec.high(
     {
       key: 'Mod-d',
       preventDefault: true,
-      run: deleteLine,
+      run(view) {
+        emitShortcutEvent(view, 'delete-line')
+        return deleteLine(view)
+      },
     },
     {
       key: 'Mod-j',
@@ -122,55 +125,64 @@ export const shortcuts = Prec.high(
       run: toggleTrackChangesFromKbdShortcut,
     },
     {
-      key: 'Mod-Alt-ArrowUp',
+      key: 'Cmd-Alt-ArrowUp',
       preventDefault: true,
-      run: cloneSelectionVertically(false, true),
+      run: cloneSelectionVertically(false, true, 'cmd'),
     },
     {
-      key: 'Mod-Alt-ArrowDown',
+      key: 'Cmd-Alt-ArrowDown',
       preventDefault: true,
-      run: cloneSelectionVertically(true, true),
+      run: cloneSelectionVertically(true, true, 'cmd'),
     },
     {
-      key: 'Mod-Alt-Shift-ArrowUp',
+      key: 'Cmd-Alt-Shift-ArrowUp',
       preventDefault: true,
-      run: cloneSelectionVertically(false, false),
+      run: cloneSelectionVertically(false, false, 'cmd'),
     },
     {
-      key: 'Mod-Alt-Shift-ArrowDown',
+      key: 'Cmd-Alt-Shift-ArrowDown',
       preventDefault: true,
-      run: cloneSelectionVertically(true, false),
+      run: cloneSelectionVertically(true, false, 'cmd'),
     },
-    // duplicates of the above commands, allowing Ctrl on macOS for backwards compatibility
+    // Duplicates of the above commands,
+    // allowing Ctrl instead of Command (but still tracking the events separately).
+    // Note: both Ctrl and Commmand versions need to work on macOS, for backwards compatibility,
+    // so the duplicates shouldn't simply be combined to use `Mod-`.
     {
-      mac: 'Ctrl-Alt-ArrowUp',
+      key: 'Ctrl-Alt-ArrowUp',
       preventDefault: true,
-      run: cloneSelectionVertically(false, true),
-    },
-    {
-      mac: 'Ctrl-Alt-ArrowDown',
-      preventDefault: true,
-      run: cloneSelectionVertically(true, true),
+      run: cloneSelectionVertically(false, true, 'ctrl'),
     },
     {
-      mac: 'Ctrl-Alt-Shift-ArrowUp',
+      key: 'Ctrl-Alt-ArrowDown',
       preventDefault: true,
-      run: cloneSelectionVertically(false, false),
+      run: cloneSelectionVertically(true, true, 'ctrl'),
     },
     {
-      mac: 'Ctrl-Alt-Shift-ArrowDown',
+      key: 'Ctrl-Alt-Shift-ArrowUp',
       preventDefault: true,
-      run: cloneSelectionVertically(true, false),
+      run: cloneSelectionVertically(false, false, 'ctrl'),
+    },
+    {
+      key: 'Ctrl-Alt-Shift-ArrowDown',
+      preventDefault: true,
+      run: cloneSelectionVertically(true, false, 'ctrl'),
     },
     {
       key: 'Ctrl-Alt-ArrowLeft',
       preventDefault: true,
-      run: selectPrevOccurrence,
+      run(view) {
+        emitShortcutEvent(view, 'select-prev-occurrence')
+        return selectPrevOccurrence(view)
+      },
     },
     {
       key: 'Ctrl-Alt-ArrowRight',
       preventDefault: true,
-      run: selectNextOccurrence,
+      run(view) {
+        emitShortcutEvent(view, 'select-next-occurrence')
+        return selectNextOccurrence(view)
+      },
     },
     {
       key: 'Mod-Shift-d',

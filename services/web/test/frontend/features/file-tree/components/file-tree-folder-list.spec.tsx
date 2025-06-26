@@ -1,4 +1,3 @@
-import '../../../helpers/bootstrap-3'
 import FileTreeFolderList from '../../../../../frontend/js/features/file-tree/components/file-tree-folder-list'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import { FileTreeProvider } from '../helpers/file-tree-provider'
@@ -31,8 +30,15 @@ describe('<FileTreeFolderList/>', function () {
                 fileRefs: [],
               },
             ]}
-            docs={[{ _id: '789ghi', name: 'doc.tex', linkedFileData: {} }]}
-            files={[{ _id: '987jkl', name: 'file.bib', linkedFileData: {} }]}
+            docs={[{ _id: '789ghi', name: 'doc.tex' }]}
+            files={[
+              {
+                _id: '987jkl',
+                name: 'file.bib',
+                hash: 'some hash',
+                linkedFileData: {},
+              },
+            ]}
           />
         </FileTreeProvider>
       </EditorProviders>

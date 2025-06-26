@@ -1,47 +1,55 @@
 import { Trans, useTranslation } from 'react-i18next'
-import { RecurlySubscription } from '../../../../../../types/subscription/dashboard/subscription'
-import { ActiveSubscription } from './states/active/active'
+import { PaidSubscription } from '../../../../../../types/subscription/dashboard/subscription'
+import { PausedSubscription } from './states/active/paused'
+import { ActiveSubscriptionNew } from '@/features/subscription/components/dashboard/states/active/active-new'
 import { CanceledSubscription } from './states/canceled'
 import { ExpiredSubscription } from './states/expired'
 import { useSubscriptionDashboardContext } from '../../context/subscription-dashboard-context'
-import PersonalSubscriptionRecurlySyncEmail from './personal-subscription-recurly-sync-email'
+import PersonalSubscriptionSyncEmail from './personal-subscription-sync-email'
+import OLNotification from '@/features/ui/components/ol/ol-notification'
 
 function PastDueSubscriptionAlert({
   subscription,
 }: {
-  subscription: RecurlySubscription
+  subscription: PaidSubscription
 }) {
   const { t } = useTranslation()
   return (
-    <>
-      <div className="alert alert-danger" role="alert">
-        {t('account_has_past_due_invoice_change_plan_warning')}{' '}
-        <a
-          href={subscription.recurly.accountManagementLink}
-          target="_blank"
-          rel="noreferrer noopener"
-        >
-          {t('view_your_invoices')}
-        </a>
-      </div>
-    </>
+    <OLNotification
+      type="error"
+      content={
+        <>
+          {t('account_has_past_due_invoice_change_plan_warning')}{' '}
+          <a
+            href={subscription.payment.accountManagementLink}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            {t('view_your_invoices')}
+          </a>
+        </>
+      }
+    />
   )
 }
 
 function PersonalSubscriptionStates({
   subscription,
 }: {
-  subscription: RecurlySubscription
+  subscription: PaidSubscription
 }) {
   const { t } = useTranslation()
-  const state = subscription?.recurly.state
+  const state = subscription?.payment.state
 
   if (state === 'active') {
-    return <ActiveSubscription subscription={subscription} />
+    // This version handles subscriptions with and without addons
+    return <ActiveSubscriptionNew subscription={subscription} />
   } else if (state === 'canceled') {
     return <CanceledSubscription subscription={subscription} />
   } else if (state === 'expired') {
     return <ExpiredSubscription subscription={subscription} />
+  } else if (state === 'paused') {
+    return <PausedSubscription subscription={subscription} />
   } else {
     return <>{t('problem_with_subscription_contact_us')}</>
   }
@@ -54,7 +62,7 @@ function PersonalSubscription() {
 
   if (!personalSubscription) return null
 
-  if (!('recurly' in personalSubscription)) {
+  if (!('payment' in personalSubscription)) {
     return (
       <p>
         <Trans
@@ -67,20 +75,20 @@ function PersonalSubscription() {
 
   return (
     <>
-      {personalSubscription.recurly.account.has_past_due_invoice._ ===
-        'true' && (
+      {personalSubscription.payment.hasPastDueInvoice && (
         <PastDueSubscriptionAlert subscription={personalSubscription} />
       )}
       <PersonalSubscriptionStates
-        subscription={personalSubscription as RecurlySubscription}
+        subscription={personalSubscription as PaidSubscription}
       />
       {recurlyLoadError && (
-        <div className="alert alert-warning" role="alert">
-          <strong>{t('payment_provider_unreachable_error')}</strong>
-        </div>
+        <OLNotification
+          type="warning"
+          content={<strong>{t('payment_provider_unreachable_error')}</strong>}
+        />
       )}
       <hr />
-      <PersonalSubscriptionRecurlySyncEmail />
+      <PersonalSubscriptionSyncEmail />
     </>
   )
 }

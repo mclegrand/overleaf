@@ -3,7 +3,7 @@ const crypto = require('crypto')
 
 const settings = require('@overleaf/settings')
 const Modules = require('../../infrastructure/Modules')
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 
 const { Subscription } = require('../../models/Subscription')
 const { SSOConfig } = require('../../models/SSOConfig')
@@ -22,6 +22,7 @@ const {
   callbackifyMultiResult,
 } = require('@overleaf/promise-utils')
 const NotificationsBuilder = require('../Notifications/NotificationsBuilder')
+const RecurlyClient = require('./RecurlyClient')
 
 async function getInvite(token) {
   const subscription = await Subscription.findOne({
@@ -64,19 +65,64 @@ async function importInvite(subscription, inviterName, email, token, sentAt) {
   return subscription.save()
 }
 
-async function acceptInvite(token, userId) {
+async function _deleteUserSubscription(userId, ipAddress) {
+  // Delete released user subscription to make it on a free plan
+  const subscription =
+    await SubscriptionLocator.promises.getUsersSubscription(userId)
+
+  if (subscription) {
+    logger.debug(
+      {
+        subscriptionId: subscription._id,
+      },
+      'deleting user subscription'
+    )
+
+    const deleterData = {
+      id: userId,
+      ip: ipAddress,
+    }
+    await SubscriptionUpdater.promises.deleteSubscription(
+      subscription,
+      deleterData
+    )
+
+    // Terminate the subscription in Recurly
+    if (subscription.recurlySubscription_id) {
+      try {
+        await RecurlyClient.promises.terminateSubscriptionByUuid(
+          subscription.recurlySubscription_id
+        )
+      } catch (err) {
+        logger.error(
+          { err, subscriptionId: subscription._id },
+          'terminating subscription failed'
+        )
+      }
+    }
+  }
+}
+
+async function acceptInvite(token, userId, ipAddress) {
   const { invite, subscription } = await getInvite(token)
   if (!invite) {
     throw new Errors.NotFoundError('invite not found')
   }
+  const auditLog = { initiatorId: userId, ipAddress }
 
-  await SubscriptionUpdater.promises.addUserToGroup(subscription._id, userId)
+  await SubscriptionUpdater.promises.addUserToGroup(
+    subscription._id,
+    userId,
+    auditLog
+  )
 
   if (subscription.managedUsersEnabled) {
+    await _deleteUserSubscription(userId, ipAddress)
     await Modules.promises.hooks.fire(
       'enrollInManagedSubscription',
       userId,
-      subscription
+      subscription,
+      auditLog
     )
   }
   if (subscription.ssoConfig) {
@@ -146,9 +192,11 @@ async function _createInvite(subscription, email, inviter) {
     emailData => emailData.email === email
   )
   if (isInvitingSelf) {
+    const auditLog = { initiatorId: inviter._id }
     await SubscriptionUpdater.promises.addUserToGroup(
       subscription._id,
-      inviter._id
+      inviter._id,
+      auditLog
     )
 
     // legacy: remove any invite that might have been created in the past

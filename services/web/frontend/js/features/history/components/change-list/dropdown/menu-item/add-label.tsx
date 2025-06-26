@@ -1,21 +1,15 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MenuItem } from 'react-bootstrap'
-import Icon from '../../../../../../shared/components/icon'
+import OLDropdownMenuItem from '@/features/ui/components/ol/ol-dropdown-menu-item'
+import OLTagIcon from '@/features/ui/components/ol/icons/ol-tag-icon'
 import AddLabelModal from '../../add-label-modal'
 
-type DownloadProps = {
-  projectId: string
+type AddLabelProps = {
   version: number
   closeDropdown: () => void
 }
 
-function AddLabel({
-  version,
-  projectId,
-  closeDropdown,
-  ...props
-}: DownloadProps) {
+function AddLabel({ version, closeDropdown, ...props }: AddLabelProps) {
   const { t } = useTranslation()
   const [showModal, setShowModal] = useState(false)
 
@@ -26,9 +20,15 @@ function AddLabel({
 
   return (
     <>
-      <MenuItem onClick={handleClick} {...props}>
-        <Icon type="tag" fw /> {t('history_label_this_version')}
-      </MenuItem>
+      <OLDropdownMenuItem
+        onClick={handleClick}
+        leadingIcon={<OLTagIcon />}
+        as="button"
+        className="dropdown-item-material-icon-small"
+        {...props}
+      >
+        {t('history_label_this_version')}
+      </OLDropdownMenuItem>
       <AddLabelModal
         show={showModal}
         setShow={setShowModal}

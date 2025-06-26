@@ -13,7 +13,7 @@ const Client = require('./helpers/Client')
 const request = require('request')
 const { expect } = require('chai')
 const ClsiApp = require('./helpers/ClsiApp')
-const crypto = require('crypto')
+const crypto = require('node:crypto')
 
 describe('Syncing', function () {
   before(function (done) {
@@ -67,6 +67,7 @@ Hello world
                 width: 343.71106,
               },
             ],
+            downloadedFromCache: false,
           })
           return done()
         }
@@ -87,6 +88,7 @@ Hello world
           }
           expect(codePositions).to.deep.equal({
             code: [{ file: 'main.tex', line: 3, column: -1 }],
+            downloadedFromCache: false,
           })
           return done()
         }

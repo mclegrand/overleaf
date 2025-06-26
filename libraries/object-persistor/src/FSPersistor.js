@@ -1,22 +1,28 @@
-const crypto = require('crypto')
-const fs = require('fs')
-const fsPromises = require('fs/promises')
+const crypto = require('node:crypto')
+const fs = require('node:fs')
+const fsPromises = require('node:fs/promises')
 const globCallbacks = require('glob')
-const Path = require('path')
-const { pipeline } = require('stream/promises')
-const { promisify } = require('util')
+const Path = require('node:path')
+const { PassThrough } = require('node:stream')
+const { pipeline } = require('node:stream/promises')
+const { promisify } = require('node:util')
 
 const AbstractPersistor = require('./AbstractPersistor')
-const { ReadError, WriteError } = require('./Errors')
+const { ReadError, WriteError, NotImplementedError } = require('./Errors')
 const PersistorHelper = require('./PersistorHelper')
 
 const glob = promisify(globCallbacks)
 
 module.exports = class FSPersistor extends AbstractPersistor {
   constructor(settings = {}) {
+    if (settings.storageClass) {
+      throw new NotImplementedError(
+        'FS backend does not support storage classes'
+      )
+    }
+
     super()
     this.useSubdirectories = Boolean(settings.useSubdirectories)
-    this.metrics = settings.Metrics
   }
 
   async sendFile(location, target, source) {
@@ -36,6 +42,14 @@ module.exports = class FSPersistor extends AbstractPersistor {
   }
 
   async sendStream(location, target, sourceStream, opts = {}) {
+    if (opts.ifNoneMatch === '*') {
+      // The standard library only has fs.rename(), which does not support exclusive flags.
+      // Refuse to act on this write operation.
+      throw new NotImplementedError(
+        'Overwrite protection required by caller, but it is not available is FS backend. Configure GCS or S3 backend instead, get in touch with support for further information.'
+      )
+    }
+
     const targetPath = this._getFsPath(location, target)
 
     try {
@@ -55,7 +69,7 @@ module.exports = class FSPersistor extends AbstractPersistor {
       throw PersistorHelper.wrapError(
         err,
         'failed to write stream',
-        { location, target },
+        { location, target, ifNoneMatch: opts.ifNoneMatch },
         WriteError
       )
     }
@@ -63,6 +77,15 @@ module.exports = class FSPersistor extends AbstractPersistor {
 
   // opts may be {start: Number, end: Number}
   async getObjectStream(location, name, opts = {}) {
+    if (opts.autoGunzip) {
+      throw new NotImplementedError(
+        'opts.autoGunzip is not supported by FS backend. Configure GCS or S3 backend instead, get in touch with support for further information.'
+      )
+    }
+    const observer = new PersistorHelper.ObserverStream({
+      metric: 'fs.ingress', // ingress to us from disk
+      bucket: location,
+    })
     const fsPath = this._getFsPath(location, name)
 
     try {
@@ -76,7 +99,11 @@ module.exports = class FSPersistor extends AbstractPersistor {
       )
     }
 
-    return fs.createReadStream(null, opts)
+    const stream = fs.createReadStream(null, opts)
+    // Return a PassThrough stream with a minimal interface. It will buffer until the caller starts reading. It will emit errors from the source stream (Stream.pipeline passes errors along).
+    const pass = new PassThrough()
+    pipeline(stream, observer, pass).catch(() => {})
+    return pass
   }
 
   async getRedirectUrl() {
@@ -221,27 +248,25 @@ module.exports = class FSPersistor extends AbstractPersistor {
   }
 
   async _writeStreamToTempFile(location, stream, opts = {}) {
+    const observerOptions = {
+      metric: 'fs.egress', // egress from us to disk
+      bucket: location,
+    }
+    const observer = new PersistorHelper.ObserverStream(observerOptions)
+
     const tempDirPath = await fsPromises.mkdtemp(Path.join(location, 'tmp-'))
     const tempFilePath = Path.join(tempDirPath, 'uploaded-file')
 
-    const transforms = []
+    const transforms = [observer]
     let md5Observer
     if (opts.sourceMd5) {
       md5Observer = createMd5Observer()
       transforms.push(md5Observer.transform)
     }
 
-    let timer
-    if (this.metrics) {
-      timer = new this.metrics.Timer('writingFile')
-    }
-
     try {
       const writeStream = fs.createWriteStream(tempFilePath)
       await pipeline(stream, ...transforms, writeStream)
-      if (timer) {
-        timer.done()
-      }
     } catch (err) {
       await this._cleanupTempFile(tempFilePath)
       throw new WriteError(
@@ -280,8 +305,10 @@ module.exports = class FSPersistor extends AbstractPersistor {
 
   async _listDirectory(path) {
     if (this.useSubdirectories) {
+      // eslint-disable-next-line @typescript-eslint/return-await
       return await glob(Path.join(path, '**'))
     } else {
+      // eslint-disable-next-line @typescript-eslint/return-await
       return await glob(`${path}_*`)
     }
   }

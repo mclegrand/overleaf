@@ -229,7 +229,7 @@ describe('EmailBuilder', function () {
         describe('HTML email', function () {
           it('should include a CTA button and a fallback CTA link', function () {
             const dom = cheerio.load(this.email.html)
-            const buttonLink = dom('a:contains("Confirm Email")')
+            const buttonLink = dom('a:contains("Confirm email")')
             expect(buttonLink.length).to.equal(1)
             expect(buttonLink.attr('href')).to.equal(this.opts.confirmEmailUrl)
             const fallback = dom('.force-overleaf-style').last()
@@ -592,7 +592,7 @@ describe('EmailBuilder', function () {
 
         describe('HTML email', function () {
           it('should include a CTA button and a fallback CTA link', function () {
-            const buttonLink = this.dom('a:contains("Confirm Email")')
+            const buttonLink = this.dom('a:contains("Confirm email")')
             expect(buttonLink.length).to.equal(1)
             expect(buttonLink.attr('href')).to.equal(this.opts.confirmEmailUrl)
             const fallback = this.dom('.force-overleaf-style').last()
@@ -815,6 +815,43 @@ describe('EmailBuilder', function () {
           })
           it('should contain HTML links', function () {
             expect(this.email.text).to.not.contain('<a')
+          })
+        })
+      })
+
+      describe('removeGroupMember', function () {
+        beforeEach(function () {
+          this.passwordResetUrl = `${this.settings.siteUrl}/user/password/reset`
+          this.emailAddress = 'example@overleaf.com'
+          this.opts = {
+            to: this.emailAddress,
+            adminName: 'abcdef',
+          }
+          this.email = this.EmailBuilder.buildEmail(
+            'removeGroupMember',
+            this.opts
+          )
+          this.dom = cheerio.load(this.email.html)
+        })
+
+        it('should build the email', function () {
+          expect(this.email.html).to.exist
+          expect(this.email.text).to.exist
+        })
+
+        describe('HTML email', function () {
+          it('should include links', function () {
+            const resetPasswordLink = this.dom('a:contains("set a password")')
+            expect(resetPasswordLink.length).to.equal(1)
+            expect(resetPasswordLink.attr('href')).to.equal(
+              this.passwordResetUrl
+            )
+          })
+        })
+
+        describe('plain text email', function () {
+          it('should include URLs', function () {
+            expect(this.email.text).to.contain(this.passwordResetUrl)
           })
         })
       })

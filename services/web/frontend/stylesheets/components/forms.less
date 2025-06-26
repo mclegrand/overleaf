@@ -42,6 +42,8 @@ label {
   font-size: @font-size-base;
   color: @text-color;
   border: 0;
+  margin-bottom: 0;
+  line-height: @line-height-01;
 }
 
 // Normalize form controls
@@ -157,6 +159,7 @@ output {
     height: auto;
     border-radius: @border-radius-base;
   }
+
   // Smaller border-radius for `select` inputs
   select& {
     border-radius: @border-radius-base;
@@ -293,6 +296,11 @@ input[type='checkbox'],
     line-height: @input-height-base;
     text-align: center;
   }
+
+  // Position the feedback inside the input element when there's no label
+  &.hidden-label .form-control-feedback {
+    margin-top: -(@line-height-computed + 5);
+  }
 }
 
 .has-feedback-left {
@@ -357,6 +365,15 @@ input[type='checkbox'],
   margin-top: 5px;
   margin-bottom: 10px;
   color: lighten(@text-color, 25%); // lighten the text some for contrast
+
+  // Hide help blocks used as validation messages by default
+  &.invalid-only {
+    display: none;
+
+    .has-error & {
+      display: block;
+    }
+  }
 }
 
 // Inline forms

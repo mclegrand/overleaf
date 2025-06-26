@@ -1,13 +1,19 @@
 import { useTranslation, Trans } from 'react-i18next'
-import { RecurlySubscription } from '../../../../../../../types/subscription/dashboard/subscription'
+import { PaidSubscription } from '../../../../../../../types/subscription/dashboard/subscription'
+import {
+  hasPendingAiAddonCancellation,
+  ADD_ON_NAME,
+} from '../../../data/add-on-codes'
 import ReactivateSubscription from '../reactivate-subscription'
+import OLButton from '@/features/ui/components/ol/ol-button'
 
 export function CanceledSubscription({
   subscription,
 }: {
-  subscription: RecurlySubscription
+  subscription: PaidSubscription
 }) {
   const { t } = useTranslation()
+  const pendingAiAddonCancellation = hasPendingAiAddonCancellation(subscription)
 
   return (
     <>
@@ -25,11 +31,24 @@ export function CanceledSubscription({
           ]}
         />
       </p>
+      {pendingAiAddonCancellation && (
+        <p>
+          <Trans
+            i18nKey="pending_addon_cancellation"
+            values={{
+              addOnName: ADD_ON_NAME,
+            }}
+            shouldUnescape
+            tOptions={{ interpolation: { escapeValue: true } }}
+            components={{ strong: <strong /> }}
+          />
+        </p>
+      )}
       <p>
         <Trans
           i18nKey="subscription_canceled_and_terminate_on_x"
           values={{
-            terminateDate: subscription.recurly.nextPaymentDueAt,
+            terminateDate: subscription.payment.nextPaymentDueAt,
           }}
           shouldUnescape
           tOptions={{ interpolation: { escapeValue: true } }}
@@ -40,14 +59,14 @@ export function CanceledSubscription({
         />
       </p>
       <p>
-        <a
-          href={subscription.recurly.accountManagementLink}
+        <OLButton
+          href={subscription.payment.accountManagementLink}
           target="_blank"
+          variant="secondary"
           rel="noopener noreferrer"
-          className="btn btn-secondary-info btn-secondary"
         >
           {t('view_your_invoices')}
-        </a>
+        </OLButton>
       </p>
       <ReactivateSubscription />
     </>

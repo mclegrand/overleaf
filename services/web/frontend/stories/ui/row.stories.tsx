@@ -1,4 +1,4 @@
-import { Container, Row, Col } from 'react-bootstrap-5'
+import { Container, Row, Col } from 'react-bootstrap'
 import { Meta } from '@storybook/react'
 
 type Args = React.ComponentProps<typeof Row>
@@ -22,11 +22,8 @@ export const ColumnRowCell = (args: Args) => {
 }
 
 const meta: Meta<typeof Row> = {
-  title: 'Shared / Components / Bootstrap 5 / Column-Row-Cell',
+  title: 'Shared / Components / Column-Row-Cell',
   component: Row,
-  parameters: {
-    bootstrap5: true,
-  },
 }
 
 export default meta

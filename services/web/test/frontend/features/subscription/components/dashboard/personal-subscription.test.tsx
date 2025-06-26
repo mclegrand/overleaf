@@ -4,6 +4,7 @@ import {
   fireEvent,
   waitForElementToBeRemoved,
   within,
+  waitFor,
 } from '@testing-library/react'
 import PersonalSubscription from '../../../../../../frontend/js/features/subscription/components/dashboard/personal-subscription'
 import {
@@ -19,7 +20,7 @@ import {
 import { reactivateSubscriptionUrl } from '../../../../../../frontend/js/features/subscription/data/subscription-url'
 import fetchMock from 'fetch-mock'
 import sinon from 'sinon'
-import * as useLocationModule from '../../../../../../frontend/js/shared/hooks/use-location'
+import { location } from '@/shared/components/location'
 
 describe('<PersonalSubscription />', function () {
   afterEach(function () {
@@ -36,31 +37,25 @@ describe('<PersonalSubscription />', function () {
   })
 
   describe('custom subscription', function () {
-    it('displays contact support message', function () {
+    it('displays contact Support message', function () {
       renderWithSubscriptionDashContext(<PersonalSubscription />, {
         metaTags: [{ name: 'ol-subscription', value: customSubscription }],
       })
 
       screen.getByText('Please', { exact: false })
-      screen.getByText('contact support', { exact: false })
+      screen.getByText('contact Support', { exact: false })
       screen.getByText('to make changes to your plan', { exact: false })
     })
   })
 
   describe('subscription states  ', function () {
-    let reloadStub: sinon.SinonStub
-
     beforeEach(function () {
-      reloadStub = sinon.stub()
-      this.locationStub = sinon.stub(useLocationModule, 'useLocation').returns({
-        assign: sinon.stub(),
-        replace: sinon.stub(),
-        reload: reloadStub,
-      })
+      this.locationWrapperSandbox = sinon.createSandbox()
+      this.locationWrapperStub = this.locationWrapperSandbox.stub(location)
     })
 
     afterEach(function () {
-      this.locationStub.restore()
+      this.locationWrapperSandbox.restore()
     })
 
     it('renders the active dash', function () {
@@ -70,7 +65,7 @@ describe('<PersonalSubscription />', function () {
         ],
       })
 
-      screen.getByText('You are currently subscribed to the', { exact: false })
+      screen.getByRole('heading', { name: /billing/i })
     })
 
     it('renders the canceled dash', function () {
@@ -81,13 +76,13 @@ describe('<PersonalSubscription />', function () {
         'Your subscription has been canceled and will terminate on',
         { exact: false }
       )
-      screen.getByText(canceledSubscription.recurly!.nextPaymentDueAt, {
+      screen.getByText(canceledSubscription.payment!.nextPaymentDueAt, {
         exact: false,
       })
 
       screen.getByText('No further payments will be taken.', { exact: false })
 
-      screen.getByRole('link', { name: 'View Your Invoices' })
+      screen.getByRole('link', { name: 'View your invoices' })
       screen.getByRole('button', { name: 'Reactivate your subscription' })
     })
 
@@ -104,18 +99,20 @@ describe('<PersonalSubscription />', function () {
       fetchMock.postOnce(reactivateSubscriptionUrl, 400)
       fireEvent.click(reactivateBtn)
       expect(reactivateBtn.disabled).to.be.true
-      await fetchMock.flush(true)
-      expect(reactivateBtn.disabled).to.be.false
-      expect(reloadStub).not.to.have.been.called
-      fetchMock.reset()
+      await fetchMock.callHistory.flush(true)
+      await waitFor(() => expect(reactivateBtn.disabled).to.be.false)
+      expect(this.locationWrapperStub.reload).not.to.have.been.called
+      fetchMock.removeRoutes().clearHistory()
 
       // 2nd click - success
       fetchMock.postOnce(reactivateSubscriptionUrl, 200)
       fireEvent.click(reactivateBtn)
-      await fetchMock.flush(true)
-      expect(reloadStub).to.have.been.calledOnce
+      await fetchMock.callHistory.flush(true)
+      await waitFor(() => {
+        expect(this.locationWrapperStub.reload).to.have.been.calledOnce
+      })
       expect(reactivateBtn.disabled).to.be.true
-      fetchMock.reset()
+      fetchMock.removeRoutes().clearHistory()
     })
 
     it('renders the expired dash', function () {
@@ -132,7 +129,7 @@ describe('<PersonalSubscription />', function () {
         {},
         JSON.parse(JSON.stringify(annualActiveSubscription))
       )
-      withStateDeleted.recurly.state = undefined
+      withStateDeleted.payment.state = undefined
       renderWithSubscriptionDashContext(<PersonalSubscription />, {
         metaTags: [{ name: 'ol-subscription', value: withStateDeleted }],
       })
@@ -192,8 +189,10 @@ describe('<PersonalSubscription />', function () {
     })
   })
 
-  it('shows different recurly email address section', async function () {
-    fetchMock.post('/user/subscription/account/email', 200)
+  it('shows different payment email address section', async function () {
+    fetchMock.post('/user/subscription/account/email', {
+      status: 200,
+    })
     const usersEmail = 'foo@example.com'
     renderWithSubscriptionDashContext(<PersonalSubscription />, {
       metaTags: [
@@ -206,7 +205,7 @@ describe('<PersonalSubscription />', function () {
       /your billing email address is currently/i
     ).textContent
     expect(billingText).to.contain(
-      `Your billing email address is currently ${annualActiveSubscription.recurly.account.email}.` +
+      `Your billing email address is currently ${annualActiveSubscription.payment.accountEmail}.` +
         ` If needed you can update your billing address to ${usersEmail}`
     )
 

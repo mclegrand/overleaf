@@ -31,11 +31,8 @@ describe('<SubscriptionDashboard />', function () {
       })
     })
 
-    it('renders the "Get the most out of your" subscription text', function () {
-      screen.getByText(
-        'Get the most out of your Overleaf subscription by checking out',
-        { exact: false }
-      )
+    it('renders the "Get the most from your subscription" text', function () {
+      screen.getByText(/Get the most out of your subscription/i)
     })
   })
 
@@ -45,13 +42,13 @@ describe('<SubscriptionDashboard />', function () {
     })
 
     it('does not render the "Get the most out of your" subscription text', function () {
-      const text = screen.queryByText('Get the most out of your', {
+      const text = screen.queryByText('Get the most out of your subscription', {
         exact: false,
       })
       expect(text).to.be.null
     })
 
-    it('does not render the contact support message', function () {
+    it('does not render the contact Support message', function () {
       const text = screen.queryByText(
         `You’re on an Overleaf Paid plan. Contact`,
         {
@@ -63,7 +60,7 @@ describe('<SubscriptionDashboard />', function () {
   })
 
   describe('Custom subscription', function () {
-    it('renders the contact support message', function () {
+    it('renders the contact Support message', function () {
       renderWithSubscriptionDashContext(<SubscriptionDashboard />, {
         metaTags: [
           {
@@ -80,7 +77,7 @@ describe('<SubscriptionDashboard />', function () {
       screen.getByText(`You’re on an Overleaf Paid plan.`, {
         exact: false,
       })
-      screen.getByText(`Contact support`, {
+      screen.getByText(`Contact Support`, {
         exact: false,
       })
     })

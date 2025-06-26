@@ -1,11 +1,11 @@
-import Icon from '../../../shared/components/icon'
+import MaterialIcon from '@/shared/components/material-icon'
 
 export const LinkedFileIcon = props => {
   return (
-    <Icon
-      type="external-link-square"
+    <MaterialIcon
+      type="open_in_new"
       modifier="rotate-180"
-      className="linked-file-icon"
+      className="align-middle linked-file-icon"
       {...props}
     />
   )

@@ -2,13 +2,14 @@ import { expect } from 'chai'
 import { render, screen, fireEvent } from '@testing-library/react'
 import fetchMock from 'fetch-mock'
 import UserActivateRegister from '../../../../frontend/js/components/user-activate-register'
+import { TPDS_SYNCED } from '../../../../../dropbox/test/frontend/components/dropbox-sync-status.test'
 
 describe('UserActivateRegister', function () {
   beforeEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
   it('should display the error message', async function () {
     const email = 'abc@gmail.com'
@@ -16,6 +17,7 @@ describe('UserActivateRegister', function () {
     const endPointResponse = {
       status: 500,
     }
+    fetchMock.get('/user/tpds/queues', TPDS_SYNCED)
     const registerMock = fetchMock.post('/admin/register', endPointResponse)
     const registerInput = screen.getByLabelText('emails to register')
     const registerButton = screen.getByRole('button', { name: /register/i })
@@ -23,7 +25,7 @@ describe('UserActivateRegister', function () {
     fireEvent.change(registerInput, { target: { value: email } })
     fireEvent.click(registerButton)
 
-    expect(registerMock.called()).to.be.true
+    expect(registerMock.callHistory.called()).to.be.true
     await screen.findByText('Sorry, an error occured', { exact: false })
   })
 
@@ -37,6 +39,7 @@ describe('UserActivateRegister', function () {
         setNewPasswordUrl: 'SetNewPasswordURL',
       },
     }
+    fetchMock.get('/user/tpds/queues', TPDS_SYNCED)
     const registerMock = fetchMock.post('/admin/register', endPointResponse)
     const registerInput = screen.getByLabelText('emails to register')
     const registerButton = screen.getByRole('button', { name: /register/i })
@@ -44,7 +47,7 @@ describe('UserActivateRegister', function () {
     fireEvent.change(registerInput, { target: { value: email } })
     fireEvent.click(registerButton)
 
-    expect(registerMock.called()).to.be.true
+    expect(registerMock.callHistory.called()).to.be.true
     await screen.findByText(
       "We've sent out welcome emails to the registered users."
     )
@@ -67,6 +70,7 @@ describe('UserActivateRegister', function () {
         setNewPasswordUrl: 'SetNewPasswordURL',
       },
     }
+    fetchMock.get('/user/tpds/queues', TPDS_SYNCED)
     const registerMock = fetchMock.post('/admin/register', (path, req) => {
       const body = JSON.parse(req.body)
       if (body.email === 'abc@gmail.com') return endPointResponse1
@@ -78,7 +82,7 @@ describe('UserActivateRegister', function () {
     fireEvent.change(registerInput, { target: { value: email } })
     fireEvent.click(registerButton)
 
-    expect(registerMock.called()).to.be.true
+    expect(registerMock.callHistory.called()).to.be.true
     await screen.findByText('abc@gmail.com')
     await screen.findByText('def@gmail.com')
   })
@@ -92,6 +96,7 @@ describe('UserActivateRegister', function () {
     const endPointResponse2 = {
       status: 500,
     }
+    fetchMock.get('/user/tpds/queues', TPDS_SYNCED)
     const registerMock = fetchMock.post('/admin/register', (path, req) => {
       const body = JSON.parse(req.body)
       if (body.email === 'abc@') return endPointResponse1
@@ -103,7 +108,7 @@ describe('UserActivateRegister', function () {
     fireEvent.change(registerInput, { target: { value: email } })
     fireEvent.click(registerButton)
 
-    expect(registerMock.called()).to.be.true
+    expect(registerMock.callHistory.called()).to.be.true
     await screen.findByText('abc@')
     await screen.findByText('def@')
   })
@@ -121,6 +126,7 @@ describe('UserActivateRegister', function () {
     const endPointResponse2 = {
       status: 500,
     }
+    fetchMock.get('/user/tpds/queues', TPDS_SYNCED)
     const registerMock = fetchMock.post('/admin/register', (path, req) => {
       const body = JSON.parse(req.body)
       if (body.email === 'abc@gmail.com') return endPointResponse1
@@ -133,7 +139,7 @@ describe('UserActivateRegister', function () {
     fireEvent.change(registerInput, { target: { value: email } })
     fireEvent.click(registerButton)
 
-    expect(registerMock.called()).to.be.true
+    expect(registerMock.callHistory.called()).to.be.true
     await screen.findByText('abc@gmail.com')
     await screen.findByText('def@')
   })

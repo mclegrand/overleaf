@@ -2,17 +2,20 @@ import { useRef } from 'react'
 
 import PdfPageNumberControl from './pdf-page-number-control'
 import PdfZoomButtons from './pdf-zoom-buttons'
-import { Button, Overlay, Popover } from 'react-bootstrap'
 import { useTranslation } from 'react-i18next'
 import MaterialIcon from '@/shared/components/material-icon'
-import Tooltip from '@/shared/components/tooltip'
 import useDropdown from '@/shared/hooks/use-dropdown'
+import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
+import OLButton from '@/features/ui/components/ol/ol-button'
+import OLOverlay from '@/features/ui/components/ol/ol-overlay'
+import OLPopover from '@/features/ui/components/ol/ol-popover'
 
 type PdfViewerControlsMenuButtonProps = {
   setZoom: (zoom: string) => void
   setPage: (page: number) => void
   page: number
   totalPages: number
+  pdfContainer?: HTMLDivElement
 }
 
 export default function PdfViewerControlsMenuButton({
@@ -20,6 +23,7 @@ export default function PdfViewerControlsMenuButton({
   setPage,
   page,
   totalPages,
+  pdfContainer,
 }: PdfViewerControlsMenuButtonProps) {
   const { t } = useTranslation()
 
@@ -29,34 +33,36 @@ export default function PdfViewerControlsMenuButton({
     ref: popoverRef,
   } = useDropdown()
 
-  const targetRef = useRef<any>(null)
+  const targetRef = useRef<HTMLButtonElement | null>(null)
 
   return (
     <>
-      <Tooltip
+      <OLTooltip
         id="pdf-controls-menu-tooltip"
         description={t('view_options')}
         overlayProps={{ placement: 'bottom' }}
       >
-        <Button
+        <OLButton
+          variant="ghost"
           className="pdf-toolbar-btn pdfjs-toolbar-popover-button"
           onClick={togglePopover}
           ref={targetRef}
         >
           <MaterialIcon type="more_horiz" />
-        </Button>
-      </Tooltip>
+        </OLButton>
+      </OLTooltip>
 
-      <Overlay
+      <OLOverlay
         show={popoverOpen}
         target={targetRef.current}
         placement="bottom"
+        container={pdfContainer}
         containerPadding={0}
-        animation
+        transition
         rootClose
         onHide={() => togglePopover(false)}
       >
-        <Popover
+        <OLPopover
           className="pdfjs-toolbar-popover"
           id="pdf-toolbar-popover-menu"
           ref={popoverRef}
@@ -69,8 +75,8 @@ export default function PdfViewerControlsMenuButton({
           <div className="pdfjs-zoom-controls">
             <PdfZoomButtons setZoom={setZoom} />
           </div>
-        </Popover>
-      </Overlay>
+        </OLPopover>
+      </OLOverlay>
     </>
   )
 }

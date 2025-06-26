@@ -9,14 +9,19 @@ const FILESTORE_URL = 'http://filestore.example.com'
 const CLSI_HOST = 'clsi.example.com'
 const MODULE_PATH = '../../../../app/src/Features/Compile/ClsiManager.js'
 
+const GLOBAL_BLOB_HASH = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+
 describe('ClsiManager', function () {
   beforeEach(function () {
+    tk.freeze(Date.now())
+
     this.user_id = 'user-id'
     this.project = {
       _id: 'project-id',
       compiler: 'latex',
       rootDoc_id: 'mock-doc-id-1',
       imageName: 'mock-image-name',
+      overleaf: { history: { id: 42 } },
     }
     this.docs = {
       '/main.tex': {
@@ -31,9 +36,21 @@ describe('ClsiManager', function () {
       },
     }
     this.files = {
+      '/images/frog.png': {
+        name: 'frog.png',
+        _id: 'mock-file-id-1',
+        created: new Date(),
+        hash: GLOBAL_BLOB_HASH,
+      },
       '/images/image.png': {
         name: 'image.png',
-        _id: 'mock-file-id-1',
+        _id: 'mock-file-id-2',
+        created: new Date(),
+        hash: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      },
+      '/images/no-hash.png': {
+        name: 'no-hash.png',
+        _id: 'mock-file-id-3',
         created: new Date(),
       },
     }
@@ -129,6 +146,23 @@ describe('ClsiManager', function () {
       enablePdfCaching: true,
       clsiCookie: { key: 'clsiserver' },
     }
+    this.ClsiCacheHandler = {
+      clearCache: sinon.stub().resolves(),
+    }
+    this.Features = {
+      hasFeature: sinon.stub().withArgs('project-history-blobs').returns(true),
+    }
+    this.HistoryManager = {
+      getBlobLocation: sinon.stub().callsFake((historyId, hash) => {
+        if (hash === GLOBAL_BLOB_HASH) {
+          return {
+            bucket: 'global-blobs',
+            key: 'aa/aa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          }
+        }
+        return { bucket: 'project-blobs', key: `${historyId}/${hash}` }
+      }),
+    }
 
     this.ClsiManager = SandboxedModule.require(MODULE_PATH, {
       requires: {
@@ -136,18 +170,20 @@ describe('ClsiManager', function () {
         '../../models/Project': {
           Project: this.Project,
         },
+        '../../infrastructure/Features': this.Features,
         '../Project/ProjectEntityHandler': this.ProjectEntityHandler,
         '../Project/ProjectGetter': this.ProjectGetter,
         '../DocumentUpdater/DocumentUpdaterHandler':
           this.DocumentUpdaterHandler,
         './ClsiCookieManager': () => this.ClsiCookieManager,
         './ClsiStateManager': this.ClsiStateManager,
+        './ClsiCacheHandler': this.ClsiCacheHandler,
         '@overleaf/fetch-utils': this.FetchUtils,
         './ClsiFormatChecker': this.ClsiFormatChecker,
         '@overleaf/metrics': this.Metrics,
+        '../History/HistoryManager': this.HistoryManager,
       },
     })
-    tk.freeze(Date.now())
   })
 
   after(function () {
@@ -238,6 +274,7 @@ describe('ClsiManager', function () {
             rootDoc_id: 1,
             imageName: 1,
             rootFolder: 1,
+            'overleaf.history.id': 1,
           }
         )
       })
@@ -358,6 +395,8 @@ describe('ClsiManager', function () {
             incrementalCompilesEnabled: true,
             compileBackendClass: 'e2',
             compileGroup: 'priority',
+            compileFromClsiCache: true,
+            populateClsiCache: true,
             enablePdfCaching: true,
             pdfCachingMinChunkSize: 1337,
           }
@@ -372,6 +411,7 @@ describe('ClsiManager', function () {
             rootDoc_id: 1,
             imageName: 1,
             rootFolder: 1,
+            'overleaf.history.id': 1,
           }
         )
       })
@@ -415,6 +455,8 @@ describe('ClsiManager', function () {
                   syncType: 'incremental',
                   syncState: '01234567890abcdef',
                   compileGroup: 'priority',
+                  compileFromClsiCache: true,
+                  populateClsiCache: true,
                   enablePdfCaching: true,
                   pdfCachingMinChunkSize: 1337,
                   metricsMethod: 'priority',
@@ -912,6 +954,12 @@ describe('ClsiManager', function () {
         )
       })
 
+      it('should clear the output.tar.gz files in clsi-cache', function () {
+        this.ClsiCacheHandler.clearCache
+          .calledWith(this.project._id, this.user_id)
+          .should.equal(true)
+      })
+
       it('should clear the project state from the docupdater', function () {
         this.DocumentUpdaterHandler.promises.clearProjectState
           .calledWith(this.project._id)
@@ -1003,9 +1051,20 @@ function _makeResources(project, docs, files) {
     })
   }
   for (const [path, file] of Object.entries(files)) {
+    let url, fallbackURL
+    if (file.hash === GLOBAL_BLOB_HASH) {
+      url = `${FILESTORE_URL}/bucket/global-blobs/key/aa/aa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
+      fallbackURL = `${FILESTORE_URL}/project/${project._id}/file/${file._id}`
+    } else if (file.hash) {
+      url = `${FILESTORE_URL}/bucket/project-blobs/key/${project.overleaf.history.id}/${file.hash}`
+      fallbackURL = `${FILESTORE_URL}/project/${project._id}/file/${file._id}`
+    } else {
+      url = `${FILESTORE_URL}/project/${project._id}/file/${file._id}`
+    }
     resources.push({
       path: path.replace(/^\//, ''),
-      url: `${FILESTORE_URL}/project/${project._id}/file/${file._id}`,
+      url,
+      fallbackURL,
       modified: file.created.getTime(),
     })
   }

@@ -11,29 +11,23 @@
   "version": "3.1.1",
   "scripts": {
     "test": "npm run lint && npm run format && npm run types:check && npm run test:unit",
-    "format": "prettier --list-different $PWD/'**/*.{js,cjs}'",
-    "format:fix": "prettier --write $PWD/'**/*.{js,cjs}'",
-    "lint": "eslint --ext .js --ext .cjs --max-warnings 0 --format unix .",
-    "lint:fix": "eslint --fix --ext .js --ext .cjs .",
+    "format": "prettier --list-different $PWD/'**/*.{js,cjs,ts}'",
+    "format:fix": "prettier --write $PWD/'**/*.{js,cjs,ts}'",
+    "lint": "eslint --ext .js --ext .cjs --ext .ts --max-warnings 0 --format unix .",
+    "lint:fix": "eslint --fix --ext .js --ext .cjs --ext .ts .",
     "test:ci": "npm run test:unit",
     "test:unit": "mocha --exit test/**/*.{js,cjs}",
     "types:check": "tsc --noEmit"
-  },
-  "overrides": {
-    "google-gax": {
-      "protobufjs": "^7.2.5"
-    }
   },
   "dependencies": {
     "@google-cloud/logging-bunyan": "^5.1.0",
     "@overleaf/fetch-utils": "*",
     "@overleaf/o-error": "*",
-    "@sentry/node": "^6.13.2",
     "bunyan": "^1.8.14"
   },
   "devDependencies": {
     "chai": "^4.3.6",
-    "mocha": "^10.2.0",
+    "mocha": "^11.1.0",
     "sandboxed-module": "^2.0.4",
     "sinon": "^9.2.4",
     "sinon-chai": "^3.7.0",

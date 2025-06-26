@@ -83,6 +83,9 @@ const ProjectGetter = {
     return project._id
   },
 
+  /**
+   * @return {Promise<any>}
+   */
   async findAllUsersProjects(userId, fields) {
     const CollaboratorsGetter = require('../Collaborators/CollaboratorsGetter')
     const ownedProjects = await Project.find(
@@ -102,6 +105,7 @@ const ProjectGetter = {
       readOnly: projects.readOnly || [],
       tokenReadAndWrite: projects.tokenReadAndWrite || [],
       tokenReadOnly: projects.tokenReadOnly || [],
+      review: projects.review || [],
     }
 
     // Remove duplicate projects. The order of result values is determined by the order they occur.

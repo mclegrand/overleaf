@@ -1,17 +1,4 @@
-/* eslint-disable
-    max-len,
-    no-return-assign,
-    no-unused-vars,
-*/
-// TODO: This file was created by bulk-decaffeinate.
-// Fix any style issues and re-enable lint.
-/*
- * decaffeinate suggestions:
- * DS102: Remove unnecessary code created because of implicit returns
- * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
- */
 const SandboxedModule = require('sandboxed-module')
-const assert = require('assert')
 const { expect } = require('chai')
 const sinon = require('sinon')
 const modulePath = require('path').join(
@@ -21,7 +8,9 @@ const modulePath = require('path').join(
 
 describe('InstitutionsFeatures', function () {
   beforeEach(function () {
-    this.UserGetter = { getUserFullEmails: sinon.stub() }
+    this.UserGetter = {
+      promises: { getUserFullEmails: sinon.stub().resolves([]) },
+    }
     this.PlansLocator = { findLocalPlanInSettings: sinon.stub() }
     this.institutionPlanCode = 'institution_plan_code'
     this.InstitutionsFeatures = SandboxedModule.require(modulePath, {
@@ -33,138 +22,112 @@ describe('InstitutionsFeatures', function () {
         },
       },
     })
-
+    this.emailDataWithLicense = [{ emailHasInstitutionLicence: true }]
+    this.emailDataWithoutLicense = [{ emailHasInstitutionLicence: false }]
     return (this.userId = '12345abcde')
   })
 
   describe('hasLicence', function () {
-    it('should handle error', function (done) {
-      this.UserGetter.getUserFullEmails.yields(new Error('Nope'))
-      return this.InstitutionsFeatures.hasLicence(
-        this.userId,
-        (error, hasLicence) => {
-          expect(error).to.exist
-          return done()
-        }
-      )
+    it('should handle error', async function () {
+      this.UserGetter.promises.getUserFullEmails.rejects(new Error('Nope'))
+      let error
+
+      try {
+        await this.InstitutionsFeatures.promises.hasLicence(this.userId)
+      } catch (err) {
+        error = err
+      }
+
+      expect(error).to.exist
     })
 
-    it('should return false if user has no paid affiliations', function (done) {
-      const emailData = [{ emailHasInstitutionLicence: false }]
-      this.UserGetter.getUserFullEmails.yields(null, emailData)
-      return this.InstitutionsFeatures.hasLicence(
-        this.userId,
-        (error, hasLicence) => {
-          expect(error).to.not.exist
-          expect(hasLicence).to.be.false
-          return done()
-        }
+    it('should return false if user has no paid affiliations', async function () {
+      this.UserGetter.promises.getUserFullEmails.resolves(
+        this.emailDataWithoutLicense
       )
+      const hasLicence = await this.InstitutionsFeatures.promises.hasLicence(
+        this.userId
+      )
+      expect(hasLicence).to.be.false
     })
 
-    it('should return true if user has confirmed paid affiliation', function (done) {
+    it('should return true if user has confirmed paid affiliation', async function () {
       const emailData = [
         { emailHasInstitutionLicence: true },
         { emailHasInstitutionLicence: false },
       ]
-      this.UserGetter.getUserFullEmails.yields(null, emailData)
-      return this.InstitutionsFeatures.hasLicence(
-        this.userId,
-        (error, hasLicence) => {
-          expect(error).to.not.exist
-          expect(hasLicence).to.be.true
-          return done()
-        }
+      this.UserGetter.promises.getUserFullEmails.resolves(emailData)
+      const hasLicence = await this.InstitutionsFeatures.promises.hasLicence(
+        this.userId
       )
+      expect(hasLicence).to.be.true
     })
   })
 
   describe('getInstitutionsFeatures', function () {
     beforeEach(function () {
-      this.InstitutionsFeatures.getInstitutionsPlan = sinon.stub()
       this.testFeatures = { features: { institution: 'all' } }
       return this.PlansLocator.findLocalPlanInSettings
         .withArgs(this.institutionPlanCode)
         .returns(this.testFeatures)
     })
 
-    it('should handle error', function (done) {
-      this.InstitutionsFeatures.getInstitutionsPlan.yields(new Error('Nope'))
-      return this.InstitutionsFeatures.getInstitutionsFeatures(
-        this.userId,
-        (error, features) => {
-          expect(error).to.exist
-          return done()
-        }
-      )
+    it('should handle error', async function () {
+      this.UserGetter.promises.getUserFullEmails.rejects(new Error('Nope'))
+      await expect(
+        this.InstitutionsFeatures.promises.getInstitutionsFeatures(this.userId)
+      ).to.be.rejected
     })
 
-    it('should return no feaures if user has no plan code', function (done) {
-      this.InstitutionsFeatures.getInstitutionsPlan.yields(null, null)
-      return this.InstitutionsFeatures.getInstitutionsFeatures(
-        this.userId,
-        (error, features) => {
-          expect(error).to.not.exist
-          expect(features).to.deep.equal({})
-          return done()
-        }
+    it('should return no feaures if user has no plan code', async function () {
+      this.UserGetter.promises.getUserFullEmails.resolves(
+        this.emailDataWithoutLicense
       )
+      const features =
+        await this.InstitutionsFeatures.promises.getInstitutionsFeatures(
+          this.userId
+        )
+      expect(features).to.deep.equal({})
     })
 
-    it('should return feaures if user has affiliations plan code', function (done) {
-      this.InstitutionsFeatures.getInstitutionsPlan.yields(
-        null,
-        this.institutionPlanCode
+    it('should return feaures if user has affiliations plan code', async function () {
+      this.UserGetter.promises.getUserFullEmails.resolves(
+        this.emailDataWithLicense
       )
-      return this.InstitutionsFeatures.getInstitutionsFeatures(
-        this.userId,
-        (error, features) => {
-          expect(error).to.not.exist
-          expect(features).to.deep.equal(this.testFeatures.features)
-          return done()
-        }
-      )
+      const features =
+        await this.InstitutionsFeatures.promises.getInstitutionsFeatures(
+          this.userId
+        )
+      expect(features).to.deep.equal(this.testFeatures.features)
     })
   })
 
   describe('getInstitutionsPlan', function () {
-    beforeEach(function () {
-      return (this.InstitutionsFeatures.hasLicence = sinon.stub())
+    it('should handle error', async function () {
+      this.UserGetter.promises.getUserFullEmails.rejects(new Error('Nope'))
+      await expect(
+        this.InstitutionsFeatures.promises.getInstitutionsPlan(this.userId)
+      ).to.be.rejected
     })
 
-    it('should handle error', function (done) {
-      this.InstitutionsFeatures.hasLicence.yields(new Error('Nope'))
-      return this.InstitutionsFeatures.getInstitutionsPlan(
-        this.userId,
-        error => {
-          expect(error).to.exist
-          return done()
-        }
+    it('should return no plan if user has no licence', async function () {
+      this.UserGetter.promises.getUserFullEmails.resolves(
+        this.emailDataWithoutLicense
       )
+      const plan = await this.InstitutionsFeatures.promises.getInstitutionsPlan(
+        this.userId
+      )
+      expect(plan).to.equal(null)
     })
 
-    it('should return no plan if user has no licence', function (done) {
-      this.InstitutionsFeatures.hasLicence.yields(null, false)
-      return this.InstitutionsFeatures.getInstitutionsPlan(
-        this.userId,
-        (error, plan) => {
-          expect(error).to.not.exist
-          expect(plan).to.equal(null)
-          return done()
-        }
+    it('should return plan if user has licence', async function () {
+      this.UserGetter.promises.getUserFullEmails.resolves(
+        this.emailDataWithLicense
       )
-    })
-
-    it('should return plan if user has licence', function (done) {
-      this.InstitutionsFeatures.hasLicence.yields(null, true)
-      return this.InstitutionsFeatures.getInstitutionsPlan(
-        this.userId,
-        (error, plan) => {
-          expect(error).to.not.exist
-          expect(plan).to.equal(this.institutionPlanCode)
-          return done()
-        }
+      const plan = await this.InstitutionsFeatures.promises.getInstitutionsPlan(
+        this.userId
       )
+      expect(plan).to.equal(this.institutionPlanCode)
     })
   })
 })

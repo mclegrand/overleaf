@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/dom'
+import { screen, waitFor } from '@testing-library/react'
 import { expect } from 'chai'
 import fetchMock from 'fetch-mock'
 import ActionsMenu from '../../../../../frontend/js/features/editor-left-menu/components/actions-menu'
@@ -21,7 +21,7 @@ describe('<ActionsMenu />', function () {
   })
 
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   it('shows correct menu for non-anonymous users', async function () {
@@ -41,7 +41,7 @@ describe('<ActionsMenu />', function () {
 
     screen.getByText('Actions')
     screen.getByRole('button', {
-      name: 'Copy Project',
+      name: 'Copy project',
     })
 
     await waitFor(() => {
@@ -69,7 +69,7 @@ describe('<ActionsMenu />', function () {
     expect(screen.queryByText('Actions')).to.equal(null)
     expect(
       screen.queryByRole('button', {
-        name: 'Copy Project',
+        name: 'Copy project',
       })
     ).to.equal(null)
 

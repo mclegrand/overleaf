@@ -83,15 +83,16 @@ $content-placeholder: $neutral-60;
 $content-danger: $red-50;
 $content-warning: $yellow-50;
 $content-positive: $green-50;
+$content-info: $blue-50;
 $border-primary: $neutral-60;
 $border-hover: $neutral-70;
 $border-disabled: $neutral-20;
 $border-active: $blue-50;
 $border-danger: $red-50;
 $border-divider: $neutral-20;
-$link-web: $green-60;
-$link-web-hover: $green-70;
-$link-web-visited: $green-70;
+$link-web: $green-50;
+$link-web-hover: $green-60;
+$link-web-visited: $green-60;
 $link-ui: $blue-50;
 $link-ui-hover: $blue-60;
 $link-ui-visited: $blue-60;
@@ -102,6 +103,7 @@ $content-placeholder-dark: $neutral-50;
 $content-danger-dark: $red-40;
 $content-warning-dark: $yellow-40;
 $content-positive-dark: $green-40;
+$content-info-dark: $blue-30;
 $border-primary-dark: $neutral-30;
 $border-hover-dark: $neutral-20;
 $border-disabled-dark: $neutral-80;
@@ -193,15 +195,17 @@ $link-ui-visited-dark: $blue-40;
   --content-danger: var(--red-50);
   --content-warning: var(--yellow-50);
   --content-positive: var(--green-50);
+  --content-info: var(--blue-50);
   --border-primary: var(--neutral-60);
   --border-hover: var(--neutral-70);
   --border-disabled: var(--neutral-20);
   --border-active: var(--blue-50);
   --border-danger: var(--red-50);
   --border-divider: var(--neutral-20);
-  --link-web: var(--green-60);
-  --link-web-hover: var(--green-70);
-  --link-web-visited: var(--green-70);
+  --border-dark-divider: var(--neutral-70);
+  --link-web: var(--green-50);
+  --link-web-hover: var(--green-60);
+  --link-web-visited: var(--green-50);
   --link-ui: var(--blue-50);
   --link-ui-hover: var(--blue-60);
   --link-ui-visited: var(--blue-60);
@@ -212,6 +216,7 @@ $link-ui-visited-dark: $blue-40;
   --content-danger-dark: var(--red-40);
   --content-warning-dark: var(--yellow-40);
   --content-positive-dark: var(--green-40);
+  --content-info-dark: var(--blue-30);
   --border-primary-dark: var(--neutral-30);
   --border-hover-dark: var(--neutral-20);
   --border-disabled-dark: var(--neutral-80);
@@ -231,5 +236,11 @@ $link-ui-visited-dark: $blue-40;
     var(--blue-70) 0%,
     #254c84 29%,
     var(--blue-40) 97%
+  );
+  --premium-gradient-dark: linear-gradient(
+    246deg,
+    #6f8bcd 0%,
+    #8ea3d7 29%,
+    #ccdcff 97%
   );
 }

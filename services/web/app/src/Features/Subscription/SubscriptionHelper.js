@@ -1,28 +1,62 @@
+const { formatCurrency } = require('../../util/currency')
 const GroupPlansData = require('./GroupPlansData')
+const { isStandaloneAiAddOnPlanCode } = require('./PaymentProviderEntities')
 
 /**
  * If the user changes to a less expensive plan, we shouldn't apply the change immediately.
  * This is to avoid unintended/artifical credits on users Recurly accounts.
  */
-function shouldPlanChangeAtTermEnd(oldPlan, newPlan) {
+function shouldPlanChangeAtTermEnd(oldPlan, newPlan, isInTrial) {
+  if (isInTrial) {
+    // we should always upgrade or downgrade immediately if actively in trial
+    return false
+  }
+
+  if (
+    oldPlan.annual === newPlan.annual &&
+    isStandaloneAiAddOnPlanCode(oldPlan.planCode) &&
+    !isStandaloneAiAddOnPlanCode(newPlan.planCode)
+  ) {
+    // changing from an standalone AI add-on plan to a non-AI plan should not be considered a downgrade
+    return false
+  }
   return oldPlan.price_in_cents > newPlan.price_in_cents
 }
 
 /**
- * @typedef {import('../../../../frontend/js/shared/utils/currency').CurrencyCode} CurrencyCode
+ * This is duplicated in:
+ *   - services/web/scripts/plan-prices/plans.mjs
+ *   - services/web/modules/subscriptions/frontend/js/pages/plans/group-member-picker/group-plan-pricing.js
+ * @param {number} number
+ * @returns {number}
+ */
+function roundUpToNearest5Cents(number) {
+  return Math.ceil(number * 20) / 20
+}
+
+/**
+ * @import { CurrencyCode } from '../../../../types/subscription/currency'
+ */
+
+/**
+ * @typedef {Object} PlanToPrice
+ * @property {string} collaborator
+ * @property {string} professional
+ */
+
+/**
+ * @typedef {Object} LocalizedGroupPrice
+ * @property {PlanToPrice} price
+ * @property {PlanToPrice} pricePerUser
+ * @property {PlanToPrice} pricePerUserPerMonth
  */
 
 /**
  * @param {CurrencyCode} recommendedCurrency
  * @param {string} locale
- * @param {(amount: number, currency: CurrencyCode, locale: string, stripIfInteger: boolean) => string} formatCurrency
- * @returns {{ price: { collaborator: string, professional: string }, pricePerUser: { collaborator: string, professional: string } }} - localized group price
+ * @returns {LocalizedGroupPrice}
  */
-function generateInitialLocalizedGroupPrice(
-  recommendedCurrency,
-  locale,
-  formatCurrency
-) {
+function generateInitialLocalizedGroupPrice(recommendedCurrency, locale) {
   const INITIAL_LICENSE_SIZE = 2
 
   // the price is in cents, so divide by 100 to get the value
@@ -31,11 +65,17 @@ function generateInitialLocalizedGroupPrice(
       INITIAL_LICENSE_SIZE
     ].price_in_cents / 100
   const collaboratorPricePerUser = collaboratorPrice / INITIAL_LICENSE_SIZE
+  const collaboratorPricePerUserPerMonth = roundUpToNearest5Cents(
+    collaboratorPrice / INITIAL_LICENSE_SIZE / 12
+  )
   const professionalPrice =
     GroupPlansData.enterprise.professional[recommendedCurrency][
       INITIAL_LICENSE_SIZE
     ].price_in_cents / 100
   const professionalPricePerUser = professionalPrice / INITIAL_LICENSE_SIZE
+  const professionalPricePerUserPerMonth = roundUpToNearest5Cents(
+    professionalPrice / INITIAL_LICENSE_SIZE / 12
+  )
 
   /**
    * @param {number} price
@@ -53,109 +93,82 @@ function generateInitialLocalizedGroupPrice(
       collaborator: formatPrice(collaboratorPricePerUser),
       professional: formatPrice(professionalPricePerUser),
     },
+    pricePerUserPerMonth: {
+      collaborator: formatPrice(collaboratorPricePerUserPerMonth),
+      professional: formatPrice(professionalPricePerUserPerMonth),
+    },
   }
 }
 
-const currencies = {
-  USD: {
-    symbol: '$',
-    placement: 'before',
-  },
-  EUR: {
-    symbol: '€',
-    placement: 'before',
-  },
-  GBP: {
-    symbol: '£',
-    placement: 'before',
-  },
-  SEK: {
-    symbol: ' kr',
-    placement: 'after',
-  },
-  CAD: {
-    symbol: '$',
-    placement: 'before',
-  },
-  NOK: {
-    symbol: ' kr',
-    placement: 'after',
-  },
-  DKK: {
-    symbol: ' kr',
-    placement: 'after',
-  },
-  AUD: {
-    symbol: '$',
-    placement: 'before',
-  },
-  NZD: {
-    symbol: '$',
-    placement: 'before',
-  },
-  CHF: {
-    symbol: 'Fr ',
-    placement: 'before',
-  },
-  SGD: {
-    symbol: '$',
-    placement: 'before',
-  },
-  INR: {
-    symbol: '₹',
-    placement: 'before',
-  },
-  BRL: {
-    code: 'BRL',
-    locale: 'pt-BR',
-    symbol: 'R$ ',
-    placement: 'before',
-  },
-  MXN: {
-    code: 'MXN',
-    locale: 'es-MX',
-    symbol: '$ ',
-    placement: 'before',
-  },
-  COP: {
-    code: 'COP',
-    locale: 'es-CO',
-    symbol: '$ ',
-    placement: 'before',
-  },
-  CLP: {
-    code: 'CLP',
-    locale: 'es-CL',
-    symbol: '$ ',
-    placement: 'before',
-  },
-  PEN: {
-    code: 'PEN',
-    locale: 'es-PE',
-    symbol: 'S/ ',
-    placement: 'before',
-  },
+function isPaidSubscription(subscription) {
+  const hasRecurlySubscription =
+    subscription?.recurlySubscription_id &&
+    subscription?.recurlySubscription_id !== ''
+  const hasStripeSubscription =
+    subscription?.paymentProvider?.subscriptionId &&
+    subscription?.paymentProvider?.subscriptionId !== ''
+  return !!(subscription && (hasRecurlySubscription || hasStripeSubscription))
 }
 
-function formatCurrencyDefault(amount, recommendedCurrency) {
-  const currency = currencies[recommendedCurrency]
+function isIndividualActivePaidSubscription(subscription) {
+  return (
+    isPaidSubscription(subscription) &&
+    subscription?.groupPlan === false &&
+    subscription?.recurlyStatus?.state !== 'canceled' &&
+    subscription?.paymentProvider?.state !== 'canceled'
+  )
+}
 
-  // Test using toLocaleString to format currencies for new LATAM regions
-  if (currency.locale && currency.code) {
-    return amount.toLocaleString(currency.locale, {
-      style: 'currency',
-      currency: currency.code,
-      minimumFractionDigits: 0,
-    })
+function getPaymentProviderSubscriptionId(subscription) {
+  if (subscription?.recurlySubscription_id) {
+    return subscription.recurlySubscription_id
+  }
+  if (subscription?.paymentProvider?.subscriptionId) {
+    return subscription.paymentProvider.subscriptionId
+  }
+  return null
+}
+
+function getPaidSubscriptionState(subscription) {
+  if (subscription?.recurlyStatus?.state) {
+    return subscription.recurlyStatus.state
+  }
+  if (subscription?.paymentProvider?.state) {
+    return subscription.paymentProvider.state
+  }
+  return null
+}
+
+function getSubscriptionTrialStartedAt(subscription) {
+  if (subscription?.recurlyStatus?.trialStartedAt) {
+    return subscription.recurlyStatus?.trialStartedAt
+  }
+  return subscription?.paymentProvider?.trialStartedAt
+}
+
+function getSubscriptionTrialEndsAt(subscription) {
+  if (subscription?.recurlyStatus?.trialEndsAt) {
+    return subscription.recurlyStatus?.trialEndsAt
+  }
+  return subscription?.paymentProvider?.trialEndsAt
+}
+
+function isInTrial(trialEndsAt) {
+  if (!trialEndsAt) {
+    return false
   }
 
-  return currency.placement === 'before'
-    ? `${currency.symbol}${amount}`
-    : `${amount}${currency.symbol}`
+  return trialEndsAt.getTime() > Date.now()
 }
 
 module.exports = {
-  formatCurrencyDefault,
   shouldPlanChangeAtTermEnd,
   generateInitialLocalizedGroupPrice,
+  isPaidSubscription,
+  isIndividualActivePaidSubscription,
+  getPaymentProviderSubscriptionId,
+  getPaidSubscriptionState,
+  getSubscriptionTrialStartedAt,
+  getSubscriptionTrialEndsAt,
+  isInTrial,
 }

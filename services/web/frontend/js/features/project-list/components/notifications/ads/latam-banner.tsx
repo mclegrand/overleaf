@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import mxnBannerImage from '../../../images/mxn-banner.png'
+import copBannerImage from '../../../images/cop-banner.png'
+import clpBannerImage from '../../../images/clp-banner.png'
+import penBannerImage from '../../../images/pen-banner.png'
 import usePersistedState from '../../../../../shared/hooks/use-persisted-state'
 import * as eventTracking from '../../../../../infrastructure/event-tracking'
-import { Modal, Button } from 'react-bootstrap'
-import AccessibleModal from '../../../../../shared/components/accessible-modal'
+import OLModal, {
+  OLModalBody,
+  OLModalFooter,
+  OLModalHeader,
+  OLModalTitle,
+} from '@/features/ui/components/ol/ol-modal'
+import OLButton from '@/features/ui/components/ol/ol-button'
 import { useTranslation } from 'react-i18next'
 import getMeta from '@/utils/meta'
 
@@ -11,25 +20,25 @@ const LATAM_CURRENCIES = {
     name: 'Mexican Pesos',
     countryCode: 'MX',
     discountCode: '25',
-    imageSource: '/img/subscriptions/mexico-discount-modal.png',
+    imageSource: mxnBannerImage,
   },
   COP: {
     name: 'Colombian Pesos',
     countryCode: 'CO',
     discountCode: '60',
-    imageSource: '/img/subscriptions/colombia-discount-modal.png',
+    imageSource: copBannerImage,
   },
   CLP: {
     name: 'Chilean Pesos',
     countryCode: 'CL',
     discountCode: '30',
-    imageSource: '/img/subscriptions/chile-discount-modal.png',
+    imageSource: clpBannerImage,
   },
   PEN: {
     name: 'Peruvian Soles',
     countryCode: 'PE',
     discountCode: '40',
-    imageSource: '/img/subscriptions/peru-discount-modal.png',
+    imageSource: penBannerImage,
   },
 }
 
@@ -123,11 +132,11 @@ export default function LATAMBanner() {
   }
 
   return (
-    <AccessibleModal show={showModal} onHide={handleHide} backdrop="static">
-      <Modal.Header closeButton>
-        <Modal.Title>{t('latam_discount_modal_title')}</Modal.Title>
-      </Modal.Header>
-      <Modal.Body className="modal-body-share">
+    <OLModal show={showModal} onHide={handleHide} backdrop="static">
+      <OLModalHeader closeButton>
+        <OLModalTitle>{t('latam_discount_modal_title')}</OLModalTitle>
+      </OLModalHeader>
+      <OLModalBody>
         <p>
           <img
             alt={t('latam_discount_modal_title')}
@@ -143,15 +152,15 @@ export default function LATAMBanner() {
             currencyName,
           })}
         </p>
-      </Modal.Body>
-      <Modal.Footer>
-        <Button bsStyle="default" onClick={handleMaybeLater}>
+      </OLModalBody>
+      <OLModalFooter>
+        <OLButton variant="secondary" onClick={handleMaybeLater}>
           {t('maybe_later')}
-        </Button>
-        <Button type="button" bsStyle="primary" onClick={handleClick}>
+        </OLButton>
+        <OLButton variant="primary" onClick={handleClick}>
           {t('get_discounted_plan')}
-        </Button>
-      </Modal.Footer>
-    </AccessibleModal>
+        </OLButton>
+      </OLModalFooter>
+    </OLModal>
   )
 }

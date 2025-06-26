@@ -2,6 +2,10 @@ const SandboxedModule = require('sandboxed-module')
 const sinon = require('sinon')
 const chai = require('chai')
 const { expect } = chai
+const {
+  PaymentProviderSubscription,
+} = require('../../../../app/src/Features/Subscription/PaymentProviderEntities')
+const SubscriptionHelper = require('../../../../app/src/Features/Subscription/SubscriptionHelper')
 
 const MODULE_PATH =
   '../../../../app/src/Features/Subscription/SubscriptionHandler'
@@ -23,20 +27,16 @@ const mockRecurlySubscriptions = {
 }
 
 const mockRecurlyClientSubscriptions = {
-  'subscription-123-active': {
-    id: 'subscription-123-recurly-id',
-    uuid: 'subscription-123-active',
-    plan: {
-      name: 'Gold',
-      code: 'gold',
-    },
-    currentPeriodEndsAt: new Date(),
-    state: 'active',
-    unitAmount: 10,
-    account: {
-      code: 'user-123',
-    },
-  },
+  'subscription-123-active': new PaymentProviderSubscription({
+    id: 'subscription-123-active',
+    userId: 'user-id',
+    planCode: 'collaborator',
+    planName: 'Collaborator',
+    planPrice: 10,
+    subtotal: 10,
+    currency: 'USD',
+    total: 10,
+  }),
 }
 
 const mockSubscriptionChanges = {
@@ -53,10 +53,15 @@ describe('SubscriptionHandler', function () {
         {
           planCode: 'collaborator',
           name: 'Collaborator',
+          price_in_cents: 1000,
           features: {
             collaborators: -1,
             versioning: true,
           },
+        },
+        {
+          planCode: 'professional',
+          price_in_cents: 1500,
         },
       ],
       defaultPlanCode: {
@@ -94,12 +99,14 @@ describe('SubscriptionHandler', function () {
           .stub()
           .resolves(this.activeRecurlyClientSubscription),
         cancelSubscriptionByUuid: sinon.stub().resolves(),
-        changeSubscriptionByUuid: sinon
+        applySubscriptionChangeRequest: sinon
           .stub()
           .resolves(this.activeRecurlySubscriptionChange),
         getSubscription: sinon
           .stub()
           .resolves(this.activeRecurlyClientSubscription),
+        pauseSubscriptionByUuid: sinon.stub().resolves(),
+        resumeSubscriptionByUuid: sinon.stub().resolves(),
       },
     }
 
@@ -107,27 +114,26 @@ describe('SubscriptionHandler', function () {
       promises: {
         updateSubscriptionFromRecurly: sinon.stub().resolves(),
         syncSubscription: sinon.stub().resolves(),
+        syncStripeSubscription: sinon.stub().resolves(),
         startFreeTrial: sinon.stub().resolves(),
       },
     }
 
     this.LimitationsManager = {
       promises: {
-        userHasV2Subscription: sinon.stub().resolves(),
+        userHasSubscription: sinon.stub().resolves(),
+      },
+    }
+
+    this.SubscriptionLocator = {
+      promises: {
+        getUsersSubscription: sinon.stub().resolves(this.subscription),
       },
     }
 
     this.EmailHandler = {
       sendEmail: sinon.stub(),
       sendDeferredEmail: sinon.stub(),
-    }
-
-    this.PlansLocator = {
-      findLocalPlanInSettings: sinon.stub().returns({ planCode: 'plan' }),
-    }
-
-    this.SubscriptionHelper = {
-      shouldPlanChangeAtTermEnd: sinon.stub(),
     }
 
     this.UserUpdater = {
@@ -144,13 +150,20 @@ describe('SubscriptionHandler', function () {
         '../../models/User': {
           User: this.User,
         },
+        './SubscriptionHelper': SubscriptionHelper,
         './SubscriptionUpdater': this.SubscriptionUpdater,
+        './SubscriptionLocator': this.SubscriptionLocator,
         './LimitationsManager': this.LimitationsManager,
         '../Email/EmailHandler': this.EmailHandler,
         '../Analytics/AnalyticsManager': this.AnalyticsManager,
-        './PlansLocator': this.PlansLocator,
-        './SubscriptionHelper': this.SubscriptionHelper,
         '../User/UserUpdater': this.UserUpdater,
+        '../../infrastructure/Modules': (this.Modules = {
+          promises: {
+            hooks: {
+              fire: sinon.stub(),
+            },
+          },
+        }),
       },
     })
   })
@@ -245,181 +258,115 @@ describe('SubscriptionHandler', function () {
     })
   })
 
-  function shouldUpdateSubscription() {
-    it('should update the subscription', function () {
-      expect(
-        this.RecurlyClient.promises.changeSubscriptionByUuid
-      ).to.have.been.calledWith(this.subscription.recurlySubscription_id)
-      const updateOptions =
-        this.RecurlyClient.promises.changeSubscriptionByUuid.args[0][1]
-      updateOptions.planCode.should.equal(this.plan_code)
+  describe('updateSubscription', function () {
+    beforeEach(function () {
+      this.user.id = this.activeRecurlySubscription.account.account_code
+      this.User.findById = (userId, projection) => ({
+        exec: () => {
+          userId.should.equal(this.user.id)
+          return Promise.resolve(this.user)
+        },
+      })
     })
-  }
 
-  function shouldSyncSubscription() {
-    it('should sync the new subscription to the user', function () {
-      expect(this.SubscriptionUpdater.promises.syncSubscription).to.have.been
-        .called
-
-      this.SubscriptionUpdater.promises.syncSubscription.args[0][0].should.deep.equal(
-        this.activeRecurlySubscription
+    it('should not fire updatePaidSubscription hook if user has no subscription', async function () {
+      this.LimitationsManager.promises.userHasSubscription.resolves({
+        hasSubscription: false,
+        subscription: null,
+      })
+      await this.SubscriptionHandler.promises.updateSubscription(
+        this.user,
+        this.plan_code
       )
-      this.SubscriptionUpdater.promises.syncSubscription.args[0][1].should.deep.equal(
+      expect(this.Modules.promises.hooks.fire).to.not.have.been.calledWith(
+        'updatePaidSubscription',
+        sinon.match.any,
+        sinon.match.any,
+        sinon.match.any
+      )
+    })
+
+    it('should not fire updatePaidSubscription hook if user has custom subscription', async function () {
+      this.LimitationsManager.promises.userHasSubscription.resolves({
+        hasSubscription: true,
+        subscription: { customAccount: true },
+      })
+      await this.SubscriptionHandler.promises.updateSubscription(
+        this.user,
+        this.plan_code
+      )
+      expect(this.Modules.promises.hooks.fire).to.not.have.been.calledWith(
+        'updatePaidSubscription',
+        sinon.match.any,
+        sinon.match.any,
+        sinon.match.any
+      )
+    })
+
+    it('should fire updatePaidSubscription to update a valid subscription', async function () {
+      this.LimitationsManager.promises.userHasSubscription.resolves({
+        hasSubscription: true,
+        subscription: this.subscription,
+      })
+      await this.SubscriptionHandler.promises.updateSubscription(
+        this.user,
+        this.plan_code
+      )
+      expect(this.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'updatePaidSubscription',
+        this.subscription,
+        this.plan_code,
         this.user._id
       )
     })
-  }
+  })
 
-  function testUserWithASubscription(shouldPlanChangeAtTermEnd, timeframe) {
-    describe(
-      'when change should happen with timeframe ' + timeframe,
-      function () {
-        beforeEach(async function () {
-          this.user.id = this.activeRecurlySubscription.account.account_code
-          this.User.findById = (userId, projection) => ({
-            exec: () => {
-              userId.should.equal(this.user.id)
-              return Promise.resolve(this.user)
-            },
-          })
-          this.plan_code = 'collaborator'
-          this.SubscriptionHelper.shouldPlanChangeAtTermEnd.returns(
-            shouldPlanChangeAtTermEnd
-          )
-          this.LimitationsManager.promises.userHasV2Subscription.resolves({
-            hasSubscription: true,
-            subscription: this.subscription,
-          })
-          await this.SubscriptionHandler.promises.updateSubscription(
-            this.user,
-            this.plan_code,
-            null
-          )
-        })
-
-        shouldUpdateSubscription()
-        shouldSyncSubscription()
-
-        it('should update with timeframe ' + timeframe, function () {
-          const updateOptions =
-            this.RecurlyClient.promises.changeSubscriptionByUuid.args[0][1]
-          updateOptions.timeframe.should.equal(timeframe)
-        })
-      }
-    )
-  }
-
-  describe('updateSubscription', function () {
-    describe('with a user with a subscription', function () {
-      testUserWithASubscription(false, 'now')
-      testUserWithASubscription(true, 'term_end')
-
-      describe('when plan(s) could not be located in settings', function () {
-        beforeEach(async function () {
-          this.user.id = this.activeRecurlySubscription.account.account_code
-          this.User.findById = (userId, projection) => ({
-            exec: () => {
-              userId.should.equal(this.user.id)
-              return Promise.resolve(this.user)
-            },
-          })
-
-          this.plan_code = 'collaborator'
-          this.PlansLocator.findLocalPlanInSettings.returns(null)
-          this.LimitationsManager.promises.userHasV2Subscription.resolves({
-            hasSubscription: true,
-            subscription: this.subscription,
-          })
-        })
-
-        it('should be rejected and should not update the subscription', function () {
-          expect(
-            this.SubscriptionHandler.promises.updateSubscription(
-              this.user,
-              this.plan_code,
-              null
-            )
-          ).to.be.rejected
-          this.RecurlyClient.promises.changeSubscriptionByUuid.called.should.equal(
-            false
-          )
-        })
+  describe('cancelPendingSubscriptionChange', function () {
+    beforeEach(function () {
+      this.user.id = this.activeRecurlySubscription.account.account_code
+      this.User.findById = (userId, projection) => ({
+        exec: () => {
+          userId.should.equal(this.user.id)
+          return Promise.resolve(this.user)
+        },
       })
     })
 
-    describe('with a user without a subscription', function () {
-      beforeEach(async function () {
-        this.LimitationsManager.promises.userHasV2Subscription.resolves(false)
-        await this.SubscriptionHandler.promises.updateSubscription(
-          this.user,
-          this.plan_code,
-          null
-        )
+    it('should not fire cancelPendingPaidSubscriptionChange hook if user has no subscription', async function () {
+      this.LimitationsManager.promises.userHasSubscription.resolves({
+        hasSubscription: false,
+        subscription: null,
       })
-
-      it('should redirect to the subscription dashboard', function () {
-        this.RecurlyClient.promises.changeSubscriptionByUuid.called.should.equal(
-          false
-        )
-        this.SubscriptionUpdater.promises.syncSubscription.called.should.equal(
-          false
-        )
-      })
+      await this.SubscriptionHandler.promises.cancelPendingSubscriptionChange(
+        this.user,
+        this.plan_code
+      )
+      expect(this.Modules.promises.hooks.fire).to.not.have.been.calledWith(
+        'cancelPendingPaidSubscriptionChange',
+        sinon.match.any
+      )
     })
 
-    describe('with a coupon code', function () {
-      beforeEach(async function () {
-        this.user.id = this.activeRecurlySubscription.account.account_code
-
-        this.User.findById = (userId, projection) => ({
-          exec: () => {
-            userId.should.equal(this.user.id)
-            return Promise.resolve(this.user)
-          },
-        })
-        this.plan_code = 'collaborator'
-        this.coupon_code = '1231312'
-        this.LimitationsManager.promises.userHasV2Subscription.resolves({
-          hasSubscription: true,
-          subscription: this.subscription,
-        })
-        await this.SubscriptionHandler.promises.updateSubscription(
-          this.user,
-          this.plan_code,
-          this.coupon_code
-        )
+    it('should fire cancelPendingPaidSubscriptionChange to update a valid subscription', async function () {
+      this.LimitationsManager.promises.userHasSubscription.resolves({
+        hasSubscription: true,
+        subscription: this.subscription,
       })
-
-      it('should get the users account', function () {
-        this.RecurlyWrapper.promises.getSubscription
-          .calledWith(this.activeRecurlySubscription.uuid)
-          .should.equal(true)
-      })
-
-      it('should redeem the coupon', function () {
-        this.RecurlyWrapper.promises.redeemCoupon
-          .calledWith(
-            this.activeRecurlySubscription.account.account_code,
-            this.coupon_code
-          )
-          .should.equal(true)
-      })
-
-      it('should update the subscription', function () {
-        expect(
-          this.RecurlyClient.promises.changeSubscriptionByUuid
-        ).to.be.calledWith(this.subscription.recurlySubscription_id)
-        const updateOptions =
-          this.RecurlyClient.promises.changeSubscriptionByUuid.args[0][1]
-        updateOptions.planCode.should.equal(this.plan_code)
-      })
+      await this.SubscriptionHandler.promises.cancelPendingSubscriptionChange(
+        this.user,
+        this.plan_code
+      )
+      expect(this.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'cancelPendingPaidSubscriptionChange',
+        this.subscription
+      )
     })
   })
 
   describe('cancelSubscription', function () {
     describe('with a user without a subscription', function () {
       beforeEach(async function () {
-        this.LimitationsManager.promises.userHasV2Subscription.resolves({
+        this.LimitationsManager.promises.userHasSubscription.resolves({
           hasSubscription: false,
           subscription: this.subscription,
         })
@@ -435,7 +382,7 @@ describe('SubscriptionHandler', function () {
 
     describe('with a user with a subscription', function () {
       beforeEach(async function () {
-        this.LimitationsManager.promises.userHasV2Subscription.resolves({
+        this.LimitationsManager.promises.userHasSubscription.resolves({
           hasSubscription: true,
           subscription: this.subscription,
         })
@@ -443,12 +390,10 @@ describe('SubscriptionHandler', function () {
       })
 
       it('should cancel the subscription', function () {
-        this.RecurlyClient.promises.cancelSubscriptionByUuid.called.should.equal(
-          true
+        expect(this.Modules.promises.hooks.fire).to.have.been.calledWith(
+          'cancelPaidSubscription',
+          this.subscription
         )
-        this.RecurlyClient.promises.cancelSubscriptionByUuid
-          .calledWith(this.subscription.recurlySubscription_id)
-          .should.equal(true)
       })
 
       it('should send the email after 1 hour', function () {
@@ -462,10 +407,156 @@ describe('SubscriptionHandler', function () {
     })
   })
 
+  describe('resumeSubscription', function () {
+    describe('for a user without a subscription', function () {
+      beforeEach(async function () {
+        this.LimitationsManager.promises.userHasSubscription.resolves({
+          hasSubscription: false,
+          subscription: this.subscription,
+        })
+      })
+      it('should not make a resume call to recurly', async function () {
+        expect(
+          this.SubscriptionHandler.promises.resumeSubscription(this.user)
+        ).to.be.rejectedWith('No active subscription to resume')
+        this.RecurlyClient.promises.resumeSubscriptionByUuid.called.should.equal(
+          false
+        )
+      })
+    })
+
+    describe('for a user with a subscription', function () {
+      beforeEach(async function () {
+        this.LimitationsManager.promises.userHasSubscription.resolves({
+          hasSubscription: true,
+          subscription: {
+            recurlySubscription_id: this.activeRecurlySubscription.uuid,
+            recurlyStatus: { state: 'non-trial' },
+            planCode: 'collaborator',
+          },
+        })
+      })
+      it('should make a resume call to recurly', async function () {
+        await this.SubscriptionHandler.promises.resumeSubscription(this.user)
+
+        this.RecurlyClient.promises.resumeSubscriptionByUuid.called.should.equal(
+          true
+        )
+      })
+    })
+  })
+
+  describe('pauseSubscription', function () {
+    describe('for a user without a subscription', function () {
+      beforeEach(async function () {
+        this.LimitationsManager.promises.userHasSubscription.resolves({
+          hasSubscription: false,
+          subscription: this.subscription,
+        })
+      })
+      it('should not make a pause call to recurly', async function () {
+        expect(
+          this.SubscriptionHandler.promises.pauseSubscription(this.user, 3)
+        ).to.be.rejectedWith('No active subscription to pause')
+        this.RecurlyClient.promises.pauseSubscriptionByUuid.called.should.equal(
+          false
+        )
+      })
+    })
+
+    describe('for a user with an annual subscription', function () {
+      beforeEach(async function () {
+        this.LimitationsManager.promises.userHasSubscription.resolves({
+          hasSubscription: false,
+          subscription: {
+            recurlySubscription_id: this.activeRecurlySubscription.uuid,
+            recurlyStatus: { state: 'non-trial' },
+            planCode: 'collaborator-annual',
+          },
+        })
+      })
+      it('should not make a pause call to recurly', async function () {
+        expect(
+          this.SubscriptionHandler.promises.pauseSubscription(this.user, 3)
+        ).to.be.rejectedWith('Can only pause monthly individual plans')
+        this.RecurlyClient.promises.pauseSubscriptionByUuid.called.should.equal(
+          false
+        )
+      })
+    })
+
+    describe('for a user with a subscription', function () {
+      beforeEach(async function () {
+        this.LimitationsManager.promises.userHasSubscription.resolves({
+          hasSubscription: true,
+          subscription: {
+            recurlySubscription_id: this.activeRecurlySubscription.uuid,
+            recurlyStatus: { state: 'non-trial' },
+            planCode: 'collaborator',
+            addOns: [],
+          },
+        })
+      })
+      it('should make a pause call to recurly', async function () {
+        await this.SubscriptionHandler.promises.pauseSubscription(this.user, 3)
+
+        this.RecurlyClient.promises.pauseSubscriptionByUuid.called.should.equal(
+          true
+        )
+      })
+    })
+
+    describe('for a user in a trial', function () {
+      beforeEach(async function () {
+        this.LimitationsManager.promises.userHasSubscription.resolves({
+          hasSubscription: true,
+          subscription: {
+            recurlySubscription_id: this.activeRecurlySubscription.uuid,
+            recurlyStatus: {
+              state: 'trial',
+              trialEndsAt: Date.now() + 1000000,
+            },
+            planCode: 'collaborator',
+          },
+        })
+      })
+      it('should not make a pause call to recurly', async function () {
+        expect(
+          this.SubscriptionHandler.promises.pauseSubscription(this.user, 3)
+        ).to.be.rejectedWith('Cannot pause a subscription in a trial')
+        this.RecurlyClient.promises.pauseSubscriptionByUuid.called.should.equal(
+          false
+        )
+      })
+    })
+
+    describe('for a user with addons', function () {
+      beforeEach(async function () {
+        this.LimitationsManager.promises.userHasSubscription.resolves({
+          hasSubscription: true,
+          subscription: {
+            recurlySubscription_id: this.activeRecurlySubscription.uuid,
+            recurlyStatus: { state: 'non-trial' },
+            planCode: 'collaborator',
+            addOns: ['mock-addon'],
+          },
+        })
+      })
+      it('should not make a pause call to recurly', async function () {
+        expect(
+          this.SubscriptionHandler.promises.pauseSubscription(this.user, 3)
+        ).to.be.rejectedWith('Cannot pause a subscription with addons')
+        this.RecurlyClient.promises.pauseSubscriptionByUuid.called.should.equal(
+          false
+        )
+      })
+    })
+  })
+
   describe('reactivateSubscription', function () {
     describe('with a user without a subscription', function () {
       beforeEach(async function () {
-        this.LimitationsManager.promises.userHasV2Subscription.resolves({
+        this.LimitationsManager.promises.userHasSubscription.resolves({
           hasSubscription: false,
           subscription: this.subscription,
         })
@@ -487,7 +578,7 @@ describe('SubscriptionHandler', function () {
 
     describe('with a user with a subscription', function () {
       beforeEach(async function () {
-        this.LimitationsManager.promises.userHasV2Subscription.resolves({
+        this.LimitationsManager.promises.userHasSubscription.resolves({
           hasSubscription: true,
           subscription: this.subscription,
         })
@@ -497,12 +588,10 @@ describe('SubscriptionHandler', function () {
       })
 
       it('should reactivate the subscription', function () {
-        this.RecurlyClient.promises.reactivateSubscriptionByUuid.called.should.equal(
-          true
+        expect(this.Modules.promises.hooks.fire).to.have.been.calledWith(
+          'reactivatePaidSubscription',
+          this.subscription
         )
-        this.RecurlyClient.promises.reactivateSubscriptionByUuid
-          .calledWith(this.subscription.recurlySubscription_id)
-          .should.equal(true)
       })
 
       it('should send a notification email', function () {

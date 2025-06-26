@@ -156,6 +156,12 @@ export default function FileTreeUploadDoc() {
           return conflicts.length === 0 && folderConflicts.length === 0
         },
         autoProceed: true,
+        locale: {
+          strings: {
+            youCanOnlyUploadX:
+              'You can only upload %{smart_count} files at a time',
+          },
+        },
       })
         // use the basic XHR uploader
         .use(XHRUpload, {
@@ -170,7 +176,6 @@ export default function FileTreeUploadDoc() {
         // close the modal when all the uploads completed successfully
         .on('complete', result => {
           if (!result.failed.length) {
-            // $scope.$emit('done', { name: name })
             cancel()
           }
         })

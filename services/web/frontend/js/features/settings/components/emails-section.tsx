@@ -8,8 +8,8 @@ import {
 import EmailsHeader from './emails/header'
 import EmailsRow from './emails/row'
 import AddEmail from './emails/add-email'
-import Icon from '../../../shared/components/icon'
 import OLNotification from '@/features/ui/components/ol/ol-notification'
+import OLSpinner from '@/features/ui/components/ol/ol-spinner'
 import { LeaversSurveyAlert } from './leavers-survey-alert'
 
 function EmailsSectionContent() {
@@ -21,13 +21,28 @@ function EmailsSectionContent() {
     isInitializingSuccess,
   } = useUserEmailsContext()
   const userEmails = Object.values(userEmailsData.byId)
+  const primary = userEmails.find(userEmail => userEmail.default)
 
   // Only show the "add email" button if the user has permission to add a secondary email
   const hideAddSecondaryEmail = getMeta('ol-cannot-add-secondary-email')
 
+  // Sort emails: primary first, then confirmed secondary emails, then unconfirmed secondary emails
+  const sortedUserEmails = [...userEmails].sort((a, b) => {
+    // Primary email comes first
+    if (a.default) return -1
+    if (b.default) return 1
+
+    // Then sort by confirmation status
+    if (a.confirmedAt && !b.confirmedAt) return -1
+    if (!a.confirmedAt && b.confirmedAt) return 1
+
+    // If both have the same status, sort by email string
+    return a.email.localeCompare(b.email)
+  })
+
   return (
     <>
-      <h3>{t('emails_and_affiliations_title')}</h3>
+      <h2 className="h3">{t('emails_and_affiliations_title')}</h2>
       <p className="small">{t('emails_and_affiliations_explanation')}</p>
       <p className="small">
         <Trans
@@ -48,14 +63,14 @@ function EmailsSectionContent() {
         {isInitializing ? (
           <div className="affiliations-table-row-highlighted">
             <div className="affiliations-table-cell text-center">
-              <Icon type="refresh" fw spin /> {t('loading')}...
+              <OLSpinner size="sm" /> {t('loading')}...
             </div>
           </div>
         ) : (
           <>
-            {userEmails?.map(userEmail => (
+            {sortedUserEmails.map(userEmail => (
               <Fragment key={userEmail.email}>
-                <EmailsRow userEmailData={userEmail} />
+                <EmailsRow userEmailData={userEmail} primary={primary} />
                 <div className="horizontal-divider" />
               </Fragment>
             ))}
@@ -67,10 +82,6 @@ function EmailsSectionContent() {
           <OLNotification
             type="error"
             content={t('error_performing_request')}
-            bs3Props={{
-              icon: <Icon type="exclamation-triangle" fw />,
-              className: 'text-center',
-            }}
           />
         )}
       </>

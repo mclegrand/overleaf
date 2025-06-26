@@ -6,6 +6,8 @@ import FileViewText from '../../../../../frontend/js/features/file-view/componen
 
 describe('<FileViewText/>', function () {
   const file = {
+    id: '123',
+    hash: '1234',
     name: 'example.tex',
     linkedFileData: {
       v1_source_doc_id: 'v1-source-id',
@@ -17,16 +19,17 @@ describe('<FileViewText/>', function () {
   }
 
   beforeEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
+    window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
   })
 
   it('renders a text view', async function () {
-    fetchMock.head('express:/project/:project_id/file/:file_id', {
+    fetchMock.head('express:/project/:project_id/blob/:hash', {
       status: 201,
       headers: { 'Content-Length': 10000 },
     })
     fetchMock.get(
-      'express:/project/:project_id/file/:file_id',
+      'express:/project/:project_id/blob/:hash',
       'Text file content'
     )
 

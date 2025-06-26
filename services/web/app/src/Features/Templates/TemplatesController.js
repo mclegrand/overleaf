@@ -6,7 +6,7 @@ const logger = require('@overleaf/logger')
 const { expressify } = require('@overleaf/promise-utils')
 
 const TemplatesController = {
-  getV1Template(req, res) {
+  async getV1Template(req, res) {
     const templateVersionId = req.params.Template_version_id
     const templateId = req.query.id
     if (!/^[0-9]+$/.test(templateVersionId) || !/^[0-9]+$/.test(templateId)) {
@@ -25,7 +25,7 @@ const TemplatesController = {
       mainFile: req.query.mainFile,
       brandVariationId: req.query.brandVariationId,
     }
-    return res.render(
+    res.render(
       path.resolve(
         __dirname,
         '../../../views/project/editor/new_from_template'
@@ -55,7 +55,7 @@ const TemplatesController = {
 }
 
 module.exports = {
-  getV1Template: TemplatesController.getV1Template,
+  getV1Template: expressify(TemplatesController.getV1Template),
   createProjectFromV1Template: expressify(
     TemplatesController.createProjectFromV1Template
   ),

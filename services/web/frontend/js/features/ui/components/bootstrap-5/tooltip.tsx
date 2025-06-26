@@ -1,24 +1,24 @@
-import { cloneElement, useEffect, forwardRef } from 'react'
-import { OverlayTrigger, Tooltip as BSTooltip } from 'react-bootstrap-5'
+import {
+  cloneElement,
+  useEffect,
+  forwardRef,
+  useState,
+  useCallback,
+} from 'react'
+import {
+  OverlayTrigger,
+  OverlayTriggerProps,
+  Tooltip as BSTooltip,
+  TooltipProps as BSTooltipProps,
+} from 'react-bootstrap'
 import { callFnsInSequence } from '@/utils/functions'
 
-type OverlayProps = Omit<
-  React.ComponentProps<typeof OverlayTrigger>,
-  'overlay' | 'children'
->
+type OverlayProps = Omit<OverlayTriggerProps, 'overlay' | 'children'>
 
-type UpdatingTooltipProps = {
-  popper: {
-    scheduleUpdate: () => void
-  }
-  show: boolean
-  [x: string]: unknown
-}
-
-const UpdatingTooltip = forwardRef<HTMLDivElement, UpdatingTooltipProps>(
+const UpdatingTooltip = forwardRef<HTMLDivElement, BSTooltipProps>(
   ({ popper, children, show: _, ...props }, ref) => {
     useEffect(() => {
-      popper.scheduleUpdate()
+      popper?.scheduleUpdate?.()
     }, [children, popper])
 
     return (
@@ -34,7 +34,7 @@ export type TooltipProps = {
   description: React.ReactNode
   id: string
   overlayProps?: OverlayProps
-  tooltipProps?: React.ComponentProps<typeof BSTooltip>
+  tooltipProps?: BSTooltipProps
   hidden?: boolean
   children: React.ReactElement
 }
@@ -47,18 +47,36 @@ function Tooltip({
   overlayProps,
   hidden,
 }: TooltipProps) {
+  const [show, setShow] = useState(false)
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (show && e.key === 'Escape') {
+        setShow(false)
+        e.stopPropagation()
+      }
+    },
+    [show, setShow]
+  )
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown, true)
+    return () => document.removeEventListener('keydown', handleKeyDown, true)
+  }, [handleKeyDown])
+
+  const hideTooltip = (e: React.MouseEvent) => {
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.blur()
+    }
+    setShow(false)
+  }
+
   const delay = overlayProps?.delay
   let delayShow = 300
   let delayHide = 300
   if (delay) {
     delayShow = typeof delay === 'number' ? delay : delay.show
     delayHide = typeof delay === 'number' ? delay : delay.hide
-  }
-
-  const hideTooltip = (e: React.MouseEvent) => {
-    if (e.currentTarget instanceof HTMLElement) {
-      e.currentTarget.blur()
-    }
   }
 
   return (
@@ -75,6 +93,8 @@ function Tooltip({
       {...overlayProps}
       delay={{ show: delayShow, hide: delayHide }}
       placement={overlayProps?.placement || 'top'}
+      show={show}
+      onToggle={setShow}
     >
       {cloneElement(children, {
         onClick: callFnsInSequence(children.props.onClick, hideTooltip),

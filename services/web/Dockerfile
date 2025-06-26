@@ -1,11 +1,8 @@
 # the base image is suitable for running web with /overleaf/services/web bind
 # mounted
-FROM node:18.20.2 as base
+FROM node:22.15.1 AS base
 
 WORKDIR /overleaf/services/web
-
-# install_deps changes app files and installs npm packages
-# as such it has to run at a later stage
 
 # Google Cloud Storage needs a writable $HOME/.config for resumable uploads
 # (see https://googleapis.dev/nodejs/storage/latest/File.html#createWriteStream)
@@ -22,7 +19,7 @@ RUN mkdir -p /overleaf/services/web/data/dumpFolder \
 
 
 # the deps image is used for caching npm ci
-FROM base as deps-prod
+FROM base AS deps-prod
 
 COPY package.json package-lock.json /overleaf/
 COPY services/web/package.json /overleaf/services/web/
@@ -31,7 +28,7 @@ COPY patches/ /overleaf/patches/
 
 RUN cd /overleaf && NODE_ENV=production npm ci --quiet
 
-FROM deps-prod as deps
+FROM deps-prod AS deps
 
 ENV CYPRESS_INSTALL_BINARY=0
 
@@ -40,7 +37,7 @@ RUN cd /overleaf && npm install
 
 
 # the dev is suitable for running tests
-FROM deps as dev
+FROM deps AS dev
 
 ARG SENTRY_RELEASE
 ENV SENTRY_RELEASE=$SENTRY_RELEASE
@@ -53,34 +50,34 @@ USER node
 
 
 # the webpack image has deps+src+webpack artifacts
-FROM dev as webpack
+FROM dev AS webpack
 USER root
-RUN chmod 0755 ./install_deps.sh && ./install_deps.sh
+RUN OVERLEAF_CONFIG=/overleaf/services/web/config/settings.webpack.js nice npm run webpack:production
 
 
 # intermediate image for removing source maps ahead of copying into final production image
-FROM webpack as webpack-no-sourcemaps
-RUN find /overleaf/services/web/public -name '*.js.map' -delete
+FROM webpack AS webpack-no-sourcemaps
+RUN nice find /overleaf/services/web/public -name '*.js.map' -delete
 
 
 # copy source code and precompile pug images
-FROM deps-prod as pug
+FROM deps-prod AS pug
 COPY services/web /overleaf/services/web
 # Omit Server Pro/CE specific scripts from SaaS image
 RUN rm /overleaf/services/web/modules/server-ce-scripts -rf
-RUN OVERLEAF_CONFIG=/overleaf/services/web/config/settings.overrides.saas.js npm run precompile-pug
+RUN OVERLEAF_CONFIG=/overleaf/services/web/config/settings.overrides.saas.js nice npm run precompile-pug
 
 
 # the web image with only production dependencies but no webpack production build, for development
-FROM pug as app-only
+FROM pug AS app-only
 USER node
-CMD ["node", "--expose-gc", "app.js"]
+CMD ["node", "--expose-gc", "app.mjs"]
 
 
 # the final production image, with webpack production build but without source maps
-FROM pug as app
+FROM pug AS app
 ARG SENTRY_RELEASE
 ENV SENTRY_RELEASE=$SENTRY_RELEASE
 COPY --from=webpack-no-sourcemaps /overleaf/services/web/public /overleaf/services/web/public
 USER node
-CMD ["node", "--expose-gc", "app.js"]
+CMD ["node", "--expose-gc", "app.mjs"]

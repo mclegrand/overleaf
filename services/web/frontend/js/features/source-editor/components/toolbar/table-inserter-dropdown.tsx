@@ -1,78 +1,18 @@
-import { FC, memo, useCallback, useRef, useState } from 'react'
-import * as commands from '../../extensions/toolbar/commands'
-import { useTranslation } from 'react-i18next'
-import useDropdown from '../../../../shared/hooks/use-dropdown'
-import { Button, Overlay, Popover } from 'react-bootstrap'
-import { useCodeMirrorViewContext } from '../codemirror-editor'
-import Tooltip from '../../../../shared/components/tooltip'
-import MaterialIcon from '../../../../shared/components/material-icon'
+import { FC, useState } from 'react'
 import classNames from 'classnames'
-import { emitToolbarEvent } from '../../extensions/toolbar/utils/analytics'
+import { useTranslation } from 'react-i18next'
 
-export const TableInserterDropdown = memo(() => {
-  const { t } = useTranslation()
-  const { open, onToggle, ref } = useDropdown()
-  const view = useCodeMirrorViewContext()
-  const target = useRef<any>(null)
-
-  const onSizeSelected = useCallback(
-    (sizeX: number, sizeY: number) => {
-      onToggle(false)
-      commands.insertTable(view, sizeX, sizeY)
-      emitToolbarEvent(view, 'table-generator-insert-table')
-      view.focus()
-    },
-    [view, onToggle]
-  )
-
+export const TableInserterDropdown = ({
+  onSizeSelected,
+}: {
+  onSizeSelected: (sizeX: number, sizeY: number) => void
+}) => {
   return (
-    <>
-      <Tooltip
-        hidden={open}
-        id="toolbar-table"
-        description={<div>{t('toolbar_insert_table')}</div>}
-        overlayProps={{ placement: 'bottom' }}
-      >
-        <Button
-          type="button"
-          className="ol-cm-toolbar-button"
-          aria-label={t('toolbar_insert_table')}
-          bsStyle={null}
-          onMouseDown={event => {
-            event.preventDefault()
-            event.stopPropagation()
-          }}
-          onClick={() => {
-            onToggle(!open)
-          }}
-          ref={target}
-        >
-          <MaterialIcon type="table_chart" />
-        </Button>
-      </Tooltip>
-      <Overlay
-        show={open}
-        target={target.current}
-        placement="bottom"
-        container={view.dom}
-        containerPadding={0}
-        animation
-        rootClose
-        onHide={() => onToggle(false)}
-      >
-        <Popover
-          id="toolbar-table-menu"
-          ref={ref}
-          className="ol-cm-toolbar-button-menu-popover ol-cm-toolbar-button-menu-popover-unstyled"
-        >
-          <div className="ol-cm-toolbar-table-grid-popover">
-            <SizeGrid sizeX={10} sizeY={10} onSizeSelected={onSizeSelected} />
-          </div>
-        </Popover>
-      </Overlay>
-    </>
+    <div className="ol-cm-toolbar-table-grid-popover">
+      <SizeGrid sizeX={10} sizeY={10} onSizeSelected={onSizeSelected} />
+    </div>
   )
-})
+}
 TableInserterDropdown.displayName = 'TableInserterDropdown'
 
 const range = (start: number, end: number) =>

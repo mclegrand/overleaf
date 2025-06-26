@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import MaterialIcon from '@/shared/components/material-icon'
 
 type CloseProps = {
   onDismiss: React.MouseEventHandler<HTMLButtonElement>
@@ -14,7 +15,11 @@ function Close({ onDismiss, variant = 'light' }: CloseProps) {
       className={`close pull-right ${variant}`}
       onClick={onDismiss}
     >
-      <span aria-hidden="true">&times;</span>
+      <MaterialIcon
+        type="close"
+        className="align-text-bottom"
+        accessibilityLabel={t('close')}
+      />
       <span className="sr-only">{t('close')}</span>
     </button>
   )

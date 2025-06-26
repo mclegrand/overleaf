@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import PDFJSWrapper from '../util/pdf-js-wrapper'
 import { sendMB } from '@/infrastructure/event-tracking'
+import { debugConsole } from '@/utils/debugging'
 
 type StoredPDFState = {
   scrollMode?: number
@@ -32,8 +33,8 @@ export default function usePresentationMode(
   }, [handlePageChange, page])
 
   const clickListener = useCallback(
-    event => {
-      if (event.target.tagName === 'A') {
+    (event: MouseEvent) => {
+      if ((event.target as HTMLElement).tagName === 'A') {
         return
       }
 
@@ -47,7 +48,7 @@ export default function usePresentationMode(
   )
 
   const arrowKeyListener = useCallback(
-    event => {
+    (event: KeyboardEvent) => {
       switch (event.key) {
         case 'ArrowLeft':
         case 'ArrowUp':
@@ -74,23 +75,51 @@ export default function usePresentationMode(
     [nextPage, previousPage]
   )
 
+  const isMouseWheelScrollingRef = useRef(false)
+
+  const mouseWheelListener = useCallback(
+    (event: WheelEvent) => {
+      if (
+        !isMouseWheelScrollingRef.current &&
+        !event.ctrlKey // Avoid trackpad pinching
+      ) {
+        isMouseWheelScrollingRef.current = true
+
+        if (event.deltaY > 0) {
+          nextPage()
+        } else {
+          previousPage()
+        }
+
+        setTimeout(() => {
+          isMouseWheelScrollingRef.current = false
+        }, 200)
+      }
+    },
+    [nextPage, previousPage]
+  )
+
   useEffect(() => {
     if (presentationMode) {
       window.addEventListener('keydown', arrowKeyListener)
       window.addEventListener('click', clickListener)
+      window.addEventListener('wheel', mouseWheelListener)
 
       return () => {
         window.removeEventListener('keydown', arrowKeyListener)
         window.removeEventListener('click', clickListener)
+        window.removeEventListener('wheel', mouseWheelListener)
       }
     }
-  }, [presentationMode, arrowKeyListener, clickListener])
+  }, [presentationMode, arrowKeyListener, clickListener, mouseWheelListener])
 
   const requestPresentationMode = useCallback(() => {
     sendMB('pdf-viewer-enter-presentation-mode')
 
     if (pdfJsWrapper) {
-      pdfJsWrapper.container.parentNode.requestFullscreen()
+      pdfJsWrapper.container.parentElement
+        ?.requestFullscreen()
+        .catch(debugConsole.error)
     }
   }, [pdfJsWrapper])
 
@@ -104,14 +133,16 @@ export default function usePresentationMode(
       pdfJsWrapper.viewer.scrollMode = 3 // page
       pdfJsWrapper.viewer.spreadMode = 0 // none
 
+      pdfJsWrapper.fetchAllData()
+
       setPresentationMode(true)
     }
   }, [pdfJsWrapper, setScale, scale])
 
   const handleExitFullscreen = useCallback(() => {
     if (pdfJsWrapper) {
-      pdfJsWrapper.viewer.scrollMode = storedState.current.scrollMode
-      pdfJsWrapper.viewer.spreadMode = storedState.current.spreadMode
+      pdfJsWrapper.viewer.scrollMode = storedState.current.scrollMode!
+      pdfJsWrapper.viewer.spreadMode = storedState.current.spreadMode!
 
       if (storedState.current.currentScaleValue !== undefined) {
         setScale(storedState.current.currentScaleValue)

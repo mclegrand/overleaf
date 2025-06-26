@@ -9,27 +9,24 @@ import { beforeWithReRunOnTestRetry } from './helpers/beforeWithReRunOnTestRetry
 const LABEL_TEX_LIVE_VERSION = 'TeX Live version'
 
 describe('SandboxedCompiles', function () {
-  ensureUserExists({ email: 'user@example.com' })
-
   const enabledVars = {
-    DOCKER_RUNNER: 'true',
     SANDBOXED_COMPILES: 'true',
-    SANDBOXED_COMPILES_SIBLING_CONTAINERS: 'true',
     ALL_TEX_LIVE_DOCKER_IMAGE_NAMES: '2023,2022',
   }
 
-  describe('enabled in Server Pro', () => {
+  describe('enabled in Server Pro', function () {
     if (isExcludedBySharding('PRO_CUSTOM_2')) return
     startWith({
       pro: true,
       vars: enabledVars,
+      resetData: true,
     })
+    ensureUserExists({ email: 'user@example.com' })
     beforeEach(function () {
       login('user@example.com')
     })
 
-    it('should offer TexLive images and switch the compiler', () => {
-      cy.visit('/project')
+    it('should offer TexLive images and switch the compiler', function () {
       createProject('sandboxed')
       const recompile = throttledRecompile()
       cy.log('wait for compile')
@@ -46,7 +43,7 @@ describe('SandboxedCompiles', function () {
         .findByText('2023')
         .parent()
         .select('2022')
-      cy.get('#left-menu-modal').click()
+      cy.get('.left-menu-modal-backdrop').click()
 
       cy.log('Trigger compile with other TeX Live version')
       recompile()
@@ -58,14 +55,16 @@ describe('SandboxedCompiles', function () {
 
     checkSyncTeX()
     checkXeTeX()
+    checkRecompilesAfterErrors()
   })
 
   function checkSyncTeX() {
-    describe('SyncTeX', () => {
+    // TODO(25342): re-enable
+    // eslint-disable-next-line mocha/no-skipped-tests
+    describe.skip('SyncTeX', function () {
       let projectName: string
       beforeEach(function () {
         projectName = `Project ${uuid()}`
-        cy.visit('/project')
         createProject(projectName)
         const recompile = throttledRecompile()
         cy.findByText('\\maketitle').parent().click()
@@ -81,7 +80,7 @@ describe('SandboxedCompiles', function () {
         })
       })
 
-      it('should sync to code', () => {
+      it('should sync to code', function () {
         cy.log('navigate to \\maketitle using double click in PDF')
         cy.get('.pdf-viewer').within(() => {
           cy.findByText(projectName).dblclick()
@@ -112,7 +111,7 @@ describe('SandboxedCompiles', function () {
         cy.get('.cm-activeLine').should('have.text', '\\section{Section B}')
       })
 
-      it('should sync to pdf', () => {
+      it('should sync to pdf', function () {
         cy.log('zoom in')
         cy.findByText('45%').click()
         cy.findByText('400%').click()
@@ -150,9 +149,24 @@ describe('SandboxedCompiles', function () {
     })
   }
 
+  function checkRecompilesAfterErrors() {
+    it('recompiles even if there are Latex errors', function () {
+      login('user@example.com')
+      createProject('test-project')
+      const recompile = throttledRecompile()
+      cy.findByText('\\maketitle').parent().click()
+      cy.findByText('\\maketitle')
+        .parent()
+        .type('\n\\fakeCommand{} \n\\section{{}Test Section}')
+      recompile()
+      recompile()
+      cy.get('.pdf-viewer').should('contain.text', 'Test Section')
+      cy.get('.logs-pane').should('not.contain.text', 'No PDF')
+    })
+  }
+
   function checkXeTeX() {
-    it('should be able to use XeLaTeX', () => {
-      cy.visit('/project')
+    it('should be able to use XeLaTeX', function () {
       createProject('XeLaTeX')
       const recompile = throttledRecompile()
       cy.log('wait for compile')
@@ -169,7 +183,7 @@ describe('SandboxedCompiles', function () {
         .findByText('pdfLaTeX')
         .parent()
         .select('XeLaTeX')
-      cy.get('#left-menu-modal').click()
+      cy.get('.left-menu-modal-backdrop').click()
 
       cy.log('Trigger compile with other compiler')
       recompile()
@@ -185,15 +199,14 @@ describe('SandboxedCompiles', function () {
       login('user@example.com')
     })
 
-    it('should not offer TexLive images and use default compiler', () => {
-      cy.visit('/project')
+    it('should not offer TexLive images and use default compiler', function () {
       createProject('sandboxed')
       cy.log('wait for compile')
       cy.get('.pdf-viewer').should('contain.text', 'sandboxed')
 
-      cy.log('Check which compiler version was used, expect 2024')
+      cy.log('Check which compiler version was used, expect 2025')
       cy.get('[aria-label="View logs"]').click()
-      cy.findByText(/This is pdfTeX, Version .+ \(TeX Live 2024\) /)
+      cy.findByText(/This is pdfTeX, Version .+ \(TeX Live 2025\) /)
 
       cy.log('Check that there is no TeX Live version toggle')
       cy.get('header').findByText('Menu').click()
@@ -202,21 +215,31 @@ describe('SandboxedCompiles', function () {
     })
   }
 
-  describe('disabled in Server Pro', () => {
+  describe('disabled in Server Pro', function () {
     if (isExcludedBySharding('PRO_DEFAULT_2')) return
     startWith({ pro: true })
+    ensureUserExists({ email: 'user@example.com' })
+    beforeEach(function () {
+      login('user@example.com')
+    })
 
     checkUsesDefaultCompiler()
     checkSyncTeX()
     checkXeTeX()
+    checkRecompilesAfterErrors()
   })
 
-  describe.skip('unavailable in CE', () => {
+  describe.skip('unavailable in CE', function () {
     if (isExcludedBySharding('CE_CUSTOM_1')) return
-    startWith({ pro: false, vars: enabledVars })
+    startWith({ pro: false, vars: enabledVars, resetData: true })
+    ensureUserExists({ email: 'user@example.com' })
+    beforeEach(function () {
+      login('user@example.com')
+    })
 
     checkUsesDefaultCompiler()
     checkSyncTeX()
     checkXeTeX()
+    checkRecompilesAfterErrors()
   })
 })

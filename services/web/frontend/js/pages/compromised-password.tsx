@@ -1,12 +1,5 @@
-import '../marketing'
+import { renderInReactLayout } from '@/react'
 
-import ReactDOM from 'react-dom'
-import { CompromisedPasswordCard } from '../features/compromised-password/components/compromised-password-root'
+import { CompromisedPasswordCard } from '@/features/compromised-password/components/compromised-password-root'
 
-const compromisedPasswordContainer = document.getElementById(
-  'compromised-password'
-)
-
-if (compromisedPasswordContainer) {
-  ReactDOM.render(<CompromisedPasswordCard />, compromisedPasswordContainer)
-}
+renderInReactLayout('compromised-password', () => <CompromisedPasswordCard />)

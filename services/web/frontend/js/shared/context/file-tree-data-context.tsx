@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
   FC,
+  useEffect,
 } from 'react'
 import useScopeValue from '../hooks/use-scope-value'
 import {
@@ -22,6 +23,14 @@ import { Folder } from '../../../../types/folder'
 import { Project } from '../../../../types/project'
 import { MainDocument } from '../../../../types/project-settings'
 import { FindResult } from '@/features/file-tree/util/path'
+import {
+  StubSnapshotUtils,
+  useSnapshotContext,
+} from '@/features/ide-react/context/snapshot-context'
+import importOverleafModules from '../../../macros/import-overleaf-module.macro'
+const { buildFileTree, createFolder } =
+  (importOverleafModules('snapshotUtils')[0]
+    ?.import as typeof StubSnapshotUtils) || StubSnapshotUtils
 
 const FileTreeDataContext = createContext<
   | {
@@ -29,6 +38,7 @@ const FileTreeDataContext = createContext<
       // by the file tree
       fileTreeData: Folder
       fileCount: { value: number; status: string; limit: number } | number
+      fileTreeReadOnly: boolean
       hasFolders: boolean
       selectedEntities: FindResult[]
       setSelectedEntities: (selectedEntities: FindResult[]) => void
@@ -166,12 +176,38 @@ export function useFileTreeData() {
   return context
 }
 
-export const FileTreeDataProvider: FC = ({ children }) => {
+export const FileTreeDataProvider: FC<React.PropsWithChildren> = ({
+  children,
+}) => {
   const [project] = useScopeValue<Project>('project')
-  const [openDocId] = useScopeValue('editor.open_doc_id')
+  const [currentDocumentId] = useScopeValue('editor.open_doc_id')
   const [, setOpenDocName] = useScopeValueSetterOnly('editor.open_doc_name')
+  const [permissionsLevel] = useScopeValue('permissionsLevel')
+  const { fileTreeFromHistory, snapshot, snapshotVersion } =
+    useSnapshotContext()
+  const fileTreeReadOnly =
+    permissionsLevel === 'readOnly' || fileTreeFromHistory
 
-  const { rootFolder } = project || {}
+  const [rootFolder, setRootFolder] = useState(project?.rootFolder)
+
+  useEffect(() => {
+    if (fileTreeFromHistory) return
+    setRootFolder(project?.rootFolder)
+  }, [project, fileTreeFromHistory])
+
+  useEffect(() => {
+    if (!fileTreeFromHistory) return
+    if (!rootFolder || rootFolder?.[0]?._id) {
+      // Init or replace mongo rootFolder with stub while we load the snapshot.
+      // In the future, project:joined should only fire once the snapshot is ready.
+      setRootFolder([createFolder('', '')])
+    }
+  }, [fileTreeFromHistory, rootFolder])
+
+  useEffect(() => {
+    if (!fileTreeFromHistory || !snapshot) return
+    setRootFolder([buildFileTree(snapshot)])
+  }, [fileTreeFromHistory, snapshot, snapshotVersion])
 
   const [{ fileTreeData, fileCount }, dispatch] = useReducer(
     fileTreeMutableReducer,
@@ -193,14 +229,17 @@ export const FileTreeDataProvider: FC = ({ children }) => {
     })
   }, [rootFolder])
 
-  const dispatchCreateFolder = useCallback((parentFolderId, entity) => {
-    entity.type = 'folder'
-    dispatch({
-      type: ACTION_TYPES.CREATE,
-      parentFolderId,
-      entity,
-    })
-  }, [])
+  const dispatchCreateFolder = useCallback(
+    (parentFolderId: string, entity: any) => {
+      entity.type = 'folder'
+      dispatch({
+        type: ACTION_TYPES.CREATE,
+        parentFolderId,
+        entity,
+      })
+    },
+    []
+  )
 
   const dispatchCreateDoc = useCallback(
     (parentFolderId: string, entity: any) => {
@@ -233,11 +272,11 @@ export const FileTreeDataProvider: FC = ({ children }) => {
         newName,
         id,
       })
-      if (id === openDocId) {
+      if (id === currentDocumentId) {
         setOpenDocName(newName)
       }
     },
-    [openDocId, setOpenDocName]
+    [currentDocumentId, setOpenDocName]
   )
 
   const dispatchDelete = useCallback((id: string) => {
@@ -258,6 +297,7 @@ export const FileTreeDataProvider: FC = ({ children }) => {
       dispatchRename,
       fileCount,
       fileTreeData,
+      fileTreeReadOnly,
       hasFolders: fileTreeData?.folders.length > 0,
       selectedEntities,
       setSelectedEntities,
@@ -272,6 +312,7 @@ export const FileTreeDataProvider: FC = ({ children }) => {
     dispatchRename,
     fileCount,
     fileTreeData,
+    fileTreeReadOnly,
     selectedEntities,
     setSelectedEntities,
     docs,

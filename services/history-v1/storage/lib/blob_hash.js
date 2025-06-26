@@ -2,9 +2,9 @@
 'use strict'
 
 const BPromise = require('bluebird')
-const fs = BPromise.promisifyAll(require('fs'))
-const crypto = require('crypto')
-const { pipeline } = require('stream')
+const fs = BPromise.promisifyAll(require('node:fs'))
+const crypto = require('node:crypto')
+const { pipeline } = require('node:stream')
 const assert = require('./assert')
 
 function getGitBlobHeader(byteLength) {
@@ -63,7 +63,7 @@ exports.fromString = function blobHashFromString(string) {
  * Compute the git blob hash for the content of a file
  *
  * @param  {string} filePath
- * @return {string} hexadecimal SHA-1 hash
+ * @return {Promise<string>} hexadecimal SHA-1 hash
  */
 exports.fromFile = function blobHashFromFile(pathname) {
   assert.string(pathname, 'blobHash: bad pathname')

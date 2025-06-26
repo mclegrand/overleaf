@@ -1,10 +1,8 @@
-import '../../../helpers/bootstrap-3'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import CodemirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
 import { mockScope } from '../helpers/mock-scope'
 import { TestContainer } from '../helpers/test-container'
-
-const isMac = /Mac/.test(window.navigator?.platform)
+import { isMac } from '@/shared/utils/os'
 
 const selectAll = () => {
   cy.get('.cm-content').trigger(
@@ -39,7 +37,6 @@ describe('<CodeMirrorEditor/> toolbar in Rich Text mode', function () {
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
     cy.interceptEvents()
     cy.interceptMetadata()
-    cy.interceptSpelling()
   })
 
   it('should handle Undo and Redo', function () {
@@ -98,7 +95,7 @@ describe('<CodeMirrorEditor/> toolbar in Rich Text mode', function () {
     selectAll()
 
     clickToolbarButton('Insert Math')
-    clickToolbarButton('Insert Inline Math')
+    cy.findByRole('button', { name: 'Insert Inline Math' }).click()
     cy.get('.cm-content').should('have.text', '\\(2+3=5\\)')
   })
 
@@ -107,7 +104,7 @@ describe('<CodeMirrorEditor/> toolbar in Rich Text mode', function () {
     selectAll()
 
     clickToolbarButton('Insert Math')
-    clickToolbarButton('Insert Display Math')
+    cy.findByRole('button', { name: 'Insert Display Math' }).click()
     cy.get('.cm-content').should('have.text', '\\[2+3=5\\]')
   })
 
@@ -124,7 +121,7 @@ describe('<CodeMirrorEditor/> toolbar in Rich Text mode', function () {
     mountEditor('test')
     selectAll()
 
-    clickToolbarButton('More')
+    clickToolbarButton('More editor toolbar items')
     clickToolbarButton('Bullet List')
 
     cy.get('.cm-content').should('have.text', ' test')
@@ -137,7 +134,7 @@ describe('<CodeMirrorEditor/> toolbar in Rich Text mode', function () {
     mountEditor('test')
     selectAll()
 
-    clickToolbarButton('More')
+    clickToolbarButton('More editor toolbar items')
     clickToolbarButton('Numbered List')
 
     cy.get('.cm-content').should('have.text', ' test')
@@ -150,7 +147,7 @@ describe('<CodeMirrorEditor/> toolbar in Rich Text mode', function () {
     mountEditor('test')
     selectAll()
 
-    clickToolbarButton('More')
+    clickToolbarButton('More editor toolbar items')
     clickToolbarButton('Numbered List')
 
     // expose the markup
@@ -183,7 +180,7 @@ describe('<CodeMirrorEditor/> toolbar in Rich Text mode', function () {
     mountEditor('test')
     selectAll()
 
-    clickToolbarButton('More')
+    clickToolbarButton('More editor toolbar items')
     clickToolbarButton('Numbered List')
 
     // expose the markup
@@ -208,7 +205,7 @@ describe('<CodeMirrorEditor/> toolbar in Rich Text mode', function () {
     mountEditor('test\ntest')
     selectAll()
 
-    clickToolbarButton('More')
+    clickToolbarButton('More editor toolbar items')
     clickToolbarButton('Numbered List')
 
     // expose the markup
@@ -227,7 +224,7 @@ describe('<CodeMirrorEditor/> toolbar in Rich Text mode', function () {
 
     cy.get('.cm-line').eq(2).click()
 
-    clickToolbarButton('Increase Indent')
+    cy.findByRole('button', { name: 'Increase Indent' }).click()
 
     // expose the markup
     cy.get('.cm-line').eq(1).type('{rightArrow}')
@@ -245,7 +242,7 @@ describe('<CodeMirrorEditor/> toolbar in Rich Text mode', function () {
 
     cy.get('.cm-line').eq(1).click()
 
-    clickToolbarButton('More')
+    clickToolbarButton('More editor toolbar items')
     clickToolbarButton('Numbered List')
 
     cy.get('.cm-line').eq(0).type('{upArrow}')
@@ -266,7 +263,7 @@ describe('<CodeMirrorEditor/> toolbar in Rich Text mode', function () {
     mountEditor('test\ntest')
     selectAll()
 
-    clickToolbarButton('More')
+    clickToolbarButton('More editor toolbar items')
     clickToolbarButton('Numbered List')
 
     // expose the markup
@@ -285,7 +282,7 @@ describe('<CodeMirrorEditor/> toolbar in Rich Text mode', function () {
 
     cy.get('.cm-line').eq(2).click()
 
-    clickToolbarButton('Increase Indent')
+    cy.findByRole('button', { name: 'Increase Indent' }).click()
 
     // expose the markup
     cy.get('.cm-line').eq(1).type('{rightArrow}')
@@ -303,7 +300,7 @@ describe('<CodeMirrorEditor/> toolbar in Rich Text mode', function () {
 
     cy.get('.cm-line').eq(0).click()
 
-    clickToolbarButton('More')
+    clickToolbarButton('More editor toolbar items')
     clickToolbarButton('Numbered List')
 
     // expose the markup

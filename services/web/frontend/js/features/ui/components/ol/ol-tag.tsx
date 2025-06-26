@@ -1,28 +1,12 @@
 import Tag from '@/features/ui/components/bootstrap-5/tag'
-import BS3Tag from '@/shared/components/tag'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
+import { forwardRef } from 'react'
 
-type OLTagProps = React.ComponentProps<typeof Tag> & {
-  bs3Props?: React.ComponentProps<typeof BS3Tag>
-}
+type OLTagProps = React.ComponentProps<typeof Tag>
 
-function OLTag(props: OLTagProps) {
-  const { bs3Props, ...rest } = props
+const OLTag = forwardRef<HTMLElement, OLTagProps>((props: OLTagProps, ref) => {
+  return <Tag ref={ref} {...props} />
+})
 
-  const bs3TagProps: React.ComponentProps<typeof BS3Tag> = {
-    children: rest.children,
-    prepend: rest.prepend,
-    closeBtnProps: rest.closeBtnProps,
-    className: rest.className,
-    ...bs3Props,
-  }
-
-  return (
-    <BootstrapVersionSwitcher
-      bs3={<BS3Tag {...bs3TagProps} />}
-      bs5={<Tag {...rest} />}
-    />
-  )
-}
+OLTag.displayName = 'OLTag'
 
 export default OLTag

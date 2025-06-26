@@ -21,6 +21,8 @@ export function initialize(app) {
 
   app.delete('/project/:project_id', HttpController.deleteProject)
 
+  app.get('/project/:project_id/snapshot', HttpController.getLatestSnapshot)
+
   app.get(
     '/project/:project_id/diff',
     validate({
@@ -53,6 +55,16 @@ export function initialize(app) {
       },
     }),
     HttpController.getUpdates
+  )
+
+  app.get(
+    '/project/:project_id/changes-in-chunk',
+    validate({
+      query: {
+        since: Joi.number().integer().min(0),
+      },
+    }),
+    HttpController.getChangesInChunkSince
   )
 
   app.get('/project/:project_id/version', HttpController.latestVersion)
@@ -100,13 +112,14 @@ export function initialize(app) {
   app.get('/project/:project_id/labels', HttpController.getLabels)
 
   app.post(
-    '/project/:project_id/user/:user_id/labels',
+    '/project/:project_id/labels',
     validate({
       body: {
         version: Joi.number().integer().required(),
         comment: Joi.string().required(),
         created_at: Joi.string(),
         validate_exists: Joi.boolean().default(true),
+        user_id: Joi.string().allow(null),
       },
     }),
 
@@ -152,8 +165,18 @@ export function initialize(app) {
   )
 
   app.get(
+    '/project/:project_id/metadata/version/:version/:pathname',
+    HttpController.getFileMetadataSnapshot
+  )
+
+  app.get(
     '/project/:project_id/version/:version',
     HttpController.getProjectSnapshot
+  )
+
+  app.get(
+    '/project/:project_id/paths/version/:version',
+    HttpController.getPathsAtVersion
   )
 
   app.post(
@@ -166,7 +189,7 @@ export function initialize(app) {
     HttpController.forceDebugProject
   )
 
-  app.get('/project/:project_id/blob/:hash', HttpController.getProjectBlob)
+  app.get('/project/:history_id/blob/:hash', HttpController.getProjectBlob)
 
   app.get('/status/failures', HttpController.getFailures)
 

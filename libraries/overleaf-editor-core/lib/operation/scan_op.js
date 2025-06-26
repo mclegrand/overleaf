@@ -9,12 +9,9 @@ const ClearTrackingProps = require('../file_data/clear_tracking_props')
 const TrackingProps = require('../file_data/tracking_props')
 
 /**
+ * @import { RawScanOp, RawInsertOp, RawRetainOp, RawRemoveOp, TrackingDirective } from '../types'
+ *
  * @typedef {{ length: number, inputCursor: number, readonly inputLength: number}} LengthApplyContext
- * @typedef {import('../types').RawScanOp} RawScanOp
- * @typedef {import('../types').RawInsertOp} RawInsertOp
- * @typedef {import('../types').RawRetainOp} RawRetainOp
- * @typedef {import('../types').RawRemoveOp} RawRemoveOp
- * @typedef {import('../types').TrackingDirective} TrackingDirective
  */
 
 class ScanOp {
@@ -178,7 +175,7 @@ class InsertOp extends ScanOp {
       return false
     }
     if (this.tracking) {
-      if (!this.tracking.equals(other.tracking)) {
+      if (!other.tracking || !this.tracking.canMergeWith(other.tracking)) {
         return false
       }
     } else if (other.tracking) {
@@ -201,7 +198,10 @@ class InsertOp extends ScanOp {
       throw new Error('Cannot merge with incompatible operation')
     }
     this.insertion += other.insertion
-    // We already have the same tracking info and commentIds
+    if (this.tracking != null && other.tracking != null) {
+      this.tracking = this.tracking.mergeWith(other.tracking)
+    }
+    // We already have the same commentIds
   }
 
   /**
@@ -309,9 +309,13 @@ class RetainOp extends ScanOp {
       return false
     }
     if (this.tracking) {
-      return this.tracking.equals(other.tracking)
+      if (!other.tracking || !this.tracking.canMergeWith(other.tracking)) {
+        return false
+      }
+    } else if (other.tracking) {
+      return false
     }
-    return !other.tracking
+    return true
   }
 
   /**
@@ -322,6 +326,9 @@ class RetainOp extends ScanOp {
       throw new Error('Cannot merge with incompatible operation')
     }
     this.length += other.length
+    if (this.tracking != null && other.tracking != null) {
+      this.tracking = this.tracking.mergeWith(other.tracking)
+    }
   }
 
   /**

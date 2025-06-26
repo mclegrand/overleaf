@@ -31,14 +31,18 @@
 @import 'bootstrap-5/scss/forms';
 @import 'bootstrap-5/scss/buttons';
 @import 'bootstrap-5/scss/dropdown';
+@import 'bootstrap-5/scss/button-group';
 @import 'bootstrap-5/scss/badge';
+@import 'bootstrap-5/scss/list-group';
 @import 'bootstrap-5/scss/modal';
 @import 'bootstrap-5/scss/tooltip';
+@import 'bootstrap-5/scss/popover';
 @import 'bootstrap-5/scss/spinners';
 @import 'bootstrap-5/scss/card';
 @import 'bootstrap-5/scss/close';
 @import 'bootstrap-5/scss/nav';
 @import 'bootstrap-5/scss/navbar';
+@import 'bootstrap-5/scss/offcanvas';
 
 // Helpers
 @import 'bootstrap-5/scss/helpers';
@@ -48,12 +52,3 @@
 
 // Mixins
 @import 'bootstrap-5/scss/mixins/breakpoints';
-
-// Components custom style
-@import '../components/all';
-
-// Custom helpers
-@import '../helpers/all';
-
-// Pages custom style
-@import '../pages/all';

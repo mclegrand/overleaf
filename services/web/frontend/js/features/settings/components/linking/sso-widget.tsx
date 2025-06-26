@@ -69,13 +69,13 @@ export function SSOLinkingWidget({
       <div>{providerLogos[providerId]}</div>
       <div className="description-container">
         <div className="title-row">
-          <h4>{title}</h4>
+          <h4 id={providerId}>{title}</h4>
         </div>
         <p className="small">
           {description?.replace(/<[^>]+>/g, '')}{' '}
           {helpPath ? (
             <a href={helpPath} target="_blank" rel="noreferrer">
-              {t('learn_more')}
+              {t('learn_more_about', { appName: title })}
             </a>
           ) : null}
         </p>
@@ -85,6 +85,7 @@ export function SSOLinkingWidget({
       </div>
       <div>
         <ActionButton
+          titleId={providerId}
           unlinkRequestInflight={unlinkRequestInflight}
           accountIsLinked={linked}
           linkPath={`${linkPath}?intent=link`}
@@ -106,6 +107,7 @@ type ActionButtonProps = {
   accountIsLinked?: boolean
   linkPath: string
   onUnlinkClick: () => void
+  titleId: string
 }
 
 function ActionButton({
@@ -113,8 +115,11 @@ function ActionButton({
   accountIsLinked,
   linkPath,
   onUnlinkClick,
+  titleId,
 }: ActionButtonProps) {
   const { t } = useTranslation()
+  const linkTextId = `${titleId}-link`
+
   if (unlinkRequestInflight) {
     return (
       <OLButton variant="danger-ghost" disabled>
@@ -123,13 +128,23 @@ function ActionButton({
     )
   } else if (accountIsLinked) {
     return (
-      <OLButton variant="danger-ghost" onClick={onUnlinkClick}>
+      <OLButton
+        variant="danger-ghost"
+        onClick={onUnlinkClick}
+        aria-labelledby={`${linkTextId} ${titleId}`}
+        id={linkTextId}
+      >
         {t('unlink')}
       </OLButton>
     )
   } else {
     return (
-      <OLButton variant="secondary" href={linkPath} className="text-capitalize">
+      <OLButton
+        variant="secondary"
+        href={linkPath}
+        aria-labelledby={`${linkTextId} ${titleId}`}
+        id={linkTextId}
+      >
         {t('link')}
       </OLButton>
     )

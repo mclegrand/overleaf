@@ -1,9 +1,6 @@
-import { useCallback, useState } from 'react'
-import { Button, Col, Form, FormControl, Row } from 'react-bootstrap'
+import { ChangeEvent, FormEvent, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { deleteJSON, FetchError, postJSON } from '@/infrastructure/fetch-json'
-import MaterialIcon from '../../../shared/components/material-icon'
-import Tooltip from '../../../shared/components/tooltip'
 import getMeta from '../../../utils/meta'
 import { parseEmails } from '../utils/emails'
 import ErrorAlert, { APIError } from './error-alert'
@@ -11,6 +8,16 @@ import UserRow from './user-row'
 import useUserSelection from '../hooks/use-user-selection'
 import { User } from '../../../../../types/group-management/user'
 import { debugConsole } from '@/utils/debugging'
+import OLRow from '@/features/ui/components/ol/ol-row'
+import OLCol from '@/features/ui/components/ol/ol-col'
+import BackButton from '@/features/group-management/components/back-button'
+import OLCard from '@/features/ui/components/ol/ol-card'
+import OLButton from '@/features/ui/components/ol/ol-button'
+import OLFormControl from '@/features/ui/components/ol/ol-form-control'
+import OLFormText from '@/features/ui/components/ol/ol-form-text'
+import OLTable from '@/features/ui/components/ol/ol-table'
+import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
+import OLFormCheckbox from '@/features/ui/components/ol/ol-form-checkbox'
 
 type ManagersPaths = {
   addMember: string
@@ -51,7 +58,7 @@ export function ManagersTable({
   const [removeMemberError, setRemoveMemberError] = useState<APIError>()
 
   const addManagers = useCallback(
-    e => {
+    (e: FormEvent | React.MouseEvent) => {
       e.preventDefault()
       setInviteError(undefined)
       const emails = parseEmails(emailString)
@@ -85,7 +92,7 @@ export function ManagersTable({
   )
 
   const removeManagers = useCallback(
-    e => {
+    (e: React.MouseEvent) => {
       e.preventDefault()
       setRemoveMemberError(undefined)
       ;(async () => {
@@ -124,7 +131,7 @@ export function ManagersTable({
   )
 
   const handleEmailsChange = useCallback(
-    e => {
+    (e: ChangeEvent<HTMLInputElement>) => {
       setEmailString(e.target.value)
     },
     [setEmailString]
@@ -132,136 +139,134 @@ export function ManagersTable({
 
   return (
     <div className="container">
-      <Row>
-        <Col md={10} mdOffset={1}>
-          <h1>
-            <a href="/user/subscription" className="back-btn">
-              <MaterialIcon
-                type="arrow_back"
-                accessibilityLabel={t('back_to_subscription')}
-              />
-            </a>{' '}
-            {groupName || translations.title}
-          </h1>
-          <div className="card">
-            <div className="page-header">
+      <OLRow>
+        <OLCol lg={{ span: 10, offset: 1 }}>
+          <div className="group-heading" data-testid="group-heading">
+            <BackButton
+              href="/user/subscription"
+              accessibilityLabel={t('back_to_subscription')}
+            />
+            <h1 className="heading">{groupName || translations.title}</h1>
+          </div>
+          <OLCard>
+            <div
+              className="page-header mb-4"
+              data-testid="page-header-members-details"
+            >
               <div className="pull-right">
                 {removeMemberInflightCount > 0 ? (
-                  <Button bsStyle="danger" disabled>
+                  <OLButton variant="danger" disabled>
                     {t('removing')}&hellip;
-                  </Button>
+                  </OLButton>
                 ) : (
                   <>
                     {selectedUsers.length > 0 && (
-                      <Button bsStyle="danger" onClick={removeManagers}>
+                      <OLButton variant="danger" onClick={removeManagers}>
                         {translations.remove}
-                      </Button>
+                      </OLButton>
                     )}
                   </>
                 )}
               </div>
-              <h3>{translations.subtitle}</h3>
+              <h2 className="h3 mt-0">{translations.subtitle}</h2>
             </div>
             <div className="row-spaced-small">
               <ErrorAlert error={removeMemberError} />
-              <ul className="list-unstyled structured-list">
-                <li className="container-fluid">
-                  <Row>
-                    <Col xs={4}>
-                      <label htmlFor="select-all" className="sr-only">
-                        {t('select_all')}
-                      </label>
-                      <input
-                        className="select-all"
-                        id="select-all"
-                        type="checkbox"
+              <OLTable
+                className="managed-entities-table managed-entities-list structured-list"
+                container={false}
+                hover
+                data-testid="managed-entities-table"
+              >
+                <thead>
+                  <tr>
+                    <th className="cell-checkbox">
+                      <OLFormCheckbox
                         autoComplete="off"
                         onChange={handleSelectAllClick}
                         checked={selectedUsers.length === users.length}
+                        aria-label={t('select_all')}
+                        data-testid="select-all-checkbox"
                       />
-                      <span className="header">{t('email')}</span>
-                    </Col>
-                    <Col xs={4}>
-                      <span className="header">{t('name')}</span>
-                    </Col>
-                    <Col xs={2}>
-                      <Tooltip
+                    </th>
+                    <th>{t('email')}</th>
+                    <th className="cell-name">{t('name')}</th>
+                    <th className="cell-last-active">
+                      <OLTooltip
                         id="last-active-tooltip"
                         description={t('last_active_description')}
                         overlayProps={{
                           placement: 'left',
                         }}
                       >
-                        <span className="header">
+                        <span>
                           {t('last_active')}
                           <sup>(?)</sup>
                         </span>
-                      </Tooltip>
-                    </Col>
-                    <Col xs={2}>
-                      <span className="header">{t('accepted_invite')}</span>
-                    </Col>
-                  </Row>
-                </li>
-                {users.length === 0 && (
-                  <li>
-                    <Row>
-                      <Col md={12} className="text-centered">
+                      </OLTooltip>
+                    </th>
+                    <th className="cell-accepted-invite">
+                      {t('accepted_invite')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.length === 0 && (
+                    <tr>
+                      <td className="text-center" colSpan={5}>
                         <small>{t('no_members')}</small>
-                      </Col>
-                    </Row>
-                  </li>
-                )}
-                {users.map(user => (
-                  <UserRow
-                    key={user.email}
-                    user={user}
-                    selectUser={selectUser}
-                    unselectUser={unselectUser}
-                    selected={selectedUsers.includes(user)}
-                  />
-                ))}
-              </ul>
+                      </td>
+                    </tr>
+                  )}
+                  {users.map(user => (
+                    <UserRow
+                      key={user.email}
+                      user={user}
+                      selectUser={selectUser}
+                      unselectUser={unselectUser}
+                      selected={selectedUsers.includes(user)}
+                    />
+                  ))}
+                </tbody>
+              </OLTable>
             </div>
             <hr />
             <div>
               <p className="small">{t('add_more_managers')}</p>
               <ErrorAlert error={inviteError} />
-              <Form horizontal onSubmit={addManagers} className="form">
-                <Row>
-                  <Col xs={6}>
-                    <FormControl
+              <form onSubmit={addManagers} data-testid="add-members-form">
+                <OLRow>
+                  <OLCol xs={6}>
+                    <OLFormControl
                       type="input"
                       placeholder="jane@example.com, joe@example.com"
                       aria-describedby="add-members-description"
                       value={emailString}
                       onChange={handleEmailsChange}
                     />
-                  </Col>
-                  <Col xs={4}>
-                    {inviteUserInflightCount > 0 ? (
-                      <Button bsStyle="primary" disabled>
-                        {t('adding')}&hellip;
-                      </Button>
-                    ) : (
-                      <Button bsStyle="primary" onClick={addManagers}>
-                        {t('add')}
-                      </Button>
-                    )}
-                  </Col>
-                </Row>
-                <Row>
-                  <Col xs={8}>
-                    <span className="help-block">
+                  </OLCol>
+                  <OLCol xs={4}>
+                    <OLButton
+                      variant="primary"
+                      onClick={addManagers}
+                      isLoading={inviteUserInflightCount > 0}
+                    >
+                      {t('add')}
+                    </OLButton>
+                  </OLCol>
+                </OLRow>
+                <OLRow>
+                  <OLCol xs={8}>
+                    <OLFormText>
                       {t('add_comma_separated_emails_help')}
-                    </span>
-                  </Col>
-                </Row>
-              </Form>
+                    </OLFormText>
+                  </OLCol>
+                </OLRow>
+              </form>
             </div>
-          </div>
-        </Col>
-      </Row>
+          </OLCard>
+        </OLCol>
+      </OLRow>
     </div>
   )
 }

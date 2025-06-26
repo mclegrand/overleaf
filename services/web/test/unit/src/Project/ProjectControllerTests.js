@@ -2,7 +2,7 @@ const SandboxedModule = require('sandboxed-module')
 const path = require('path')
 const sinon = require('sinon')
 const { expect } = require('chai')
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 
 const MODULE_PATH = path.join(
   __dirname,
@@ -28,6 +28,8 @@ describe('ProjectController', function () {
       },
       siteUrl: 'https://overleaf.com',
       algolia: {},
+      plans: [],
+      features: {},
     }
     this.brandVariationDetails = {
       id: '12',
@@ -58,6 +60,11 @@ describe('ProjectController', function () {
     this.SubscriptionLocator = {
       promises: {
         getUsersSubscription: sinon.stub().resolves(),
+      },
+    }
+    this.SubscriptionController = {
+      promises: {
+        getRecommendedCurrency: sinon.stub().resolves({ currency: 'USD' }),
       },
     }
     this.LimitationsManager = {
@@ -131,6 +138,11 @@ describe('ProjectController', function () {
         isUserInvitedReadWriteMemberOfProject: sinon.stub().resolves(true),
       },
     }
+    this.CollaboratorsHandler = {
+      promises: {
+        setCollaboratorPrivilegeLevel: sinon.stub().resolves(),
+      },
+    }
     this.ProjectEntityHandler = {}
     this.UserGetter = {
       getUserFullEmails: sinon.stub().yields(null, []),
@@ -170,6 +182,7 @@ describe('ProjectController', function () {
       promises: {
         getAssignment: sinon.stub().resolves({ variant: 'default' }),
         getAssignmentForUser: sinon.stub().resolves({ variant: 'default' }),
+        hasUserBeenAssignedToVariant: sinon.stub().resolves(false),
       },
       getAssignment: sinon.stub().yields(null, { variant: 'default' }),
     }
@@ -183,8 +196,10 @@ describe('ProjectController', function () {
         hasLicence: sinon.stub().resolves(false),
       },
     }
-    this.SubscriptionViewModelBuilder = {
-      getBestSubscription: sinon.stub().yields(null, { type: 'free' }),
+    this.InstitutionsGetter = {
+      promises: {
+        getCurrentAffiliations: sinon.stub().resolves([]),
+      },
     }
     this.SurveyHandler = {
       getSurvey: sinon.stub().yields(null, {}),
@@ -200,12 +215,16 @@ describe('ProjectController', function () {
     this.OnboardingDataCollectionManager = {
       getOnboardingDataValue: sinon.stub().resolves(null),
     }
+    this.Modules = {
+      promises: { hooks: { fire: sinon.stub().resolves() } },
+    }
 
     this.ProjectController = SandboxedModule.require(MODULE_PATH, {
       requires: {
-        mongodb: { ObjectId },
+        'mongodb-legacy': { ObjectId },
         '@overleaf/settings': this.settings,
         '@overleaf/metrics': this.Metrics,
+        '../Collaborators/CollaboratorsHandler': this.CollaboratorsHandler,
         '../SplitTests/SplitTestHandler': this.SplitTestHandler,
         '../SplitTests/SplitTestSessionHandler': this.SplitTestSessionHandler,
         './ProjectDeleter': this.ProjectDeleter,
@@ -215,6 +234,7 @@ describe('ProjectController', function () {
         '../User/UserController': this.UserController,
         './ProjectHelper': this.ProjectHelper,
         '../Subscription/SubscriptionLocator': this.SubscriptionLocator,
+        '../Subscription/SubscriptionController': this.SubscriptionController,
         '../Subscription/LimitationsManager': this.LimitationsManager,
         '../Tags/TagsHandler': this.TagsHandler,
         '../../models/User': { User: this.UserModel },
@@ -245,6 +265,7 @@ describe('ProjectController', function () {
           },
         },
         '../Institutions/InstitutionsFeatures': this.InstitutionsFeatures,
+        '../Institutions/InstitutionsGetter': this.InstitutionsGetter,
         '../Survey/SurveyHandler': this.SurveyHandler,
         './ProjectAuditLogHandler': this.ProjectAuditLogHandler,
         '../Tutorial/TutorialHandler': this.TutorialHandler,
@@ -255,6 +276,7 @@ describe('ProjectController', function () {
             updateUser: sinon.stub().resolves(),
           },
         },
+        '../../infrastructure/Modules': this.Modules,
       },
     })
 
@@ -278,6 +300,7 @@ describe('ProjectController', function () {
         translate() {},
       },
       ip: '192.170.18.1',
+      capabilitySet: new Set(['chat']),
     }
     this.res = {
       locals: {
@@ -1013,50 +1036,65 @@ describe('ProjectController', function () {
       })
     })
 
-    describe('link sharing changes active', function () {
+    describe('when user is a read write token member (and not already a named editor)', function () {
       beforeEach(function () {
-        this.SplitTestHandler.promises.getAssignmentForUser.resolves({
-          variant: 'active',
-        })
+        this.CollaboratorsGetter.promises.userIsTokenMember.resolves(true)
+        this.CollaboratorsGetter.promises.userIsReadWriteTokenMember.resolves(
+          true
+        )
+        this.CollaboratorsGetter.promises.isUserInvitedReadWriteMemberOfProject.resolves(
+          false
+        )
       })
 
-      describe('when user is a read write token member (and not already a named editor)', function () {
-        beforeEach(function () {
-          this.CollaboratorsGetter.promises.userIsTokenMember.resolves(true)
-          this.CollaboratorsGetter.promises.userIsReadWriteTokenMember.resolves(
-            true
-          )
-          this.CollaboratorsGetter.promises.isUserInvitedReadWriteMemberOfProject.resolves(
-            false
-          )
-        })
+      it('should redirect to the sharing-updates page', function (done) {
+        this.res.redirect = url => {
+          expect(url).to.equal(`/project/${this.project_id}/sharing-updates`)
+          done()
+        }
+        this.ProjectController.loadEditor(this.req, this.res)
+      })
+    })
 
-        it('should redirect to the sharing-updates page', function (done) {
-          this.res.redirect = url => {
-            expect(url).to.equal(`/project/${this.project_id}/sharing-updates`)
-            done()
-          }
-          this.ProjectController.loadEditor(this.req, this.res)
-        })
+    describe('when user is a read write token member but also a named editor', function () {
+      beforeEach(function () {
+        this.CollaboratorsGetter.promises.userIsTokenMember.resolves(true)
+        this.CollaboratorsGetter.promises.userIsReadWriteTokenMember.resolves(
+          true
+        )
+        this.CollaboratorsGetter.promises.isUserInvitedReadWriteMemberOfProject.resolves(
+          true
+        )
       })
 
-      describe('when user is a read write token member but also a named editor', function () {
-        beforeEach(function () {
-          this.CollaboratorsGetter.promises.userIsTokenMember.resolves(true)
-          this.CollaboratorsGetter.promises.userIsReadWriteTokenMember.resolves(
-            true
-          )
-          this.CollaboratorsGetter.promises.isUserInvitedReadWriteMemberOfProject.resolves(
-            true
-          )
-        })
+      it('should not redirect to the sharing-updates page, and should load the editor', function (done) {
+        this.res.render = (pageName, opts) => {
+          done()
+        }
+        this.ProjectController.loadEditor(this.req, this.res)
+      })
+    })
 
-        it('should not redirect to the sharing-updates page, and should load the editor', function (done) {
-          this.res.render = (pageName, opts) => {
-            done()
-          }
-          this.ProjectController.loadEditor(this.req, this.res)
-        })
+    it('should call the collaborator limit enforcement check', function (done) {
+      this.res.render = (pageName, opts) => {
+        this.Modules.promises.hooks.fire.should.have.been.calledWith(
+          'enforceCollaboratorLimit',
+          this.project_id
+        )
+        done()
+      }
+      this.ProjectController.loadEditor(this.req, this.res)
+    })
+
+    describe('capabilitySet', function () {
+      it('should be passed as an array when loading the editor', function (done) {
+        this.Features.hasFeature = sinon.stub().withArgs('chat').returns(false)
+
+        this.res.render = (pageName, opts) => {
+          expect(opts.capabilities).to.deep.equal(['chat'])
+          done()
+        }
+        this.ProjectController.loadEditor(this.req, this.res)
       })
     })
   })

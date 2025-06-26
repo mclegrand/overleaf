@@ -1,6 +1,12 @@
 import { expect } from 'chai'
 import sinon from 'sinon'
-import { screen, fireEvent, render, waitFor } from '@testing-library/react'
+import {
+  screen,
+  fireEvent,
+  render,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { FetchError } from '../../../../../../frontend/js/infrastructure/fetch-json'
 import { SSOLinkingWidget } from '../../../../../../frontend/js/features/settings/components/linking/sso-widget'
 
@@ -19,7 +25,7 @@ describe('<SSOLinkingWidget />', function () {
     screen.getByText('integration')
     screen.getByText('integration description')
     expect(
-      screen.getByRole('link', { name: 'Learn more' }).getAttribute('href')
+      screen.getByRole('link', { name: /learn more/i }).getAttribute('href')
     ).to.equal('/help/integration')
   })
 
@@ -27,7 +33,7 @@ describe('<SSOLinkingWidget />', function () {
     it('should render a link to `linkPath`', function () {
       render(<SSOLinkingWidget {...defaultProps} linked={false} />)
       expect(
-        screen.getByRole('link', { name: 'Link' }).getAttribute('href')
+        screen.getByRole('link', { name: /link/i }).getAttribute('href')
       ).to.equal('/integration/link?intent=link')
     })
   })
@@ -43,11 +49,11 @@ describe('<SSOLinkingWidget />', function () {
     })
 
     it('should display an `unlink` button', function () {
-      screen.getByRole('button', { name: 'Unlink' })
+      screen.getByRole('button', { name: /unlink/i })
     })
 
     it('should open a modal to confirm integration unlinking', function () {
-      fireEvent.click(screen.getByRole('button', { name: 'Unlink' }))
+      fireEvent.click(screen.getByRole('button', { name: /unlink/i }))
       screen.getByText('Unlink integration Account')
       screen.getByText(
         'Warning: When you unlink your account from integration you will not be able to sign in using integration anymore.'
@@ -55,15 +61,13 @@ describe('<SSOLinkingWidget />', function () {
     })
 
     it('should cancel unlinking when clicking cancel in the confirmation modal', async function () {
-      fireEvent.click(screen.getByRole('button', { name: 'Unlink' }))
+      fireEvent.click(screen.getByRole('button', { name: /unlink/i }))
       const cancelBtn = screen.getByRole('button', {
         name: 'Cancel',
         hidden: false,
       })
       fireEvent.click(cancelBtn)
-      await waitFor(() =>
-        screen.getByRole('button', { name: 'Cancel', hidden: true })
-      )
+      await screen.findByRole('button', { name: 'Cancel', hidden: true })
       expect(unlinkFunction).not.to.have.been.called
     })
   })
@@ -76,9 +80,9 @@ describe('<SSOLinkingWidget />', function () {
       render(
         <SSOLinkingWidget {...defaultProps} linked onUnlink={unlinkFunction} />
       )
-      fireEvent.click(screen.getByRole('button', { name: 'Unlink' }))
-      confirmBtn = screen.getByRole('button', {
-        name: 'Unlink',
+      fireEvent.click(screen.getByRole('button', { name: /unlink/i }))
+      confirmBtn = within(screen.getByRole('dialog')).getByRole('button', {
+        name: /unlink/i,
         hidden: false,
       })
     })
@@ -110,22 +114,23 @@ describe('<SSOLinkingWidget />', function () {
       render(
         <SSOLinkingWidget {...defaultProps} linked onUnlink={unlinkFunction} />
       )
-      fireEvent.click(screen.getByRole('button', { name: 'Unlink' }))
-      const confirmBtn = screen.getByRole('button', {
-        name: 'Unlink',
-        hidden: false,
-      })
+      fireEvent.click(screen.getByRole('button', { name: /unlink/i }))
+      const confirmBtn = within(screen.getByRole('dialog')).getByRole(
+        'button',
+        {
+          name: /unlink/i,
+          hidden: false,
+        }
+      )
       fireEvent.click(confirmBtn)
     })
 
     it('should display an error message ', async function () {
-      await waitFor(() =>
-        screen.getByText('Something went wrong. Please try again.')
-      )
+      await screen.findByText('Something went wrong. Please try again.')
     })
 
     it('should display the unlink button ', async function () {
-      await waitFor(() => screen.getByRole('button', { name: 'Unlink' }))
+      await screen.findByRole('button', { name: /unlink/i })
     })
   })
 })

@@ -1,6 +1,6 @@
 import { sortBy } from 'lodash'
 import { useTranslation } from 'react-i18next'
-import MaterialIcon from '../../../../shared/components/material-icon'
+import { DotsThreeVertical, Plus, TagSimple } from '@phosphor-icons/react'
 import {
   UNCATEGORIZED_KEY,
   useProjectListContext,
@@ -13,7 +13,6 @@ import {
   DropdownMenu,
   DropdownToggle,
 } from '@/features/ui/components/bootstrap-5/dropdown-menu'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
 
 export default function TagsList() {
   const { t } = useTranslation()
@@ -36,12 +35,16 @@ export default function TagsList() {
 
   return (
     <>
-      <li role="separator" className="separator">
-        <h2>{t('organize_projects')}</h2>
+      <li
+        className="dropdown-header"
+        aria-hidden="true"
+        data-testid="organize-projects"
+      >
+        {t('organize_tags')}
       </li>
       <li className="tag">
         <button type="button" className="tag-name" onClick={openCreateTagModal}>
-          <MaterialIcon type="add" className="tag-list-icon" />
+          <Plus weight="bold" />
           <span className="name">{t('new_tag')}</span>
         </button>
       </li>
@@ -54,6 +57,7 @@ export default function TagsList() {
             <button
               type="button"
               className="tag-name"
+              translate="no"
               onClick={e =>
                 handleSelectTag(e as unknown as React.MouseEvent, tag._id)
               }
@@ -63,7 +67,7 @@ export default function TagsList() {
                   color: getTagColor(tag),
                 }}
               >
-                <MaterialIcon type="label" className="tag-list-icon" />
+                <TagSimple weight="fill" className="tag-list-icon" />
               </span>
               <span className="name">
                 {tag.name}{' '}
@@ -72,65 +76,32 @@ export default function TagsList() {
                 </span>
               </span>
             </button>
-            <BootstrapVersionSwitcher
-              bs5={
-                <Dropdown align="end" className="tag-menu">
-                  <DropdownToggle id={`${tag._id}-dropdown-toggle`}>
-                    <span className="caret" />
-                  </DropdownToggle>
-                  <DropdownMenu className="sm">
-                    <DropdownItem
-                      as="li"
-                      className="tag-action"
-                      onClick={e => handleEditTag(e, tag._id)}
-                    >
-                      {t('edit')}
-                    </DropdownItem>
-                    <DropdownItem
-                      as="li"
-                      className="tag-action"
-                      onClick={e => handleDeleteTag(e, tag._id)}
-                    >
-                      {t('delete')}
-                    </DropdownItem>
-                  </DropdownMenu>
-                </Dropdown>
-              }
-              bs3={
-                <span className="dropdown tag-menu">
-                  <button
-                    type="button"
-                    className="dropdown-toggle"
-                    data-toggle="dropdown"
-                    dropdown-toggle=""
-                    aria-haspopup="true"
-                    aria-expanded="false"
-                  >
-                    <span className="caret" />
-                  </button>
-                  <ul className="dropdown-menu dropdown-menu-right" role="menu">
-                    <li>
-                      <button
-                        type="button"
-                        onClick={e => handleEditTag(e, tag._id)}
-                        className="tag-action"
-                      >
-                        {t('edit')}
-                      </button>
-                    </li>
-                    <li>
-                      <button
-                        type="button"
-                        onClick={e => handleDeleteTag(e, tag._id)}
-                        className="tag-action"
-                      >
-                        {t('delete')}
-                      </button>
-                    </li>
-                  </ul>
-                </span>
-              }
-            />
+
+            <Dropdown align="end" className="tag-menu">
+              <DropdownToggle
+                aria-label={t('open_action_menu', { name: tag.name })}
+                id={`${tag._id}-dropdown-toggle`}
+                data-testid="tag-dropdown-toggle"
+              >
+                <DotsThreeVertical weight="bold" />
+              </DropdownToggle>
+              <DropdownMenu className="dropdown-menu-sm-width">
+                <DropdownItem
+                  as="li"
+                  className="tag-action"
+                  onClick={e => handleEditTag(e, tag._id)}
+                >
+                  {t('edit')}
+                </DropdownItem>
+                <DropdownItem
+                  as="li"
+                  className="tag-action"
+                  onClick={e => handleDeleteTag(e, tag._id)}
+                >
+                  {t('delete')}
+                </DropdownItem>
+              </DropdownMenu>
+            </Dropdown>
           </li>
         )
       })}
@@ -145,7 +116,7 @@ export default function TagsList() {
             className="tag-name"
             onClick={() => selectTag(UNCATEGORIZED_KEY)}
           >
-            <span className="name">
+            <span className="name fst-italic">
               {t('uncategorized')}{' '}
               <span className="subdued">({untaggedProjectsCount})</span>
             </span>

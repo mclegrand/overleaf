@@ -80,7 +80,12 @@ async function unmarkAsDeletedByExternalSource(projectId) {
 
 async function deleteUsersProjects(userId) {
   const projects = await Project.find({ owner_ref: userId }).exec()
+  logger.info(
+    { userId, projectCount: projects.length },
+    'found user projects to delete'
+  )
   await promiseMapWithLimit(5, projects, project => deleteProject(project._id))
+  logger.info({ userId }, 'deleted all user projects')
   await CollaboratorsHandler.promises.removeUserFromAllProjects(userId)
 }
 
@@ -90,7 +95,7 @@ async function expireDeletedProjectsAfterDuration() {
       'deleterData.deletedAt': {
         $lt: new Date(moment().subtract(EXPIRE_PROJECTS_AFTER_DAYS, 'days')),
       },
-      project: { $ne: null },
+      project: { $type: 'object' },
     },
     { 'deleterData.deletedProjectId': 1 }
   )
@@ -101,8 +106,24 @@ async function expireDeletedProjectsAfterDuration() {
       deletedProject => deletedProject.deleterData.deletedProjectId
     )
   )
-  for (const projectId of projectIds) {
-    await expireDeletedProject(projectId)
+  logger.info(
+    { projectCount: projectIds.length },
+    'expiring batch of deleted projects'
+  )
+  try {
+    for (const projectId of projectIds) {
+      await expireDeletedProject(projectId)
+    }
+    logger.info(
+      { projectCount: projectIds.length },
+      'batch of deleted projects expired successfully'
+    )
+  } catch (error) {
+    logger.warn(
+      { error },
+      'something went wrong expiring batch of deleted projects'
+    )
+    throw error
   }
 }
 
@@ -244,6 +265,7 @@ async function deleteProject(projectId, options = {}) {
       deletedProjectOwnerId: project.owner_ref,
       deletedProjectCollaboratorIds: project.collaberator_refs,
       deletedProjectReadOnlyIds: project.readOnly_refs,
+      deletedProjectReviewerIds: project.reviewer_refs,
       deletedProjectReadWriteTokenAccessIds:
         project.tokenAccessReadAndWrite_refs,
       deletedProjectOverleafId: project.overleaf
@@ -270,12 +292,15 @@ async function deleteProject(projectId, options = {}) {
     )
 
     await Project.deleteOne({ _id: projectId }).exec()
+
+    logger.info(
+      { projectId, userId: project.owner_ref },
+      'successfully deleted project'
+    )
   } catch (err) {
     logger.warn({ err }, 'problem deleting project')
     throw err
   }
-
-  logger.debug({ projectId }, 'successfully deleted project')
 }
 
 async function undeleteProject(projectId, options = {}) {
@@ -318,19 +343,6 @@ async function undeleteProject(projectId, options = {}) {
     })
     restored.deletedDocs = []
   }
-  if (restored.deletedFiles && restored.deletedFiles.length > 0) {
-    filterDuplicateDeletedFilesInPlace(restored)
-    const deletedFiles = restored.deletedFiles.map(file => {
-      // break free from the model
-      file = file.toObject()
-
-      // add projectId
-      file.projectId = projectId
-      return file
-    })
-    await db.deletedFiles.insertMany(deletedFiles)
-    restored.deletedFiles = []
-  }
 
   // we can't use Mongoose to re-insert the project, as it won't
   // create a new document with an _id already specified. We need to
@@ -342,17 +354,22 @@ async function undeleteProject(projectId, options = {}) {
 
 async function expireDeletedProject(projectId) {
   try {
+    logger.info({ projectId }, 'expiring deleted project')
     const activeProject = await Project.findById(projectId).exec()
     if (activeProject) {
       // That project is active. The deleted project record might be there
       // because of an incomplete delete or undelete operation. Clean it up and
       // return.
+      logger.info(
+        { projectId },
+        'deleted project record found but project is active'
+      )
       await DeletedProject.deleteOne({
         'deleterData.deletedProjectId': projectId,
       })
-      await ProjectAuditLogEntry.deleteMany({ projectId })
       return
     }
+
     const deletedProject = await DeletedProject.findOne({
       'deleterData.deletedProjectId': projectId,
     }).exec()
@@ -368,11 +385,13 @@ async function expireDeletedProject(projectId) {
       )
       return
     }
-
+    const userId = deletedProject.deleterData?.deletedProjectOwnerId?.toString()
     const historyId =
       deletedProject.project.overleaf &&
       deletedProject.project.overleaf.history &&
       deletedProject.project.overleaf.history.id
+
+    logger.info({ projectId, userId }, 'destroying expired project data')
 
     await Promise.all([
       DocstoreManager.promises.destroyProject(deletedProject.project._id),
@@ -382,11 +401,14 @@ async function expireDeletedProject(projectId) {
       ),
       FilestoreHandler.promises.deleteProject(deletedProject.project._id),
       ChatApiHandler.promises.destroyProject(deletedProject.project._id),
-      hardDeleteDeletedFiles(deletedProject.project._id),
       ProjectAuditLogEntry.deleteMany({ projectId }),
       Modules.promises.hooks.fire('projectExpired', deletedProject.project._id),
     ])
 
+    logger.info(
+      { projectId, userId },
+      'redacting PII from the deleted project record'
+    )
     await DeletedProject.updateOne(
       {
         _id: deletedProject._id,
@@ -398,36 +420,9 @@ async function expireDeletedProject(projectId) {
         },
       }
     ).exec()
+    logger.info({ projectId, userId }, 'expired deleted project successfully')
   } catch (error) {
     logger.warn({ projectId, error }, 'error expiring deleted project')
     throw error
   }
-}
-
-function filterDuplicateDeletedFilesInPlace(project) {
-  const fileIds = new Set()
-  project.deletedFiles = project.deletedFiles.filter(file => {
-    const id = file._id.toString()
-    if (fileIds.has(id)) return false
-    fileIds.add(id)
-    return true
-  })
-}
-
-let deletedFilesProjectIdIndexExist
-async function doesDeletedFilesProjectIdIndexExist() {
-  if (typeof deletedFilesProjectIdIndexExist !== 'boolean') {
-    // Resolve this about once. No need for locking or retry handling.
-    deletedFilesProjectIdIndexExist =
-      await db.deletedFiles.indexExists('projectId_1')
-  }
-  return deletedFilesProjectIdIndexExist
-}
-
-async function hardDeleteDeletedFiles(projectId) {
-  if (!(await doesDeletedFilesProjectIdIndexExist())) {
-    // Running the deletion command w/o index would kill mongo performance
-    return
-  }
-  return db.deletedFiles.deleteMany({ projectId })
 }

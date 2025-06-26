@@ -1,4 +1,4 @@
-extends ../layout-marketing
+extends ../layout-react
 
 block vars
 	- var suppressNavbar = true
@@ -6,6 +6,7 @@ block vars
 	- var suppressSkipToContent = true
 	- var deferScripts = true
 	- metadata.robotsNoindexNofollow = true
+	- enableIeeeBranding = false
 
 block entrypointVar
 	- entrypoint = 'pages/ide'
@@ -14,16 +15,19 @@ block content
 	main#ide-root
 		.loading-screen
 			.loading-screen-brand-container
-				.loading-screen-brand(style="height: 20%;")
+				.loading-screen-brand(style='height: 20%')
 			h3.loading-screen-label #{translate("loading")}
 				span.loading-screen-ellip .
 				span.loading-screen-ellip .
 				span.loading-screen-ellip .
 
 block append meta
-	include ./editor/meta
+	include editor/_meta
 
 block prepend foot-scripts
-	each file in (useOpenTelemetry ? entrypointScripts("tracing") : [])
-		script(type="text/javascript", nonce=scriptNonce, src=file, defer=deferScripts)
-	script(type="text/javascript", nonce=scriptNonce, src=(wsUrl || '/socket.io') + '/socket.io.js', defer=deferScripts)
+	script(
+		type='text/javascript'
+		nonce=scriptNonce
+		src=(wsUrl || '/socket.io') + '/socket.io.js'
+		defer=deferScripts
+	)

@@ -1,36 +1,17 @@
-const { callbackify } = require('util')
-const MongoManager = require('./MongoManager').promises
+const MongoManager = require('./MongoManager')
 const Errors = require('./Errors')
 const logger = require('@overleaf/logger')
 const Settings = require('@overleaf/settings')
-const crypto = require('crypto')
+const crypto = require('node:crypto')
 const { ReadableString } = require('@overleaf/stream-utils')
 const RangeManager = require('./RangeManager')
 const PersistorManager = require('./PersistorManager')
 const pMap = require('p-map')
-
-const Bson = require('bson')
-const BSON = new Bson()
+const { streamToBuffer } = require('./StreamToBuffer')
+const { BSON } = require('mongodb-legacy')
 
 const PARALLEL_JOBS = Settings.parallelArchiveJobs
 const UN_ARCHIVE_BATCH_SIZE = Settings.unArchiveBatchSize
-
-module.exports = {
-  archiveAllDocs: callbackify(archiveAllDocs),
-  archiveDoc: callbackify(archiveDoc),
-  unArchiveAllDocs: callbackify(unArchiveAllDocs),
-  unarchiveDoc: callbackify(unarchiveDoc),
-  destroyProject: callbackify(destroyProject),
-  getDoc: callbackify(getDoc),
-  promises: {
-    archiveAllDocs,
-    archiveDoc,
-    unArchiveAllDocs,
-    unarchiveDoc,
-    destroyProject,
-    getDoc,
-  },
-}
 
 async function archiveAllDocs(projectId) {
   if (!_isArchivingEnabled()) {
@@ -62,6 +43,8 @@ async function archiveDoc(projectId, docId) {
   if (doc.lines == null) {
     throw new Error('doc has no lines')
   }
+
+  RangeManager.fixCommentIds(doc)
 
   // warn about any oversized docs already in mongo
   const linesSize = BSON.calculateObjectSize(doc.lines || {})
@@ -138,7 +121,7 @@ async function getDoc(projectId, docId) {
     key
   )
   stream.resume()
-  const buffer = await _streamToBuffer(projectId, docId, stream)
+  const buffer = await streamToBuffer(projectId, docId, stream)
   const md5 = crypto.createHash('md5').update(buffer).digest('hex')
   if (sourceMd5 !== md5) {
     throw new Errors.Md5MismatchError('md5 mismatch when downloading doc', {
@@ -189,34 +172,6 @@ async function destroyProject(projectId) {
   await Promise.all(tasks)
 }
 
-async function _streamToBuffer(projectId, docId, stream) {
-  const chunks = []
-  let size = 0
-  let logged = false
-  const logIfTooLarge = finishedReading => {
-    if (size <= Settings.max_doc_length) return
-    // Log progress once and then again at the end.
-    if (logged && !finishedReading) return
-    logger.warn(
-      { projectId, docId, size, finishedReading },
-      'potentially large doc pulled down from gcs'
-    )
-    logged = true
-  }
-  return await new Promise((resolve, reject) => {
-    stream.on('data', chunk => {
-      size += chunk.byteLength
-      logIfTooLarge(false)
-      chunks.push(chunk)
-    })
-    stream.on('error', reject)
-    stream.on('end', () => {
-      logIfTooLarge(true)
-      resolve(Buffer.concat(chunks))
-    })
-  })
-}
-
 function _deserializeArchivedDoc(buffer) {
   const doc = JSON.parse(buffer)
 
@@ -253,4 +208,13 @@ function _isArchivingEnabled() {
   }
 
   return true
+}
+
+module.exports = {
+  archiveAllDocs,
+  archiveDoc,
+  unArchiveAllDocs,
+  unarchiveDoc,
+  destroyProject,
+  getDoc,
 }

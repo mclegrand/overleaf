@@ -1,26 +1,11 @@
-export type CurrencyCode =
-  | 'AUD'
-  | 'BRL'
-  | 'CAD'
-  | 'CHF'
-  | 'CLP'
-  | 'COP'
-  | 'DKK'
-  | 'EUR'
-  | 'GBP'
-  | 'INR'
-  | 'MXN'
-  | 'NOK'
-  | 'NZD'
-  | 'PEN'
-  | 'SEK'
-  | 'SGD'
-  | 'USD'
+import getMeta from '@/utils/meta'
 
-export function formatCurrencyLocalized(
+const DEFAULT_LOCALE = getMeta('ol-i18n')?.currentLangCode ?? 'en'
+
+export function formatCurrency(
   amount: number,
-  currency: CurrencyCode,
-  locale: string,
+  currency: string,
+  locale: string = DEFAULT_LOCALE,
   stripIfInteger = false
 ): string {
   const options: Intl.NumberFormatOptions = { style: 'currency', currency }

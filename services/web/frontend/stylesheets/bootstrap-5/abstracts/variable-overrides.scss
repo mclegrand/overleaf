@@ -6,6 +6,7 @@ $prefix: bs-;
 // Quickly modify global styling by enabling or disabling optional features.
 
 $enable-validation-icons: false;
+$component-active-color: $white;
 
 // Fonts
 $font-family-sans-serif: 'Noto Sans', sans-serif;
@@ -115,11 +116,24 @@ $form-check-input-border-radius: $border-radius-base;
 $form-check-input-focus-border: var(--border-primary);
 $form-check-input-disabled-opacity: 1;
 
+// form-switch-variables
+$form-switch-width: 34px;
+$form-switch-padding-start: $spacing-03;
+$form-switch-color: $component-active-color;
+$form-switch-width: 34px;
+$form-switch-padding-start: $spacing-03;
+$form-switch-focus-color: $component-active-color;
+$form-switch-checked-color: $component-active-color;
+
+// form-group
+$form-group-margin-bottom: $spacing-06;
+
 // Form validation
 
 // form-feedback-variables
 $form-feedback-invalid-color: $bg-danger-01;
 $form-feedback-icon-invalid: null;
+$form-feedback-margin-top: 0; // Our feedback component wraps Form.Text, which takes care of top margin
 
 // form-validation-colors
 $form-invalid-color: $form-feedback-invalid-color;
@@ -148,10 +162,24 @@ $primary: $bg-accent-01;
 $secondary: $bg-light-primary;
 $success: $bg-accent-01;
 $info: $bg-info-01;
-$warning: $bg-warning-01;
+$warning: $content-warning;
 $danger: $bg-danger-01;
 $light: $bg-light-tertiary;
 $dark: $neutral-90;
+$warning-light-gb: $bg-warning-03;
+
+// Theme colors
+$theme-colors: (
+  'primary': $primary,
+  'secondary': $secondary,
+  'success': $success,
+  'info': $info,
+  'warning': $warning,
+  'warning-light-bg': $warning-light-gb,
+  'danger': $danger,
+  'light': $light,
+  'dark': $dark,
+);
 
 // Body colors
 $body-color: $content-primary;
@@ -173,6 +201,24 @@ $tooltip-max-width: 320px;
 $tooltip-border-radius: $border-radius-base;
 $tooltip-padding-y: $spacing-04;
 $tooltip-padding-x: $spacing-06;
+
+// Popovers
+$popover-font-size: var(--font-size-02);
+$popover-bg: var(--bg-dark-primary);
+$popover-max-width: 320px;
+$popover-border-width: 0px; /* stylelint-disable-line length-zero-no-unit */
+$popover-border-radius: var(--border-radius-base);
+$popover-header-font-size: var(--font-size-02);
+$popover-header-bg: var(--bg-dark-primary);
+$popover-header-color: var(--content-primary-dark);
+$popover-header-padding-y: var(--spacing-04);
+$popover-header-padding-x: var(--spacing-06);
+$popover-body-color: var(--content-primary-dark);
+$popover-body-padding-y: var(--spacing-04);
+$popover-body-padding-x: var(--spacing-06);
+$popover-arrow-width: var(--spacing-04);
+$popover-arrow-height: var(--spacing-02);
+$popover-arrow-color: var(--bg-dark-primary);
 
 // Links. Ideally we'd point these to CSS variables but Bootstrap performs
 // calculations on link color during compilation.
@@ -203,6 +249,9 @@ $navbar-toggler-padding-x: var(--spacing-05);
 $navbar-toggler-padding-y: var(--spacing-02);
 $navbar-toggler-border-radius: var(--border-radius-base);
 
+// Nav links
+$navbar-nav-link-padding-x: var(--navbar-btn-padding-h);
+
 // Spacing scale used by Bootstrap utilities
 $spacer: $spacing-06;
 $spacers: (
@@ -222,5 +271,14 @@ $dropdown-border-radius: var(--border-radius-base);
 $dropdown-padding-x: var(--spacing-02);
 $dropdown-padding-y: var(--spacing-02);
 $dropdown-item-padding-x: var(--spacing-04);
-$dropdown-item-padding-y: var(--spacing-05);
+$dropdown-item-padding-y: var(--spacing-04);
 $dropdown-header-color: var(--content-secondary);
+
+// Offcanvas
+$offcanvas-horizontal-width: 320px;
+$offcanvas-padding-x: 12.5px;
+$offcanvas-padding-y: 12.5px;
+$offcanvas-border-width: 0;
+
+// Code
+$code-color: $content-secondary;

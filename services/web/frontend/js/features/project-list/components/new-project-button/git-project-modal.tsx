@@ -18,5 +18,4 @@ function GitProjectModal({ onHide }: GitProjectModalProps) {
     </AccessibleModal>
   )
 }
-
 export default GitProjectModal

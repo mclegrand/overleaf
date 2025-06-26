@@ -9,14 +9,16 @@ import { Uppy, type UppyFile } from '@uppy/core'
 import XHRUpload from '@uppy/xhr-upload'
 import { refreshProjectMetadata } from '../../../../file-tree/util/api'
 import { useProjectContext } from '../../../../../shared/context/project-context'
-import Icon from '../../../../../shared/components/icon'
 import classNames from 'classnames'
-import { Button } from 'react-bootstrap'
 import { FileRelocator } from '../file-relocator'
 import { useTranslation } from 'react-i18next'
-import { useCodeMirrorViewContext } from '../../codemirror-editor'
+import { useCodeMirrorViewContext } from '../../codemirror-context'
 import { waitForFileTreeUpdate } from '../../../extensions/figure-modal'
 import getMeta from '@/utils/meta'
+import OLFormGroup from '@/features/ui/components/ol/ol-form-group'
+import OLButton from '@/features/ui/components/ol/ol-button'
+import MaterialIcon from '@/shared/components/material-icon'
+import OLSpinner from '@/features/ui/components/ol/ol-spinner'
 
 /* eslint-disable no-unused-vars */
 export enum FileUploadStatus {
@@ -25,6 +27,7 @@ export enum FileUploadStatus {
   NOT_ATTEMPTED,
   UPLOADING,
 }
+
 /* eslint-enable no-unused-vars */
 
 export const FigureModalUploadFileSource: FC = () => {
@@ -199,50 +202,52 @@ export const FigureModalUploadFileSource: FC = () => {
 
   return (
     <>
-      <div className="figure-modal-upload">
-        {file ? (
-          <FileContainer
-            name={file.name}
-            size={file.size}
-            status={
-              uploading
-                ? FileUploadStatus.UPLOADING
-                : uploadError
-                  ? FileUploadStatus.ERROR
-                  : FileUploadStatus.NOT_ATTEMPTED
-            }
-            onDelete={() => {
-              uppy.removeFile(file.id)
-              setFile(null)
-              const newName = nameDirty ? name : ''
-              setName(newName)
-              dispatchUploadAction(newName, null, folder)
-            }}
-          />
-        ) : (
-          <Dashboard
-            uppy={uppy}
-            showProgressDetails
-            height={120}
-            width="100%"
-            showLinkToFileUploadResult={false}
-            proudlyDisplayPoweredByUppy={false}
-            showSelectedFiles={false}
-            hideUploadButton
-            locale={{
-              strings: {
-                // Text to show on the droppable area.
-                // `%{browseFiles}` is replaced with a link that opens the system file selection dialog.
-                dropPasteFiles: `${t(
-                  'drag_here_paste_an_image_or'
-                )} %{browseFiles}`,
-                // Used as the label for the link that opens the system file selection dialog.
-                browseFiles: t('select_from_your_computer'),
-              },
-            }}
-          />
-        )}
-      </div>
+      <OLFormGroup>
+        <div className="figure-modal-upload">
+          {file ? (
+            <FileContainer
+              name={file.name}
+              size={file.size}
+              status={
+                uploading
+                  ? FileUploadStatus.UPLOADING
+                  : uploadError
+                    ? FileUploadStatus.ERROR
+                    : FileUploadStatus.NOT_ATTEMPTED
+              }
+              onDelete={() => {
+                uppy.removeFile(file.id)
+                setFile(null)
+                const newName = nameDirty ? name : ''
+                setName(newName)
+                dispatchUploadAction(newName, null, folder)
+              }}
+            />
+          ) : (
+            <Dashboard
+              uppy={uppy}
+              showProgressDetails
+              height={120}
+              width="100%"
+              showLinkToFileUploadResult={false}
+              proudlyDisplayPoweredByUppy={false}
+              showSelectedFiles={false}
+              hideUploadButton
+              locale={{
+                strings: {
+                  // Text to show on the droppable area.
+                  // `%{browseFiles}` is replaced with a link that opens the system file selection dialog.
+                  dropPasteFiles: `${t(
+                    'drag_here_paste_an_image_or'
+                  )} %{browseFiles}`,
+                  // Used as the label for the link that opens the system file selection dialog.
+                  browseFiles: t('select_from_your_computer'),
+                },
+              }}
+            />
+          )}
+        </div>
+      </OLFormGroup>
       <FileRelocator
         folder={folder}
         name={name}
@@ -266,50 +271,48 @@ export const FileContainer: FC<{
   onDelete?: () => any
 }> = ({ name, size, status, onDelete }) => {
   const { t } = useTranslation()
-  let icon
+  let icon = ''
   switch (status) {
     case FileUploadStatus.ERROR:
-      icon = 'times-circle'
+      icon = 'cancel'
       break
     case FileUploadStatus.SUCCESS:
-      icon = 'check-circle'
+      icon = 'check_circle'
       break
     case FileUploadStatus.NOT_ATTEMPTED:
-      icon = 'picture-o'
+      icon = 'imagesmode'
       break
-    case FileUploadStatus.UPLOADING:
-      icon = 'spinner'
   }
+
   return (
     <div className="file-container">
       <div className="file-container-file">
-        <Icon
-          spin={status === FileUploadStatus.UPLOADING}
-          type={icon}
-          className={classNames(
-            {
-              'text-success': status === FileUploadStatus.SUCCESS,
-              'text-danger': status === FileUploadStatus.ERROR,
-            },
-            'file-icon'
+        <span
+          className={classNames({
+            'text-success': status === FileUploadStatus.SUCCESS,
+            'text-danger': status === FileUploadStatus.ERROR,
+          })}
+        >
+          {status === FileUploadStatus.UPLOADING ? (
+            <OLSpinner size="sm" />
+          ) : (
+            <MaterialIcon type={icon} className="align-text-bottom" />
           )}
-        />
+        </span>
         <div className="file-info">
           <span className="file-name" aria-label={t('file_name_figure_modal')}>
             {name}
           </span>
-          {size !== undefined && (
-            <FileSize size={size} className="text-small" />
-          )}
+          {size !== undefined && <FileSize size={size} />}
         </div>
-        <Button
-          bsStyle={null}
-          className="btn btn-link p-0"
+        <OLButton
+          variant="link"
+          className="p-0 text-decoration-none"
           aria-label={t('remove_or_replace_figure')}
           onClick={() => onDelete && onDelete()}
         >
-          <Icon fw type="times-circle" className="file-action file-icon" />
-        </Button>
+          <MaterialIcon type="cancel" />
+        </OLButton>
       </div>
     </div>
   )
@@ -336,8 +339,8 @@ const FileSize: FC<{ size: number; className?: string }> = ({
   const [label, bytesPerUnit] = BYTE_UNITS[labelIndex]
   const sizeInUnits = Math.round(size / bytesPerUnit)
   return (
-    <span aria-label={t('file_size')} className={className}>
+    <small aria-label={t('file_size')} className={className}>
       {sizeInUnits} {label}
-    </span>
+    </small>
   )
 }

@@ -13,9 +13,6 @@ services:
                 condition: service_started
         ports:
             - 80:80
-        links:
-            - mongo
-            - redis
         stop_grace_period: 60s
         volumes:
             - ~/sharelatex_data:/var/lib/overleaf
@@ -42,10 +39,6 @@ services:
 
             # Disables email confirmation requirement
             EMAIL_CONFIRMATION_DISABLED: 'true'
-
-            # temporary fix for LuaLaTex compiles
-            # see https://github.com/overleaf/overleaf/issues/695
-            TEXMFVAR: /var/lib/overleaf/tmp/texmf-var
 
             ## Set for SSL via nginx-proxy
             #VIRTUAL_HOST: 103.112.212.22
@@ -80,12 +73,19 @@ services:
             ## Server Pro ##
             ################
 
-            # SANDBOXED_COMPILES: 'true'
-
-            # SANDBOXED_COMPILES_SIBLING_CONTAINERS: 'true'
-            # SANDBOXED_COMPILES_HOST_DIR: '/var/sharelatex_data/data/compiles'
-
-            # DOCKER_RUNNER: 'false'
+            ## The Community Edition is intended for use in environments where all users are trusted and is not appropriate for
+            ## scenarios where isolation of users is required. Sandboxed Compiles are not available in the Community Edition,
+            ## so the following environment variables must be commented out to avoid compile issues.
+            ##
+            ## Sandboxed Compiles: https://docs.overleaf.com/on-premises/configuration/overleaf-toolkit/server-pro-only-configuration/sandboxed-compiles
+            SANDBOXED_COMPILES: 'true'
+            ### Bind-mount source for /var/lib/overleaf/data/compiles inside the container.
+            SANDBOXED_COMPILES_HOST_DIR_COMPILES: '/home/user/sharelatex_data/data/compiles'
+            ### Bind-mount source for /var/lib/overleaf/data/output inside the container.
+            SANDBOXED_COMPILES_HOST_DIR_OUTPUT: '/home/user/sharelatex_data/data/output'
+            ### Backwards compatibility (before Server Pro 5.5)
+            DOCKER_RUNNER: 'true'
+            SANDBOXED_COMPILES_SIBLING_CONTAINERS: 'true'
 
             ## Works with test LDAP server shown at bottom of docker compose
             # OVERLEAF_LDAP_URL: 'ldap://ldap:389'
@@ -106,14 +106,20 @@ services:
 
     mongo:
         restart: always
-        image: mongo:5.0
+        image: mongo:6.0
         container_name: mongo
-        expose:
-            - 27017
+        command: '--replSet overleaf'
         volumes:
             - ~/mongo_data:/data/db
+            - ./bin/shared/mongodb-init-replica-set.js:/docker-entrypoint-initdb.d/mongodb-init-replica-set.js
+        environment:
+          MONGO_INITDB_DATABASE: sharelatex
+        extra_hosts:
+          # Required when using the automatic database setup for initializing the replica set.
+          # This override is not needed when running the setup after starting up mongo.
+          - mongo:127.0.0.1
         healthcheck:
-            test: echo 'db.stats().ok' | mongo localhost:27017/test --quiet
+            test: echo 'db.stats().ok' | mongosh localhost:27017/test --quiet
             interval: 10s
             timeout: 10s
             retries: 5
@@ -122,8 +128,6 @@ services:
         restart: always
         image: redis:6.2
         container_name: redis
-        expose:
-            - 6379
         volumes:
             - ~/redis_data:/data
 
@@ -131,8 +135,6 @@ services:
     #    restart: always
     #    image: rroemhild/test-openldap
     #    container_name: ldap
-    #    expose:
-    #        - 389
 
     # See https://github.com/jwilder/nginx-proxy for documentation on how to configure the nginx-proxy container,
     # and https://github.com/overleaf/overleaf/wiki/HTTPS-reverse-proxy-using-Nginx for an example of some recommended
@@ -143,7 +145,7 @@ services:
     #     image: jwilder/nginx-proxy
     #     container_name: nginx-proxy
     #     ports:
-    #       #- "80:80"
+    #       - "80:80"
     #       - "443:443"
     #     volumes:
     #       - /var/run/docker.sock:/tmp/docker.sock:ro

@@ -6,9 +6,6 @@ const ContentController = require('./app/js/ContentController')
 const Settings = require('@overleaf/settings')
 const logger = require('@overleaf/logger')
 logger.initialize('clsi')
-if (Settings.sentry.dsn != null) {
-  logger.initializeErrorReporting(Settings.sentry.dsn)
-}
 const Metrics = require('@overleaf/metrics')
 
 const smokeTest = require('./test/smoke/js/SmokeTests')
@@ -16,7 +13,7 @@ const ContentTypeMapper = require('./app/js/ContentTypeMapper')
 const Errors = require('./app/js/Errors')
 const { createOutputZip } = require('./app/js/OutputController')
 
-const Path = require('path')
+const Path = require('node:path')
 
 Metrics.open_sockets.monitor(true)
 Metrics.memory.monitor(logger)
@@ -131,26 +128,6 @@ const ForbidSymlinks = require('./app/js/StaticServerForbidSymlinks')
 // create a static server which does not allow access to any symlinks
 // avoids possible mismatch of root directory between middleware check
 // and serving the files
-const staticCompileServer = ForbidSymlinks(
-  express.static,
-  Settings.path.compilesDir,
-  {
-    setHeaders(res, path, stat) {
-      if (Path.basename(path) === 'output.pdf') {
-        // Calculate an etag in the same way as nginx
-        // https://github.com/tj/send/issues/65
-        const etag = (path, stat) =>
-          `"${Math.ceil(+stat.mtime / 1000).toString(16)}` +
-          '-' +
-          Number(stat.size).toString(16) +
-          '"'
-        res.set('Etag', etag(path, stat))
-      }
-      res.set('Content-Type', ContentTypeMapper.map(path))
-    },
-  }
-)
-
 const staticOutputServer = ForbidSymlinks(
   express.static,
   Settings.path.outputDir,
@@ -216,32 +193,6 @@ app.get(
   }
 )
 
-app.get(
-  '/project/:project_id/user/:user_id/output/*',
-  function (req, res, next) {
-    // for specific user get the path to the top level file
-    logger.warn(
-      { url: req.url },
-      'direct request for file in compile directory'
-    )
-    req.url = `/${req.params.project_id}-${req.params.user_id}/${req.params[0]}`
-    staticCompileServer(req, res, next)
-  }
-)
-
-app.get('/project/:project_id/output/*', function (req, res, next) {
-  logger.warn({ url: req.url }, 'direct request for file in compile directory')
-  if (req.query?.build?.match(OutputCacheManager.BUILD_REGEX)) {
-    // for specific build get the path from the OutputCacheManager (e.g. .clsi/buildId)
-    req.url =
-      `/${req.params.project_id}/` +
-      OutputCacheManager.path(req.query.build, `/${req.params[0]}`)
-  } else {
-    req.url = `/${req.params.project_id}/${req.params[0]}`
-  }
-  staticCompileServer(req, res, next)
-})
-
 app.get('/oops', function (req, res, next) {
   logger.error({ err: 'hello' }, 'test error')
   res.send('error\n')
@@ -298,6 +249,9 @@ app.get('/health_check', function (req, res) {
   if (Settings.processTooOld) {
     return res.status(500).json({ processTooOld: true })
   }
+  if (ProjectPersistenceManager.isAnyDiskCriticalLow()) {
+    return res.status(500).json({ diskCritical: true })
+  }
   smokeTest.sendLastResult(res)
 })
 
@@ -307,6 +261,8 @@ app.use(function (error, req, res, next) {
   if (error instanceof Errors.NotFoundError) {
     logger.debug({ err: error, url: req.url }, 'not found error')
     res.sendStatus(404)
+  } else if (error instanceof Errors.InvalidParameter) {
+    res.status(400).send(error.message)
   } else if (error.code === 'EPIPE') {
     // inspect container returns EPIPE when shutting down
     res.sendStatus(503) // send 503 Unavailable response
@@ -316,8 +272,8 @@ app.use(function (error, req, res, next) {
   }
 })
 
-const net = require('net')
-const os = require('os')
+const net = require('node:net')
+const os = require('node:os')
 
 let STATE = 'up'
 
@@ -343,10 +299,18 @@ const loadTcpServer = net.createServer(function (socket) {
     }
 
     const freeLoad = availableWorkingCpus - currentLoad
-    const freeLoadPercentage = Math.round(
-      (freeLoad / availableWorkingCpus) * 100
-    )
-    if (freeLoadPercentage <= 0) {
+    let freeLoadPercentage = Math.round((freeLoad / availableWorkingCpus) * 100)
+    if (ProjectPersistenceManager.isAnyDiskCriticalLow()) {
+      freeLoadPercentage = 0
+    }
+    if (ProjectPersistenceManager.isAnyDiskLow()) {
+      freeLoadPercentage = freeLoadPercentage / 2
+    }
+
+    if (
+      Settings.internal.load_balancer_agent.allow_maintenance &&
+      freeLoadPercentage <= 0
+    ) {
       // When its 0 the server is set to drain implicitly.
       // Drain will move new projects to different servers.
       // Drain will keep existing projects assigned to the same server.
@@ -354,7 +318,11 @@ const loadTcpServer = net.createServer(function (socket) {
       socket.write(`maint, 0%\n`, 'ASCII')
     } else {
       // Ready will cancel the maint state.
-      socket.write(`up, ready, ${freeLoadPercentage}%\n`, 'ASCII')
+      socket.write(`up, ready, ${Math.max(freeLoadPercentage, 1)}%\n`, 'ASCII')
+      if (freeLoadPercentage <= 0) {
+        // This metric records how often we would have gone into maintenance mode.
+        Metrics.inc('clsi-prevented-maint')
+      }
     }
     socket.end()
   } else {

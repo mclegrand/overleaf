@@ -1,35 +1,29 @@
-import { fireEvent, screen } from '@testing-library/dom'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import fetchMock from 'fetch-mock'
 import sinon from 'sinon'
 import { expect } from 'chai'
 import ActionsCopyProject from '../../../../../frontend/js/features/editor-left-menu/components/actions-copy-project'
 import { renderWithEditorContext } from '../../../helpers/render-with-context'
-import { waitFor } from '@testing-library/react'
-import * as useLocationModule from '../../../../../frontend/js/shared/hooks/use-location'
+import { location } from '@/shared/components/location'
 
 describe('<ActionsCopyProject />', function () {
-  let assignStub
-
   beforeEach(function () {
-    assignStub = sinon.stub()
-    this.locationStub = sinon.stub(useLocationModule, 'useLocation').returns({
-      assign: assignStub,
-      replace: sinon.stub(),
-      reload: sinon.stub(),
-    })
+    this.locationWrapperSandbox = sinon.createSandbox()
+    this.locationWrapperStub = this.locationWrapperSandbox.stub(location)
+    window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
   })
 
   afterEach(function () {
-    this.locationStub.restore()
-    fetchMock.reset()
+    this.locationWrapperSandbox.restore()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   it('shows correct modal when clicked', async function () {
     renderWithEditorContext(<ActionsCopyProject />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Project' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy project' }))
 
-    screen.getByPlaceholderText('New Project Name')
+    screen.getByPlaceholderText('New project name')
   })
 
   it('loads the project page when submitted', async function () {
@@ -42,10 +36,10 @@ describe('<ActionsCopyProject />', function () {
 
     renderWithEditorContext(<ActionsCopyProject />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Project' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy project' }))
 
-    const input = screen.getByPlaceholderText('New Project Name')
-    fireEvent.change(input, { target: { value: 'New Project' } })
+    const input = screen.getByPlaceholderText('New project name')
+    fireEvent.change(input, { target: { value: 'New project' } })
 
     const button = screen.getByRole('button', { name: 'Copy' })
     button.click()
@@ -54,6 +48,7 @@ describe('<ActionsCopyProject />', function () {
       expect(button.textContent).to.equal('Copying…')
     })
 
+    const assignStub = this.locationWrapperStub.assign
     await waitFor(() => {
       expect(assignStub).to.have.been.calledOnceWith('/project/new-project')
     })

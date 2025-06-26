@@ -13,9 +13,6 @@ Metrics.open_sockets.monitor()
 const express = require('express')
 const session = require('express-session')
 const redis = require('@overleaf/redis-wrapper')
-if (Settings.sentry && Settings.sentry.dsn) {
-  logger.initializeErrorReporting(Settings.sentry.dsn)
-}
 
 const sessionRedisClient = redis.createClient(Settings.redis.websessions)
 
@@ -27,7 +24,7 @@ const DrainManager = require('./app/js/DrainManager')
 const HealthCheckManager = require('./app/js/HealthCheckManager')
 const DeploymentManager = require('./app/js/DeploymentManager')
 
-const Path = require('path')
+const Path = require('node:path')
 
 // NOTE: debug is invoked for every blob that is put on the wire
 const socketIoLogger = {
@@ -48,7 +45,7 @@ DeploymentManager.initialise()
 // Set up socket.io server
 const app = express()
 
-const server = require('http').createServer(app)
+const server = require('node:http').createServer(app)
 server.keepAliveTimeout = Settings.keepAliveTimeoutMs
 const io = require('socket.io').listen(server, {
   logger: socketIoLogger,
@@ -85,16 +82,45 @@ io.configure(function () {
   // See http://answers.dotcloud.com/question/578/problem-with-websocket-over-ssl-in-safari-with
   io.set('match origin protocol', true)
 
-  // gzip uses a Node 0.8.x method of calling the gzip program which
-  // doesn't work with 0.6.x
-  // io.enable('browser client gzip')
-  io.set('transports', [
-    'websocket',
-    'flashsocket',
-    'htmlfile',
-    'xhr-polling',
-    'jsonp-polling',
-  ])
+  io.set('transports', ['websocket', 'xhr-polling'])
+
+  if (Settings.allowedCorsOrigins) {
+    // Create a regex for matching origins, allowing wildcard subdomains
+    const allowedCorsOriginsRegex = new RegExp(
+      `^${Settings.allowedCorsOrigins.replaceAll('.', '\\.').replace('://*', '://[^.]+')}(?::443)?$`
+    )
+
+    io.set('origins', function (origin, req) {
+      if (!origin) {
+        // There is no origin or referer header - this is likely a same-site request.
+        logger.warn({ req }, 'No origin or referer header')
+        return true
+      }
+      const normalizedOrigin = URL.parse(origin).origin
+      const originIsValid = allowedCorsOriginsRegex.test(normalizedOrigin)
+
+      if (req.headers.origin) {
+        if (!originIsValid) {
+          logger.warn(
+            { normalizedOrigin, origin, req },
+            'Origin header does not match allowed origins'
+          )
+        }
+        return originIsValid
+      }
+
+      if (!originIsValid) {
+        // There is no Origin header and the Referrer does not satisfy the
+        // constraints. We're going to pass this anyway for now but log it
+        logger.warn(
+          { req, referer: req.headers.referer },
+          'Referrer header does not match allowed origins'
+        )
+      }
+
+      return true
+    })
+  }
 })
 
 // Serve socket.io.js client file from imported dist folder
@@ -239,6 +265,7 @@ function drainAndShutdown(signal) {
 }
 
 Settings.shutDownInProgress = false
+Settings.shutDownScheduled = false
 const shutdownDrainTimeWindow = parseInt(Settings.shutdownDrainTimeWindow, 10)
 if (Settings.shutdownDrainTimeWindow) {
   logger.info({ shutdownDrainTimeWindow }, 'shutdownDrainTimeWindow enabled')
@@ -265,7 +292,11 @@ if (Settings.shutdownDrainTimeWindow) {
           'EPIPE',
           'ECONNRESET',
           'ERR_STREAM_WRITE_AFTER_END',
-        ].includes(error.code)
+        ].includes(error.code) ||
+        // socket.io error handler sending on polling connection again.
+        (error.code === 'ERR_HTTP_HEADERS_SENT' &&
+          error.stack &&
+          error.stack.includes('Transport.error'))
       ) {
         Metrics.inc('disconnected_write', 1, { status: error.code })
         return logger.warn(
@@ -274,8 +305,16 @@ if (Settings.shutdownDrainTimeWindow) {
         )
       }
       logger.error({ err: error }, 'uncaught exception')
-      if (Settings.errors && Settings.errors.shutdownOnUncaughtError) {
-        drainAndShutdown('SIGABRT')
+      if (
+        Settings.errors?.shutdownOnUncaughtError &&
+        !Settings.shutDownScheduled
+      ) {
+        Settings.shutDownScheduled = true
+        const delay = Math.ceil(
+          Math.random() * 60 * Math.max(io.sockets.clients().length, 1_000)
+        )
+        logger.info({ delay }, 'delaying shutdown on uncaught error')
+        setTimeout(() => drainAndShutdown('SIGABRT'), delay)
       }
     })
   }

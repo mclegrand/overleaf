@@ -9,10 +9,18 @@ const HistoryManager = require('./HistoryManager')
 const Errors = require('./Errors')
 const RangesManager = require('./RangesManager')
 const { extractOriginOrSource } = require('./Utils')
+const { getTotalSizeOfLines } = require('./Limits')
+const Settings = require('@overleaf/settings')
+const { StringFileData } = require('overleaf-editor-core')
 
 const MAX_UNFLUSHED_AGE = 300 * 1000 // 5 mins, document should be flushed to mongo this time after a change
 
 const DocumentManager = {
+  /**
+   * @param {string} projectId
+   * @param {string} docId
+   * @return {Promise<{lines: (string[] | StringFileRawData), version: number, ranges: Ranges, resolvedCommentIds: any[], pathname: string, projectHistoryId: string, unflushedTime: any, alreadyLoaded: boolean, historyRangesSupport: boolean, type: OTType}>}
+   */
   async getDoc(projectId, docId) {
     const {
       lines,
@@ -73,6 +81,7 @@ const DocumentManager = {
         unflushedTime: null,
         alreadyLoaded: false,
         historyRangesSupport,
+        type: Array.isArray(lines) ? 'sharejs-text-ot' : 'history-ot',
       }
     } else {
       return {
@@ -85,16 +94,25 @@ const DocumentManager = {
         unflushedTime,
         alreadyLoaded: true,
         historyRangesSupport,
+        type: Array.isArray(lines) ? 'sharejs-text-ot' : 'history-ot',
       }
     }
   },
 
   async getDocAndRecentOps(projectId, docId, fromVersion) {
-    const { lines, version, ranges, pathname, projectHistoryId } =
+    const { lines, version, ranges, pathname, projectHistoryId, type } =
       await DocumentManager.getDoc(projectId, docId)
 
     if (fromVersion === -1) {
-      return { lines, version, ops: [], ranges, pathname, projectHistoryId }
+      return {
+        lines,
+        version,
+        ops: [],
+        ranges,
+        pathname,
+        projectHistoryId,
+        type,
+      }
     } else {
       const ops = await RedisManager.promises.getPreviousDocOps(
         docId,
@@ -108,39 +126,90 @@ const DocumentManager = {
         ranges,
         pathname,
         projectHistoryId,
+        type,
       }
     }
   },
 
-  async setDoc(projectId, docId, newLines, originOrSource, userId, undoing) {
+  async appendToDoc(projectId, docId, linesToAppend, originOrSource, userId) {
+    let { lines: currentLines, type } = await DocumentManager.getDoc(
+      projectId,
+      docId
+    )
+    if (type === 'history-ot') {
+      const file = StringFileData.fromRaw(currentLines)
+      // TODO(24596): tc support for history-ot
+      currentLines = file.getLines()
+    }
+    const currentLineSize = getTotalSizeOfLines(currentLines)
+    const addedSize = getTotalSizeOfLines(linesToAppend)
+    const newlineSize = '\n'.length
+
+    if (currentLineSize + newlineSize + addedSize > Settings.max_doc_length) {
+      throw new Errors.FileTooLargeError(
+        'doc would become too large if appending this text'
+      )
+    }
+
+    return await DocumentManager.setDoc(
+      projectId,
+      docId,
+      currentLines.concat(linesToAppend),
+      originOrSource,
+      userId,
+      false,
+      false
+    )
+  },
+
+  async setDoc(
+    projectId,
+    docId,
+    newLines,
+    originOrSource,
+    userId,
+    undoing,
+    external
+  ) {
     if (newLines == null) {
       throw new Error('No lines were provided to setDoc')
     }
 
+    // Circular dependencies. Import at runtime.
+    const HistoryOTUpdateManager = require('./HistoryOTUpdateManager')
     const UpdateManager = require('./UpdateManager')
+
     const {
       lines: oldLines,
       version,
       alreadyLoaded,
+      type,
     } = await DocumentManager.getDoc(projectId, docId)
-
-    if (oldLines != null && oldLines.length > 0 && oldLines[0].text != null) {
-      logger.debug(
-        { docId, projectId, oldLines, newLines },
-        'document is JSON so not updating'
-      )
-      return
-    }
 
     logger.debug(
       { docId, projectId, oldLines, newLines },
       'setting a document via http'
     )
-    const op = DiffCodec.diffAsShareJsOp(oldLines, newLines)
-    if (undoing) {
-      for (const o of op || []) {
-        o.u = true
-      } // Turn on undo flag for each op for track changes
+
+    let op
+    if (type === 'history-ot') {
+      const file = StringFileData.fromRaw(oldLines)
+      const operation = DiffCodec.diffAsHistoryOTEditOperation(
+        file,
+        newLines.join('\n')
+      )
+      if (operation.isNoop()) {
+        op = []
+      } else {
+        op = [operation.toJSON()]
+      }
+    } else {
+      op = DiffCodec.diffAsShareJsOp(oldLines, newLines)
+      if (undoing) {
+        for (const o of op || []) {
+          o.u = true
+        } // Turn on undo flag for each op for track changes
+      }
     }
 
     const { origin, source } = extractOriginOrSource(originOrSource)
@@ -150,9 +219,11 @@ const DocumentManager = {
       op,
       v: version,
       meta: {
-        type: 'external',
         user_id: userId,
       },
+    }
+    if (external) {
+      update.meta.type = 'external'
     }
     if (origin) {
       update.meta.origin = origin
@@ -173,7 +244,11 @@ const DocumentManager = {
     // this update, otherwise the doc would never be
     // removed from redis.
     if (op.length > 0) {
-      await UpdateManager.promises.applyUpdate(projectId, docId, update)
+      if (type === 'history-ot') {
+        await HistoryOTUpdateManager.applyUpdate(projectId, docId, update)
+      } else {
+        await UpdateManager.promises.applyUpdate(projectId, docId, update)
+      }
     }
 
     // If the document was loaded already, then someone has it open
@@ -194,7 +269,7 @@ const DocumentManager = {
   },
 
   async flushDocIfLoaded(projectId, docId) {
-    const {
+    let {
       lines,
       version,
       ranges,
@@ -215,6 +290,11 @@ const DocumentManager = {
 
     logger.debug({ projectId, docId, version }, 'flushing doc')
     Metrics.inc('flush-doc-if-loaded', 1, { status: 'modified' })
+    if (!Array.isArray(lines)) {
+      const file = StringFileData.fromRaw(lines)
+      // TODO(24596): tc support for history-ot
+      lines = file.getLines()
+    }
     const result = await PersistenceManager.promises.setDoc(
       projectId,
       docId,
@@ -264,7 +344,14 @@ const DocumentManager = {
       throw new Errors.NotFoundError(`document not found: ${docId}`)
     }
 
-    const newRanges = RangesManager.acceptChanges(changeIds, ranges)
+    // TODO(24596): tc support for history-ot
+    const newRanges = RangesManager.acceptChanges(
+      projectId,
+      docId,
+      changeIds,
+      ranges,
+      lines
+    )
 
     await RedisManager.promises.updateDocument(
       projectId,
@@ -323,6 +410,22 @@ const DocumentManager = {
     }
   },
 
+  async getComment(projectId, docId, commentId) {
+    // TODO(24596): tc support for history-ot
+    const { ranges } = await DocumentManager.getDoc(projectId, docId)
+
+    const comment = ranges?.comments?.find(comment => comment.id === commentId)
+
+    if (!comment) {
+      throw new Errors.NotFoundError({
+        message: 'comment not found',
+        info: { commentId },
+      })
+    }
+
+    return { comment }
+  },
+
   async deleteComment(projectId, docId, commentId, userId) {
     const { lines, version, ranges, pathname, historyRangesSupport } =
       await DocumentManager.getDoc(projectId, docId)
@@ -330,6 +433,7 @@ const DocumentManager = {
       throw new Errors.NotFoundError(`document not found: ${docId}`)
     }
 
+    // TODO(24596): tc support for history-ot
     const newRanges = RangesManager.deleteComment(commentId, ranges)
 
     await RedisManager.promises.updateDocument(
@@ -369,7 +473,7 @@ const DocumentManager = {
   },
 
   async getDocAndFlushIfOld(projectId, docId) {
-    const { lines, version, unflushedTime, alreadyLoaded } =
+    let { lines, version, unflushedTime, alreadyLoaded } =
       await DocumentManager.getDoc(projectId, docId)
 
     // if doc was already loaded see if it needs to be flushed
@@ -379,6 +483,12 @@ const DocumentManager = {
       Date.now() - unflushedTime > MAX_UNFLUSHED_AGE
     ) {
       await DocumentManager.flushDocIfLoaded(projectId, docId)
+    }
+
+    if (!Array.isArray(lines)) {
+      const file = StringFileData.fromRaw(lines)
+      // TODO(24596): tc support for history-ot
+      lines = file.getLines()
     }
 
     return { lines, version }
@@ -456,6 +566,16 @@ const DocumentManager = {
     )
   },
 
+  async getCommentWithLock(projectId, docId, commentId) {
+    const UpdateManager = require('./UpdateManager')
+    return await UpdateManager.promises.lockUpdatesAndDo(
+      DocumentManager.getComment,
+      projectId,
+      docId,
+      commentId
+    )
+  },
+
   async getDocAndRecentOpsWithLock(projectId, docId, fromVersion) {
     const UpdateManager = require('./UpdateManager')
     return await UpdateManager.promises.lockUpdatesAndDo(
@@ -475,7 +595,15 @@ const DocumentManager = {
     )
   },
 
-  async setDocWithLock(projectId, docId, lines, source, userId, undoing) {
+  async setDocWithLock(
+    projectId,
+    docId,
+    lines,
+    source,
+    userId,
+    undoing,
+    external
+  ) {
     const UpdateManager = require('./UpdateManager')
     return await UpdateManager.promises.lockUpdatesAndDo(
       DocumentManager.setDoc,
@@ -484,7 +612,20 @@ const DocumentManager = {
       lines,
       source,
       userId,
-      undoing
+      undoing,
+      external
+    )
+  },
+
+  async appendToDocWithLock(projectId, docId, lines, source, userId) {
+    const UpdateManager = require('./UpdateManager')
+    return await UpdateManager.promises.lockUpdatesAndDo(
+      DocumentManager.appendToDoc,
+      projectId,
+      docId,
+      lines,
+      source,
+      userId
     )
   },
 
@@ -602,6 +743,7 @@ module.exports = {
         'ranges',
         'pathname',
         'projectHistoryId',
+        'type',
       ],
       getDocAndRecentOpsWithLock: [
         'lines',
@@ -610,7 +752,9 @@ module.exports = {
         'ranges',
         'pathname',
         'projectHistoryId',
+        'type',
       ],
+      getCommentWithLock: ['comment'],
     },
   }),
   promises: DocumentManager,

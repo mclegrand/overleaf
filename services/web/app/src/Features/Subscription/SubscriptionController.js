@@ -1,5 +1,8 @@
+// @ts-check
+
 const SessionManager = require('../Authentication/SessionManager')
 const SubscriptionHandler = require('./SubscriptionHandler')
+const SubscriptionHelper = require('./SubscriptionHelper')
 const SubscriptionViewModelBuilder = require('./SubscriptionViewModelBuilder')
 const LimitationsManager = require('./LimitationsManager')
 const RecurlyWrapper = require('./RecurlyWrapper')
@@ -7,175 +10,42 @@ const Settings = require('@overleaf/settings')
 const logger = require('@overleaf/logger')
 const GeoIpLookup = require('../../infrastructure/GeoIpLookup')
 const FeaturesUpdater = require('./FeaturesUpdater')
-const plansConfig = require('./plansConfig')
-const interstitialPaymentConfig = require('./interstitialPaymentConfig')
 const GroupPlansData = require('./GroupPlansData')
 const V1SubscriptionManager = require('./V1SubscriptionManager')
 const AnalyticsManager = require('../Analytics/AnalyticsManager')
 const RecurlyEventHandler = require('./RecurlyEventHandler')
 const { expressify } = require('@overleaf/promise-utils')
 const OError = require('@overleaf/o-error')
+const {
+  DuplicateAddOnError,
+  AddOnNotPresentError,
+  PaymentActionRequiredError,
+} = require('./Errors')
 const SplitTestHandler = require('../SplitTests/SplitTestHandler')
-const SubscriptionHelper = require('./SubscriptionHelper')
 const AuthorizationManager = require('../Authorization/AuthorizationManager')
 const Modules = require('../../infrastructure/Modules')
 const async = require('async')
-const { formatCurrencyLocalized } = require('../../util/currency')
-const SubscriptionFormatters = require('./SubscriptionFormatters')
+const HttpErrorHandler = require('../Errors/HttpErrorHandler')
+const RecurlyClient = require('./RecurlyClient')
+const { AI_ADD_ON_CODE } = require('./PaymentProviderEntities')
+const PlansLocator = require('./PlansLocator')
+const PaymentProviderEntities = require('./PaymentProviderEntities')
+const { User } = require('../../models/User')
+const UserGetter = require('../User/UserGetter')
+const PermissionsManager = require('../Authorization/PermissionsManager')
+const {
+  sanitizeSessionUserForFrontEnd,
+} = require('../../infrastructure/FrontEndUser')
+const { IndeterminateInvoiceError } = require('../Errors/Errors')
+
+/**
+ * @import { SubscriptionChangeDescription } from '../../../../types/subscription/subscription-change-preview'
+ * @import { SubscriptionChangePreview } from '../../../../types/subscription/subscription-change-preview'
+ * @import { PaymentProviderSubscriptionChange } from './PaymentProviderEntities'
+ * @import { PaymentMethod } from './types'
+ */
 
 const groupPlanModalOptions = Settings.groupPlanModalOptions
-const validGroupPlanModalOptions = {
-  plan_code: groupPlanModalOptions.plan_codes.map(item => item.code),
-  currency: groupPlanModalOptions.currencies.map(item => item.code),
-  size: groupPlanModalOptions.sizes,
-  usage: groupPlanModalOptions.usages.map(item => item.code),
-}
-
-function _getGroupPlanModalDefaults(req, currency) {
-  function getDefault(param, category, defaultValue) {
-    const v = req.query && req.query[param]
-    if (v && validGroupPlanModalOptions[category].includes(v)) {
-      return v
-    }
-    return defaultValue
-  }
-
-  let defaultGroupPlanModalCurrency = 'USD'
-  if (validGroupPlanModalOptions.currency.includes(currency)) {
-    defaultGroupPlanModalCurrency = currency
-  }
-
-  return {
-    plan_code: getDefault('plan', 'plan_code', 'collaborator'),
-    size: getDefault('number', 'size', '2'),
-    currency: getDefault('currency', 'currency', defaultGroupPlanModalCurrency),
-    usage: getDefault('usage', 'usage', 'enterprise'),
-  }
-}
-
-async function plansPage(req, res) {
-  const websiteRedesignPlansAssignment =
-    await SplitTestHandler.promises.getAssignment(
-      req,
-      res,
-      'website-redesign-plans'
-    )
-
-  if (websiteRedesignPlansAssignment.variant === 'new-design') {
-    return res.redirect(302, '/user/subscription/plans-2')
-  } else if (websiteRedesignPlansAssignment.variant === 'light-design') {
-    return res.redirect(302, '/user/subscription/plans-3')
-  }
-
-  const language = req.i18n.language || 'en'
-
-  const plans = SubscriptionViewModelBuilder.buildPlansList()
-
-  const {
-    currency,
-    recommendedCurrency,
-    countryCode,
-    geoPricingLATAMTestVariant,
-  } = await _getRecommendedCurrency(req, res)
-
-  const latamCountryBannerDetails = await getLatamCountryBannerDetails(req, res)
-  const groupPlanModalDefaults = _getGroupPlanModalDefaults(req, currency)
-
-  const currentView = 'annual'
-
-  const plansPageViewSegmentation = {
-    currency: recommendedCurrency,
-    countryCode,
-    'geo-pricing-latam-v2': geoPricingLATAMTestVariant,
-  }
-
-  AnalyticsManager.recordEventForSession(
-    req.session,
-    'plans-page-view',
-    plansPageViewSegmentation
-  )
-
-  const showLATAMBanner =
-    geoPricingLATAMTestVariant === 'latam' &&
-    ['MX', 'CO', 'CL', 'PE'].includes(countryCode)
-
-  const localCcyAssignment = await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'local-ccy-format-v2'
-  )
-  const formatCurrency =
-    localCcyAssignment.variant === 'enabled'
-      ? formatCurrencyLocalized
-      : SubscriptionHelper.formatCurrencyDefault
-
-  res.render('subscriptions/plans', {
-    title: 'plans_and_pricing',
-    currentView,
-    plans,
-    itm_content: req.query?.itm_content,
-    itm_referrer: req.query?.itm_referrer,
-    itm_campaign: 'plans',
-    language,
-    formatCurrency,
-    recommendedCurrency: currency,
-    plansConfig,
-    groupPlans: GroupPlansData,
-    groupPlanModalOptions,
-    groupPlanModalDefaults,
-    initialLocalizedGroupPrice:
-      SubscriptionHelper.generateInitialLocalizedGroupPrice(
-        currency ?? 'USD',
-        language,
-        formatCurrency
-      ),
-    showInrGeoBanner: countryCode === 'IN',
-    showBrlGeoBanner: countryCode === 'BR',
-    showLATAMBanner,
-    latamCountryBannerDetails,
-  })
-}
-
-async function plansPageLightDesign(req, res) {
-  const splitTestActive = await SplitTestHandler.promises.isSplitTestActive(
-    'website-redesign-plans'
-  )
-
-  if (!splitTestActive && req.query.preview !== 'true') {
-    return res.redirect(302, '/user/subscription/plans')
-  }
-
-  const { currency } = await _getRecommendedCurrency(req, res)
-
-  const language = req.i18n.language || 'en'
-  const currentView = 'annual'
-  const plans = SubscriptionViewModelBuilder.buildPlansList()
-  const groupPlanModalDefaults = _getGroupPlanModalDefaults(req, currency)
-  const formatCurrency = SubscriptionHelper.formatCurrencyDefault
-
-  // TODO: add page view analytics?
-  res.render('subscriptions/plans-light-design', {
-    title: 'plans_and_pricing',
-    currentView,
-    plans,
-    itm_content: req.query?.itm_content,
-    itm_referrer: req.query?.itm_referrer,
-    itm_campaign: 'plans',
-    language,
-    formatCurrency,
-    recommendedCurrency: currency,
-    plansConfig,
-    groupPlans: GroupPlansData,
-    groupPlanModalOptions,
-    groupPlanModalDefaults,
-    initialLocalizedGroupPrice:
-      SubscriptionHelper.generateInitialLocalizedGroupPrice(
-        currency ?? 'USD',
-        language,
-        formatCurrency
-      ),
-  })
-}
 
 function formatGroupPlansDataForDash() {
   return {
@@ -186,27 +56,22 @@ function formatGroupPlansDataForDash() {
   }
 }
 
-/**
- * @param {import('express').Request} req
- * @param {import('express').Response} res
- * @returns {Promise<void>}
- */
 async function userSubscriptionPage(req, res) {
   const user = SessionManager.getSessionUser(req.session)
+  await SplitTestHandler.promises.getAssignment(req, res, 'pause-subscription')
 
-  const localCcyAssignment = await SplitTestHandler.promises.getAssignment(
+  const groupPricingDiscount = await SplitTestHandler.promises.getAssignment(
     req,
     res,
-    'local-ccy-format-v2'
+    'group-discount-10'
   )
+
+  const showGroupDiscount = groupPricingDiscount.variant === 'enabled'
 
   const results =
     await SubscriptionViewModelBuilder.promises.buildUsersSubscriptionViewModel(
       user,
-      req.i18n.language,
-      localCcyAssignment.variant === 'enabled'
-        ? SubscriptionFormatters.formatPriceLocalized
-        : SubscriptionFormatters.formatPriceDefault
+      req.i18n.language
     )
   const {
     personalSubscription,
@@ -216,23 +81,27 @@ async function userSubscriptionPage(req, res) {
     managedInstitutions,
     managedPublishers,
   } = results
-  const hasSubscription =
-    await LimitationsManager.promises.userHasV1OrV2Subscription(user)
+  const { hasSubscription } =
+    await LimitationsManager.promises.userHasSubscription(user)
 
   const userCanExtendTrial = (
     await Modules.promises.hooks.fire('userCanExtendTrial', user)
   )?.[0]
   const fromPlansPage = req.query.hasSubscription
+  const isInTrial = SubscriptionHelper.isInTrial(
+    personalSubscription?.payment?.trialEndsAt
+  )
   const plansData =
     SubscriptionViewModelBuilder.buildPlansListForSubscriptionDash(
-      personalSubscription?.plan
+      personalSubscription?.plan,
+      isInTrial
     )
 
   AnalyticsManager.recordEventForSession(req.session, 'subscription-page-view')
 
   const groupPlansDataForDash = formatGroupPlansDataForDash()
 
-  // display the Group Settings button only to admins of group subscriptions with either/or the Managed Users or Group SSO feature available
+  // display the Group settings button only to admins of group subscriptions with either/or the Managed Users or Group SSO feature available
   let groupSettingsEnabledFor
   try {
     const managedGroups = await async.filter(
@@ -266,6 +135,45 @@ async function userSubscriptionPage(req, res) {
     )
   }
 
+  let groupSettingsAdvertisedFor
+  try {
+    const managedGroups = await async.filter(
+      managedGroupSubscriptions || [],
+      async subscription => {
+        const managedUsersResults = await Modules.promises.hooks.fire(
+          'hasManagedUsersFeatureOnNonProfessionalPlan',
+          subscription
+        )
+        const groupSSOResults = await Modules.promises.hooks.fire(
+          'hasGroupSSOFeatureOnNonProfessionalPlan',
+          subscription
+        )
+        const isGroupAdmin =
+          (subscription.admin_id._id || subscription.admin_id).toString() ===
+          user._id.toString()
+        const plan = PlansLocator.findLocalPlanInSettings(subscription.planCode)
+        return (
+          (managedUsersResults?.[0] === true ||
+            groupSSOResults?.[0] === true) &&
+          isGroupAdmin &&
+          plan?.canUseFlexibleLicensing
+        )
+      }
+    )
+    groupSettingsAdvertisedFor = managedGroups.map(subscription =>
+      subscription._id.toString()
+    )
+  } catch (error) {
+    logger.error(
+      { err: error },
+      'Failed to list groups with group settings enabled for advertising'
+    )
+  }
+  const {
+    isPremium: hasAiAssistViaWritefull,
+    premiumSource: aiAssistViaWritefullSource,
+  } = await UserGetter.promises.getWritefullData(user._id)
+
   const data = {
     title: 'your_subscription',
     plans: plansData?.plans,
@@ -279,110 +187,30 @@ async function userSubscriptionPage(req, res) {
     managedGroupSubscriptions,
     managedInstitutions,
     managedPublishers,
+    showGroupDiscount,
     currentInstitutionsWithLicence,
+    canUseFlexibleLicensing:
+      personalSubscription?.plan?.canUseFlexibleLicensing,
     groupPlans: groupPlansDataForDash,
+    groupSettingsAdvertisedFor,
     groupSettingsEnabledFor,
     isManagedAccount: !!req.managedBy,
     userRestrictions: Array.from(req.userRestrictions || []),
+    hasAiAssistViaWritefull,
+    aiAssistViaWritefullSource,
   }
   res.render('subscriptions/dashboard-react', data)
 }
 
-async function interstitialPaymentPage(req, res) {
-  const websiteRedesignPlansAssignment =
-    await SplitTestHandler.promises.getAssignment(
-      req,
-      res,
-      'website-redesign-plans'
-    )
-
-  let template = 'subscriptions/interstitial-payment'
-
-  if (websiteRedesignPlansAssignment.variant === 'new-design') {
-    return await Modules.promises.hooks.fire(
-      'interstitialPaymentPageNewDesign',
-      req,
-      res
-    )
-  } else if (websiteRedesignPlansAssignment.variant === 'light-design') {
-    template = 'subscriptions/interstitial-payment-light-design'
-  }
-
-  const user = SessionManager.getSessionUser(req.session)
-  const { recommendedCurrency, countryCode, geoPricingLATAMTestVariant } =
-    await _getRecommendedCurrency(req, res)
-
-  const latamCountryBannerDetails = await getLatamCountryBannerDetails(req, res)
-
-  const hasSubscription =
-    await LimitationsManager.promises.userHasV1OrV2Subscription(user)
-  const showSkipLink = req.query?.skipLink === 'true'
-
-  if (hasSubscription) {
-    res.redirect('/user/subscription?hasSubscription=true')
-  } else {
-    const paywallPlansPageViewSegmentation = {
-      currency: recommendedCurrency,
-      countryCode,
-      'geo-pricing-latam-v2': geoPricingLATAMTestVariant,
-    }
-    AnalyticsManager.recordEventForSession(
-      req.session,
-      'paywall-plans-page-view',
-      paywallPlansPageViewSegmentation
-    )
-
-    const showLATAMBanner =
-      geoPricingLATAMTestVariant === 'latam' &&
-      ['MX', 'CO', 'CL', 'PE'].includes(countryCode)
-
-    const localCcyAssignment = await SplitTestHandler.promises.getAssignment(
-      req,
-      res,
-      'local-ccy-format-v2'
-    )
-
-    res.render(template, {
-      title: 'subscribe',
-      itm_content: req.query?.itm_content,
-      itm_campaign: req.query?.itm_campaign,
-      itm_referrer: req.query?.itm_referrer,
-      recommendedCurrency,
-      interstitialPaymentConfig,
-      showSkipLink,
-      formatCurrency:
-        localCcyAssignment.variant === 'enabled'
-          ? formatCurrencyLocalized
-          : SubscriptionHelper.formatCurrencyDefault,
-      showCurrencyAndPaymentMethods: localCcyAssignment.variant === 'enabled',
-      showInrGeoBanner: countryCode === 'IN',
-      showBrlGeoBanner: countryCode === 'BR',
-      showLATAMBanner,
-      latamCountryBannerDetails,
-      skipLinkTarget: req.session?.postCheckoutRedirect || '/project',
-    })
-  }
-}
-
-/**
- * @param {import('express').Request} req
- * @param {import('express').Response} res
- * @returns {Promise<void>}
- */
 async function successfulSubscription(req, res) {
   const user = SessionManager.getSessionUser(req.session)
-  const localCcyAssignment = await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'local-ccy-format-v2'
-  )
+  if (!user) {
+    throw new Error('User is not logged in')
+  }
   const { personalSubscription } =
     await SubscriptionViewModelBuilder.promises.buildUsersSubscriptionViewModel(
       user,
-      req.i18n.language,
-      localCcyAssignment.variant === 'enabled'
-        ? SubscriptionFormatters.formatPriceLocalized
-        : SubscriptionFormatters.formatPriceDefault
+      req.i18n.language
     )
 
   const postCheckoutRedirect = req.session?.postCheckoutRedirect
@@ -390,11 +218,89 @@ async function successfulSubscription(req, res) {
   if (!personalSubscription) {
     res.redirect('/user/subscription/plans')
   } else {
+    const userInDb = await User.findById(user._id, {
+      _id: 1,
+      features: 1,
+    })
+
+    if (!userInDb) {
+      throw new Error('User not found')
+    }
+
     res.render('subscriptions/successful-subscription-react', {
       title: 'thank_you',
       personalSubscription,
       postCheckoutRedirect,
+      user: {
+        _id: user._id,
+        features: userInDb.features,
+      },
     })
+  }
+}
+
+async function pauseSubscription(req, res, next) {
+  const user = SessionManager.getSessionUser(req.session)
+  const pauseCycles = req.params.pauseCycles
+  if (!('pauseCycles' in req.params)) {
+    return HttpErrorHandler.badRequest(
+      req,
+      res,
+      `Pausing subscription requires a 'pauseCycles' argument with number of billing cycles to pause for`
+    )
+  }
+  if (pauseCycles < 0) {
+    return HttpErrorHandler.badRequest(
+      req,
+      res,
+      `'pauseCycles' should be a number of billing cycles to pause for, or 0 to cancel a pending pause`
+    )
+  }
+  logger.debug(
+    { userId: user._id },
+    `pausing subscription for ${pauseCycles} billing cycles`
+  )
+  try {
+    await SubscriptionHandler.promises.pauseSubscription(user, pauseCycles)
+
+    const { subscription } =
+      await LimitationsManager.promises.userHasSubscription(user)
+
+    AnalyticsManager.recordEventForUserInBackground(
+      user._id,
+      'subscription-pause-scheduled',
+      {
+        pause_length: pauseCycles,
+        plan_code: subscription?.planCode,
+        subscriptionId:
+          SubscriptionHelper.getPaymentProviderSubscriptionId(subscription),
+      }
+    )
+
+    return res.sendStatus(200)
+  } catch (err) {
+    if (err instanceof Error) {
+      OError.tag(err, 'something went wrong pausing subscription', {
+        user_id: user._id,
+      })
+    }
+    return next(err)
+  }
+}
+
+async function resumeSubscription(req, res, next) {
+  const user = SessionManager.getSessionUser(req.session)
+  logger.debug({ userId: user._id }, `resuming subscription`)
+  try {
+    await SubscriptionHandler.promises.resumeSubscription(user)
+    return res.sendStatus(200)
+  } catch (err) {
+    if (err instanceof Error) {
+      OError.tag(err, 'something went wrong resuming subscription', {
+        user_id: user._id,
+      })
+    }
+    return next(err)
   }
 }
 
@@ -415,14 +321,14 @@ function cancelSubscription(req, res, next) {
 }
 
 /**
- * @param {import('express').Request} req
- * @param {import('express').Response} res
- * @param {import('express').NextFunction} next
  * @returns {Promise<void>}
  */
-function canceledSubscription(req, res, next) {
+async function canceledSubscription(req, res, next) {
   return res.render('subscriptions/canceled-subscription-react', {
     title: 'subscription_canceled',
+    user: sanitizeSessionUserForFrontEnd(
+      SessionManager.getSessionUser(req.session)
+    ),
   })
 }
 
@@ -440,28 +346,197 @@ function cancelV1Subscription(req, res, next) {
   })
 }
 
-function updateSubscription(req, res, next) {
-  const origin = req && req.query ? req.query.origin : null
+async function previewAddonPurchase(req, res) {
   const user = SessionManager.getSessionUser(req.session)
-  const planCode = req.body.plan_code
-  if (planCode == null) {
-    const err = new Error('plan_code is not defined')
-    logger.warn(
-      { userId: user._id, err, planCode, origin, body: req.body },
-      '[Subscription] error in updateSubscription form'
-    )
-    return next(err)
+  const userId = user._id
+  const addOnCode = req.params.addOnCode
+  const purchaseReferrer = req.query.purchaseReferrer
+
+  if (addOnCode !== AI_ADD_ON_CODE) {
+    return HttpErrorHandler.notFound(req, res, `Unknown add-on: ${addOnCode}`)
   }
-  logger.debug({ planCode, userId: user._id }, 'updating subscription')
-  SubscriptionHandler.updateSubscription(user, planCode, null, function (err) {
-    if (err) {
-      OError.tag(err, 'something went wrong updating subscription', {
-        user_id: user._id,
+
+  const canUseAi = await PermissionsManager.promises.checkUserPermissions(
+    user,
+    ['use-ai']
+  )
+  if (!canUseAi) {
+    return res.redirect(
+      '/user/subscription?redirect-reason=ai-assist-unavailable'
+    )
+  }
+
+  /** @type {PaymentMethod[]} */
+  const paymentMethod = await Modules.promises.hooks.fire(
+    'getPaymentMethod',
+    userId
+  )
+
+  let subscriptionChange
+  try {
+    subscriptionChange =
+      await SubscriptionHandler.promises.previewAddonPurchase(userId, addOnCode)
+
+    const { isPremium: hasAiAssistViaWritefull } =
+      await UserGetter.promises.getWritefullData(userId)
+    const isAiUpgrade =
+      PaymentProviderEntities.subscriptionChangeIsAiAssistUpgrade(
+        subscriptionChange
+      )
+    if (hasAiAssistViaWritefull && isAiUpgrade) {
+      return res.redirect(
+        '/user/subscription?redirect-reason=writefull-entitled'
+      )
+    }
+  } catch (err) {
+    if (err instanceof DuplicateAddOnError) {
+      return res.redirect('/user/subscription?redirect-reason=double-buy')
+    }
+    throw err
+  }
+
+  const subscription = subscriptionChange.subscription
+  const addOn = await RecurlyClient.promises.getAddOn(
+    subscription.planCode,
+    addOnCode
+  )
+
+  /** @type {SubscriptionChangePreview} */
+  const changePreview = makeChangePreview(
+    {
+      type: 'add-on-purchase',
+      addOn: {
+        code: addOn.code,
+        name: addOn.name,
+      },
+    },
+    subscriptionChange,
+    paymentMethod[0]
+  )
+
+  await SplitTestHandler.promises.getAssignment(
+    req,
+    res,
+    'overleaf-assist-bundle'
+  )
+
+  res.render('subscriptions/preview-change', {
+    changePreview,
+    purchaseReferrer,
+  })
+}
+
+async function purchaseAddon(req, res, next) {
+  const user = SessionManager.getSessionUser(req.session)
+  const addOnCode = req.params.addOnCode
+  // currently we only support having a quantity of 1
+  const quantity = 1
+  // currently we only support one add-on, the Ai add-on
+  if (addOnCode !== AI_ADD_ON_CODE) {
+    return res.sendStatus(404)
+  }
+
+  logger.debug({ userId: user._id, addOnCode }, 'purchasing add-ons')
+  try {
+    await SubscriptionHandler.promises.purchaseAddon(
+      user._id,
+      addOnCode,
+      quantity
+    )
+  } catch (err) {
+    if (err instanceof DuplicateAddOnError) {
+      HttpErrorHandler.badRequest(
+        req,
+        res,
+        'Your subscription already includes this add-on',
+        { addon: addOnCode }
+      )
+    } else if (err instanceof PaymentActionRequiredError) {
+      return res.status(402).json({
+        message: 'Payment action required',
+        clientSecret: err.info.clientSecret,
       })
+    } else {
+      if (err instanceof Error) {
+        OError.tag(err, 'something went wrong purchasing add-ons', {
+          user_id: user._id,
+          addOnCode,
+        })
+      }
       return next(err)
     }
-    res.redirect('/user/subscription')
-  })
+  }
+
+  try {
+    await FeaturesUpdater.promises.refreshFeatures(user._id, 'add-on-purchase')
+  } catch (err) {
+    logger.error({ err }, 'Failed to refresh features after add-on purchase')
+  }
+
+  return res.sendStatus(200)
+}
+
+async function removeAddon(req, res, next) {
+  const user = SessionManager.getSessionUser(req.session)
+  const addOnCode = req.params.addOnCode
+
+  if (addOnCode !== AI_ADD_ON_CODE) {
+    return res.sendStatus(404)
+  }
+
+  logger.debug({ userId: user._id, addOnCode }, 'removing add-ons')
+
+  try {
+    await SubscriptionHandler.promises.removeAddon(user._id, addOnCode)
+    res.sendStatus(200)
+  } catch (err) {
+    if (err instanceof AddOnNotPresentError) {
+      HttpErrorHandler.badRequest(
+        req,
+        res,
+        'Your subscription does not contain the requested add-on',
+        { addon: addOnCode }
+      )
+    } else {
+      if (err instanceof Error) {
+        OError.tag(err, 'something went wrong removing add-ons', {
+          user_id: user._id,
+          addOnCode,
+        })
+      }
+      return next(err)
+    }
+  }
+}
+
+async function previewSubscription(req, res, next) {
+  const planCode = req.query.planCode
+  if (!planCode) {
+    return HttpErrorHandler.notFound(req, res, 'Missing plan code')
+  }
+  // TODO: use PaymentService to fetch plan information
+  const plan = await RecurlyClient.promises.getPlan(planCode)
+  const userId = SessionManager.getLoggedInUserId(req.session)
+  const subscriptionChange =
+    await SubscriptionHandler.promises.previewSubscriptionChange(
+      userId,
+      planCode
+    )
+  /** @type {PaymentMethod[]} */
+  const paymentMethod = await Modules.promises.hooks.fire(
+    'getPaymentMethod',
+    userId
+  )
+  const changePreview = makeChangePreview(
+    {
+      type: 'premium-subscription',
+      plan: { code: plan.code, name: plan.name },
+    },
+    subscriptionChange,
+    paymentMethod[0]
+  )
+
+  res.render('subscriptions/preview-change', { changePreview })
 }
 
 function cancelPendingSubscriptionChange(req, res, next) {
@@ -482,18 +557,18 @@ function cancelPendingSubscriptionChange(req, res, next) {
   })
 }
 
-function updateAccountEmailAddress(req, res, next) {
+async function updateAccountEmailAddress(req, res, next) {
   const user = SessionManager.getSessionUser(req.session)
-  RecurlyWrapper.updateAccountEmailAddress(
-    user._id,
-    user.email,
-    function (error) {
-      if (error) {
-        return next(error)
-      }
-      res.sendStatus(200)
-    }
-  )
+  try {
+    await Modules.promises.hooks.fire(
+      'updateAccountEmailAddress',
+      user._id,
+      user.email
+    )
+    return res.sendStatus(200)
+  } catch (error) {
+    return next(error)
+  }
 }
 
 function reactivateSubscription(req, res, next) {
@@ -532,11 +607,48 @@ function recurlyCallback(req, res, next) {
     )
   )
 
-  if (
+  // this is a recurly only case which is required since Recurly does not have a reliable way to check credit info pre-upgrade purchase
+  if (event === 'failed_payment_notification') {
+    if (!Settings.planReverts?.enabled) {
+      return res.sendStatus(200)
+    }
+
+    SubscriptionHandler.getSubscriptionRestorePoint(
+      eventData.transaction.subscription_id,
+      function (err, lastSubscription) {
+        if (err) {
+          return next(err)
+        }
+        // if theres no restore point it could be a failed renewal, or no restore set. Either way it will be handled through dunning automatically
+        if (!lastSubscription || !lastSubscription?.planCode) {
+          return res.sendStatus(200)
+        }
+        SubscriptionHandler.revertPlanChange(
+          eventData.transaction.subscription_id,
+          lastSubscription,
+          function (err) {
+            if (err instanceof IndeterminateInvoiceError) {
+              logger.warn(
+                { recurlySubscriptionId: err.info.recurlySubscriptionId },
+                'could not determine invoice to fail for subscription'
+              )
+              return res.sendStatus(200)
+            }
+            if (err) {
+              return next(err)
+            }
+            return res.sendStatus(200)
+          }
+        )
+      }
+    )
+  } else if (
     [
       'new_subscription_notification',
       'updated_subscription_notification',
       'expired_subscription_notification',
+      'subscription_paused_notification',
+      'subscription_resumed_notification',
     ].includes(event)
   ) {
     const recurlySubscription = eventData.subscription
@@ -569,7 +681,7 @@ function recurlyCallback(req, res, next) {
 async function extendTrial(req, res) {
   const user = SessionManager.getSessionUser(req.session)
   const { subscription } =
-    await LimitationsManager.promises.userHasV2Subscription(user)
+    await LimitationsManager.promises.userHasSubscription(user)
 
   const allowed = (
     await Modules.promises.hooks.fire('userCanExtendTrial', user)
@@ -611,19 +723,7 @@ async function refreshUserFeatures(req, res) {
   res.sendStatus(200)
 }
 
-async function redirectToHostedPage(req, res) {
-  const userId = SessionManager.getLoggedInUserId(req.session)
-  const { pageType } = req.params
-  const url =
-    await SubscriptionViewModelBuilder.promises.getRedirectToHostedPage(
-      userId,
-      pageType
-    )
-  logger.warn({ userId, pageType }, 'redirecting to recurly hosted page')
-  res.redirect(url)
-}
-
-async function _getRecommendedCurrency(req, res) {
+async function getRecommendedCurrency(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
   let ip = req.ip
   if (
@@ -634,20 +734,7 @@ async function _getRecommendedCurrency(req, res) {
   }
   const currencyLookup = await GeoIpLookup.promises.getCurrencyCode(ip)
   const countryCode = currencyLookup.countryCode
-  let recommendedCurrency = currencyLookup.currencyCode
-
-  const assignmentLATAM = await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'geo-pricing-latam-v2'
-  )
-
-  if (
-    ['MXN', 'COP', 'CLP', 'PEN'].includes(recommendedCurrency) &&
-    assignmentLATAM?.variant === 'default'
-  ) {
-    recommendedCurrency = GeoIpLookup.DEFAULT_CURRENCY_CODE
-  }
+  const recommendedCurrency = currencyLookup.currencyCode
 
   let currency = null
   const queryCurrency = req.query.currency?.toUpperCase()
@@ -661,7 +748,6 @@ async function _getRecommendedCurrency(req, res) {
     currency,
     recommendedCurrency,
     countryCode,
-    geoPricingLATAMTestVariant: assignmentLATAM?.variant,
   }
 }
 
@@ -708,25 +794,104 @@ async function getLatamCountryBannerDetails(req, res) {
   return latamCountryBannerDetails
 }
 
+/**
+ * There are two sets of group plans: legacy plans and consolidated plans,
+ * and their naming conventions differ.
+ * This helper method computes the name of legacy group plans to ensure
+ * consistency with the naming of consolidated group plans.
+ *
+ * @param {string} planName
+ * @param {string} planCode
+ * @return {string}
+ */
+
+function getPlanNameForDisplay(planName, planCode) {
+  const match = planCode.match(
+    /^group_(collaborator|professional)_\d+_(enterprise|educational)$/
+  )
+
+  if (!match) return planName
+
+  const [, type, category] = match
+  const prefix = type === 'collaborator' ? 'Standard' : 'Professional'
+  const suffix = category === 'educational' ? ' Educational' : ''
+
+  return `Overleaf ${prefix} Group${suffix}`
+}
+
+/**
+ * Build a subscription change preview for display purposes
+ *
+ * @param {SubscriptionChangeDescription} subscriptionChangeDescription A description of the change for the frontend
+ * @param {PaymentProviderSubscriptionChange} subscriptionChange The subscription change object coming from Recurly
+ * @param {PaymentMethod} [paymentMethod] The payment method associated to the user
+ * @return {SubscriptionChangePreview}
+ */
+function makeChangePreview(
+  subscriptionChangeDescription,
+  subscriptionChange,
+  paymentMethod
+) {
+  const subscription = subscriptionChange.subscription
+  const nextPlan = PlansLocator.findLocalPlanInSettings(
+    subscriptionChange.nextPlanCode
+  )
+  return {
+    change: subscriptionChangeDescription,
+    currency: subscription.currency,
+    immediateCharge: { ...subscriptionChange.immediateCharge },
+    paymentMethod: paymentMethod?.toString(),
+    netTerms: subscription.netTerms,
+    nextPlan: {
+      annual: nextPlan?.annual ?? false,
+    },
+    nextInvoice: {
+      date: subscription.periodEnd.toISOString(),
+      plan: {
+        name: getPlanNameForDisplay(
+          subscriptionChange.nextPlanName,
+          subscriptionChange.nextPlanCode
+        ),
+        amount: subscriptionChange.nextPlanPrice,
+      },
+      addOns: subscriptionChange.nextAddOns.map(addOn => ({
+        code: addOn.code,
+        name: addOn.name,
+        quantity: addOn.quantity,
+        unitAmount: addOn.unitPrice,
+        amount: addOn.preTaxTotal,
+      })),
+      subtotal: subscriptionChange.subtotal,
+      tax: {
+        rate: subscription.taxRate,
+        amount: subscriptionChange.tax,
+      },
+      total: subscriptionChange.total,
+    },
+  }
+}
+
 module.exports = {
-  plansPage: expressify(plansPage),
-  plansPageLightDesign: expressify(plansPageLightDesign),
   userSubscriptionPage: expressify(userSubscriptionPage),
-  interstitialPaymentPage: expressify(interstitialPaymentPage),
   successfulSubscription: expressify(successfulSubscription),
   cancelSubscription,
-  canceledSubscription,
+  pauseSubscription,
+  resumeSubscription,
+  canceledSubscription: expressify(canceledSubscription),
   cancelV1Subscription,
-  updateSubscription,
+  previewSubscription: expressify(previewSubscription),
   cancelPendingSubscriptionChange,
-  updateAccountEmailAddress,
+  updateAccountEmailAddress: expressify(updateAccountEmailAddress),
   reactivateSubscription,
   recurlyCallback,
   extendTrial: expressify(extendTrial),
   recurlyNotificationParser,
   refreshUserFeatures: expressify(refreshUserFeatures),
-  redirectToHostedPage: expressify(redirectToHostedPage),
-  promises: {
-    getRecommendedCurrency: _getRecommendedCurrency,
-  },
+  previewAddonPurchase: expressify(previewAddonPurchase),
+  purchaseAddon,
+  removeAddon,
+  makeChangePreview,
+  getRecommendedCurrency,
+  getLatamCountryBannerDetails,
+  getPlanNameForDisplay,
 }

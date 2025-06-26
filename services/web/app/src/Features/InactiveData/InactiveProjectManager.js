@@ -1,14 +1,37 @@
 const OError = require('@overleaf/o-error')
 const logger = require('@overleaf/logger')
 const DocstoreManager = require('../Docstore/DocstoreManager')
+const DocumentUpdaterHandler = require('../DocumentUpdater/DocumentUpdaterHandler')
 const ProjectGetter = require('../Project/ProjectGetter')
 const ProjectUpdateHandler = require('../Project/ProjectUpdateHandler')
 const { Project } = require('../../models/Project')
-const { ObjectId } = require('mongodb')
+const Modules = require('../../infrastructure/Modules')
 const { READ_PREFERENCE_SECONDARY } = require('../../infrastructure/mongodb')
 const { callbackifyAll } = require('@overleaf/promise-utils')
+const Metrics = require('@overleaf/metrics')
 
 const MILISECONDS_IN_DAY = 86400000
+
+function findInactiveProjects(limit, daysOld) {
+  const oldProjectDate = new Date() - MILISECONDS_IN_DAY * daysOld
+  try {
+    // use $not $gt to catch non-opened projects where lastOpened is null
+    // return a cursor instead of executing the query
+    return Project.find({
+      lastOpened: { $not: { $gt: oldProjectDate } },
+    })
+      .where('active')
+      .equals(true)
+      .select(['_id', 'lastOpened'])
+      .limit(limit)
+      .read(READ_PREFERENCE_SECONDARY)
+      .cursor()
+  } catch (err) {
+    logger.err({ err }, 'could not get projects for deactivating')
+    throw err // Re-throw the error to be handled by the caller
+  }
+}
+
 const InactiveProjectManager = {
   async reactivateProjectIfRequired(projectId) {
     let project
@@ -51,32 +74,13 @@ const InactiveProjectManager = {
     if (daysOld == null) {
       daysOld = 360
     }
-    const oldProjectDate = new Date() - MILISECONDS_IN_DAY * daysOld
 
-    let projects
-    try {
-      // use $not $gt to catch non-opened projects where lastOpened is null
-      projects = await Project.find({
-        lastOpened: { $not: { $gt: oldProjectDate } },
-      })
-        .where('_id')
-        .lt(ObjectId.createFromTime(oldProjectDate / 1000))
-        .where('active')
-        .equals(true)
-        .select('_id')
-        .limit(limit)
-        .read(READ_PREFERENCE_SECONDARY)
-        .exec()
-    } catch (err) {
-      logger.err({ err }, 'could not get projects for deactivating')
-    }
+    logger.debug('deactivating projects')
 
-    logger.debug(
-      { numberOfProjects: projects && projects.length },
-      'deactivating projects'
-    )
+    const processedProjects = []
 
-    for (const project of projects) {
+    for await (const project of findInactiveProjects(limit, daysOld)) {
+      processedProjects.push(project)
       try {
         await InactiveProjectManager.deactivateProject(project._id)
       } catch (err) {
@@ -87,12 +91,37 @@ const InactiveProjectManager = {
       }
     }
 
-    return projects
+    logger.debug(
+      { numberOfProjects: processedProjects.length },
+      'finished deactivating projects'
+    )
+
+    return processedProjects
   },
 
   async deactivateProject(projectId) {
     logger.debug({ projectId }, 'deactivating inactive project')
 
+    // ensure project is removed from document updater (also flushes updates to history)
+    try {
+      await DocumentUpdaterHandler.promises.flushProjectToMongoAndDelete(
+        projectId
+      )
+    } catch (err) {
+      logger.warn(
+        { err, projectId },
+        'error flushing project to mongo when archiving'
+      )
+      Metrics.inc('inactive-project', 1, {
+        method: 'archive',
+        status: 'flush-error',
+      })
+      throw err
+    }
+
+    await Modules.promises.hooks.fire('deactivateProject', projectId)
+
+    // now archive the project and mark it as inactive
     try {
       await DocstoreManager.promises.archiveProject(projectId)
       await ProjectUpdateHandler.promises.markAsInactive(projectId)
@@ -106,4 +135,5 @@ const InactiveProjectManager = {
 module.exports = {
   ...callbackifyAll(InactiveProjectManager),
   promises: InactiveProjectManager,
+  findInactiveProjects,
 }

@@ -45,9 +45,9 @@ export const EditorAndPdf: FC = () => {
         hidden: view === 'history',
       })}
     >
-      {/* main */}
+      {/* ide */}
       <Panel
-        id="panel-main"
+        id="panel-ide"
         order={1}
         defaultSize={50}
         minSize={5}
@@ -73,6 +73,7 @@ export const EditorAndPdf: FC = () => {
         className={classNames({
           hidden: !editorIsOpen,
         })}
+        hitAreaMargins={{ coarse: 0, fine: 0 }}
       >
         <HorizontalToggler
           id="editor-pdf"
@@ -102,7 +103,7 @@ export const EditorAndPdf: FC = () => {
         onExpand={handlePdfPaneExpand}
         className="ide-react-panel"
       >
-        {pdfIsOpen && <PdfPreview />}
+        <PdfPreview />
         {/* ensure that "sync to code" is available in PDF only layout */}
         {pdfLayout === 'flat' && view === 'pdf' && (
           <div className="synctex-controls" hidden>

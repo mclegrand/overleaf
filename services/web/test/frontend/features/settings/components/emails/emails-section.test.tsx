@@ -22,11 +22,11 @@ describe('<EmailsSection />', function () {
     Object.assign(getMeta('ol-ExposedSettings'), {
       hasAffiliationsFeature: true,
     })
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   it('renders translated heading', function () {
@@ -40,6 +40,9 @@ describe('<EmailsSection />', function () {
 
     screen.getByText(/add additional email addresses/i)
     screen.getByText(/to change your primary email/i)
+    screen.getByRole('link', {
+      name: /learn more about managing your Overleaf emails/i,
+    })
   })
 
   it('renders a loading message when loading', async function () {
@@ -81,7 +84,7 @@ describe('<EmailsSection />', function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [unconfirmedUserData])
     render(<EmailsSection />)
 
-    await screen.findByText(/please check your inbox/i)
+    await screen.findByText(/unconfirmed/i)
   })
 
   it('hides confirmation status for confirmed users', async function () {
@@ -96,7 +99,7 @@ describe('<EmailsSection />', function () {
     fetchMock.get('/user/emails?ensureAffiliation=true', [unconfirmedUserData])
     render(<EmailsSection />)
 
-    await screen.findByRole('button', { name: /resend confirmation email/i })
+    await screen.findByRole('button', { name: 'Send confirmation code' })
   })
 
   it('renders professional label', async function () {
@@ -115,27 +118,27 @@ describe('<EmailsSection />', function () {
     render(<EmailsSection />)
     await waitForElementToBeRemoved(() => screen.getByText(/loading/i))
 
-    fetchMock.post('/user/emails/resend_confirmation', 200)
+    fetchMock.post('/user/emails/send-confirmation-code', 200)
 
     const button = screen.getByRole('button', {
-      name: /resend confirmation email/i,
+      name: 'Send confirmation code',
     })
     fireEvent.click(button)
 
     expect(
       screen.queryByRole('button', {
-        name: /resend confirmation email/i,
+        name: 'Send confirmation code',
       })
     ).to.be.null
 
-    await waitForElementToBeRemoved(() => screen.getByText(/sending/i))
+    await screen.findByRole('dialog')
 
     expect(
       screen.queryByText(/an error has occurred while performing your request/i)
     ).to.be.null
 
-    await screen.findByRole('button', {
-      name: /resend confirmation email/i,
+    await screen.findAllByRole('button', {
+      name: 'Resend confirmation code',
     })
   })
 
@@ -145,22 +148,71 @@ describe('<EmailsSection />', function () {
     render(<EmailsSection />)
     await waitForElementToBeRemoved(() => screen.getByText(/loading/i))
 
-    fetchMock.post('/user/emails/resend_confirmation', 503)
+    fetchMock.post('/user/emails/send-confirmation-code', 503)
 
     const button = screen.getByRole('button', {
-      name: /resend confirmation email/i,
+      name: 'Send confirmation code',
     })
     fireEvent.click(button)
 
-    expect(
-      screen.queryByRole('button', {
-        name: /resend confirmation email/i,
-      })
-    ).to.be.null
+    expect(screen.queryByRole('button', { name: 'Send confirmation code' })).to
+      .be.null
 
-    await waitForElementToBeRemoved(() => screen.getByText(/sending/i))
+    await screen.findByRole('dialog')
 
-    screen.getByText(/sorry, something went wrong/i)
-    screen.getByRole('button', { name: /resend confirmation email/i })
+    await screen.findByText(/sorry, something went wrong/i)
+    screen.getByRole('button', { name: 'Resend confirmation code' })
+  })
+
+  it('sorts emails with primary first, then confirmed, then unconfirmed', async function () {
+    const unconfirmedEmail = { ...unconfirmedUserData, email: 'b@example.com' }
+    const unconfirmedEmailTwo = {
+      ...unconfirmedUserData,
+      email: 'd@example.com',
+    }
+    const confirmedEmail = {
+      ...confirmedUserData,
+      email: 'a@example.com',
+      confirmedAt: new Date().toISOString(),
+    }
+    const confirmedEmailTwo = {
+      ...confirmedUserData,
+      email: 'e@example.com',
+      confirmedAt: new Date().toISOString(),
+    }
+    const primaryEmail = {
+      ...professionalUserData,
+      email: 'c@example.com',
+      default: true,
+    }
+
+    const emails = [
+      confirmedEmailTwo,
+      unconfirmedEmailTwo,
+      unconfirmedEmail,
+      confirmedEmail,
+      primaryEmail,
+    ]
+
+    fetchMock.get('/user/emails?ensureAffiliation=true', emails)
+    render(<EmailsSection />)
+
+    await waitForElementToBeRemoved(() => screen.getByText(/loading/i))
+
+    const emailElements = screen.getAllByTestId(/email-row/i)
+
+    // Primary should be first regardless of alphabetical order
+    expect(within(emailElements[0]).getByText('c@example.com')).to.exist
+    expect(within(emailElements[0]).getByText('Primary')).to.exist
+
+    // Confirmed should be second in alphabetical order
+    expect(within(emailElements[1]).getByText('a@example.com')).to.exist
+    expect(within(emailElements[2]).getByText('e@example.com')).to.exist
+
+    // Unconfirmed should be last in alphabetical order
+    expect(within(emailElements[3]).getByText('b@example.com')).to.exist
+    expect(within(emailElements[3]).getByText(/unconfirmed/i)).to.exist
+    expect(within(emailElements[4]).getByText('d@example.com')).to.exist
+    expect(within(emailElements[4]).getByText(/unconfirmed/i)).to.exist
   })
 })

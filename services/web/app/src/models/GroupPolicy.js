@@ -24,6 +24,12 @@ const GroupPolicySchema = new Schema(
 
     // User can't use any of our AI features, such as the compile-assistant
     userCannotUseAIFeatures: Boolean,
+
+    // User can't use the chat feature
+    userCannotUseChat: Boolean,
+
+    // User can't use the Dropbox feature
+    userCannotUseDropbox: Boolean,
   },
   { minimize: false }
 )

@@ -1,8 +1,11 @@
 import { useTranslation } from 'react-i18next'
-import { Modal } from 'react-bootstrap'
-import AccessibleModal from '@/shared/components/accessible-modal'
 import { memo, useEffect, useState } from 'react'
 import { useConnectionContext } from '@/features/ide-react/context/connection-context'
+import OLModal, {
+  OLModalBody,
+  OLModalHeader,
+  OLModalTitle,
+} from '@/features/ui/components/ol/ol-modal'
 
 // show modal when editor is forcefully disconnected
 function ForceDisconnected() {
@@ -12,10 +15,14 @@ function ForceDisconnected() {
   const [show, setShow] = useState(false)
 
   useEffect(() => {
-    if (connectionState.forceDisconnected) {
+    if (
+      connectionState.forceDisconnected &&
+      // out of sync has its own modal
+      connectionState.error !== 'out-of-sync'
+    ) {
       setShow(true)
     }
-  }, [connectionState.forceDisconnected])
+  }, [connectionState.forceDisconnected, connectionState.error])
 
   useEffect(() => {
     if (connectionState.forceDisconnected) {
@@ -40,7 +47,7 @@ function ForceDisconnected() {
   }
 
   return (
-    <AccessibleModal
+    <OLModal
       show
       // It's not possible to hide this modal, but it's a required prop
       onHide={() => {}}
@@ -48,13 +55,13 @@ function ForceDisconnected() {
       backdrop={false}
       keyboard={false}
     >
-      <Modal.Header>
-        <Modal.Title>{t('please_wait')}</Modal.Title>
-      </Modal.Header>
-      <Modal.Body>
+      <OLModalHeader>
+        <OLModalTitle>{t('please_wait')}</OLModalTitle>
+      </OLModalHeader>
+      <OLModalBody>
         {t('were_performing_maintenance', { seconds: secondsUntilRefresh })}
-      </Modal.Body>
-    </AccessibleModal>
+      </OLModalBody>
+    </OLModal>
   )
 }
 

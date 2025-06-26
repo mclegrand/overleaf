@@ -40,7 +40,7 @@
 
     &:hover,
     &:focus {
-      background-color: rgb(var(--neutral-90) 0.08);
+      background-color: rgba($neutral-90, 0.08);
       color: var(--content-secondary);
     }
   }
@@ -68,6 +68,12 @@
   .notification-icon {
     flex-grow: 0;
     padding: 18px $spacing-06 0 0;
+  }
+
+  .notification-icon.notification-icon-center {
+    padding-top: 0;
+    display: flex;
+    align-items: center;
   }
 
   .notification-content-and-cta {
@@ -124,7 +130,7 @@
 
       &:hover,
       &:focus {
-        background-color: rgb(var(--neutral-90) 0.08);
+        background-color: rgba($neutral-90, 0.08);
         color: var(--content-secondary);
       }
     }
@@ -256,4 +262,9 @@
       }
     }
   }
+}
+
+// Only apply bottom margin to form messages when it is non-empty
+.form-messages-bottom-margin > :last-child {
+  margin-bottom: var(--spacing-06);
 }

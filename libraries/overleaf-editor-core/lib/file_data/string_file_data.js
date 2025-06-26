@@ -8,13 +8,9 @@ const CommentList = require('./comment_list')
 const TrackedChangeList = require('./tracked_change_list')
 
 /**
- * @typedef {import("../types").StringFileRawData} StringFileRawData
- * @typedef {import("../types").RawFileData} RawFileData
- * @typedef {import("../operation/edit_operation")} EditOperation
- * @typedef {import("../types").BlobStore} BlobStore
- * @typedef {import("../types").CommentRawData} CommentRawData
- * @typedef {import("../types").TrackedChangeRawData} TrackedChangeRawData
- * @typedef {import('../types').RangesBlob} RangesBlob
+ * @import { StringFileRawData, RawHashFileData, BlobStore, CommentRawData } from "../types"
+ * @import { TrackedChangeRawData, RangesBlob } from "../types"
+ * @import EditOperation from "../operation/edit_operation"
  */
 
 class StringFileData extends FileData {
@@ -92,6 +88,14 @@ class StringFileData extends FileData {
     return content
   }
 
+  /**
+   * Return docstore view of a doc: each line separated
+   * @return {string[]}
+   */
+  getLines() {
+    return this.getContent({ filterTrackedDeletes: true }).split('\n')
+  }
+
   /** @inheritdoc */
   getByteLength() {
     return Buffer.byteLength(this.content)
@@ -135,7 +139,7 @@ class StringFileData extends FileData {
   /**
    * @inheritdoc
    * @param {BlobStore} blobStore
-   * @return {Promise<RawFileData>}
+   * @return {Promise<RawHashFileData>}
    */
   async store(blobStore) {
     const blob = await blobStore.putString(this.content)
@@ -146,12 +150,8 @@ class StringFileData extends FileData {
         trackedChanges: this.trackedChanges.toRaw(),
       }
       const rangesBlob = await blobStore.putObject(ranges)
-      // TODO(das7pad): Provide interface that guarantees hash exists?
-      // @ts-ignore
       return { hash: blob.getHash(), rangesHash: rangesBlob.getHash() }
     }
-    // TODO(das7pad): Provide interface that guarantees hash exists?
-    // @ts-ignore
     return { hash: blob.getHash() }
   }
 }

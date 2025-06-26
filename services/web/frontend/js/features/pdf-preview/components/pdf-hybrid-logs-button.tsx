@@ -1,10 +1,11 @@
 import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Label } from 'react-bootstrap'
-import Tooltip from '../../../shared/components/tooltip'
-import Icon from '../../../shared/components/icon'
-import { useDetachCompileContext as useCompileContext } from '../../../shared/context/detach-compile-context'
-import * as eventTracking from '../../../infrastructure/event-tracking'
+import MaterialIcon from '@/shared/components/material-icon'
+import { useDetachCompileContext as useCompileContext } from '@/shared/context/detach-compile-context'
+import * as eventTracking from '@/infrastructure/event-tracking'
+import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
+import OLButton from '@/features/ui/components/ol/ol-button'
+import OLBadge from '@/features/ui/components/ol/ol-badge'
 
 function PdfHybridLogsButton() {
   const { error, logEntries, toggleLogs, showLogs, stoppedOnFirstError } =
@@ -25,13 +26,13 @@ function PdfHybridLogsButton() {
   const totalCount = errorCount + warningCount
 
   return (
-    <Tooltip
+    <OLTooltip
       id="logs-toggle"
       description={t('logs_and_output_files')}
       overlayProps={{ placement: 'bottom' }}
     >
-      <Button
-        bsStyle="link"
+      <OLButton
+        variant="link"
         disabled={Boolean(error || stoppedOnFirstError)}
         active={showLogs}
         className="pdf-toolbar-btn toolbar-item log-btn"
@@ -39,15 +40,15 @@ function PdfHybridLogsButton() {
         style={{ position: 'relative' }}
         aria-label={showLogs ? t('view_pdf') : t('view_logs')}
       >
-        <Icon type="file-text-o" fw />
+        <MaterialIcon type="description" />
 
         {!showLogs && totalCount > 0 && (
-          <Label bsStyle={errorCount === 0 ? 'warning' : 'danger'}>
+          <OLBadge bg={errorCount === 0 ? 'warning' : 'danger'}>
             {totalCount}
-          </Label>
+          </OLBadge>
         )}
-      </Button>
-    </Tooltip>
+      </OLButton>
+    </OLTooltip>
   )
 }
 

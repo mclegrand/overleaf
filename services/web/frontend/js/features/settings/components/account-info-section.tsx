@@ -7,13 +7,13 @@ import {
 import getMeta from '../../../utils/meta'
 import useAsync from '../../../shared/hooks/use-async'
 import { useUserContext } from '../../../shared/context/user-context'
+import { useFileTreeData } from '@/shared/context/file-tree-data-context'
 import OLButton from '@/features/ui/components/ol/ol-button'
 import OLNotification from '@/features/ui/components/ol/ol-notification'
 import OLFormGroup from '@/features/ui/components/ol/ol-form-group'
 import OLFormLabel from '@/features/ui/components/ol/ol-form-label'
 import OLFormControl from '@/features/ui/components/ol/ol-form-control'
-import { useFileTreeData } from '@/shared/context/file-tree-data-context'
-import FormText from '@/features/ui/components/bootstrap-5/form/form-text'
+import OLFormText from '@/features/ui/components/ol/ol-form-text'
 
 async function getKey(userId) {
     console.log(userId)
@@ -91,7 +91,7 @@ function AccountInfoSection() {
 
   return (
     <>
-      <h3>{t('update_account_info')}</h3>
+      <h3 id="update-account-info">{t('update_account_info')}</h3>
       <form id="account-info-form" onSubmit={handleSubmit}>
         {hasAffiliationsFeature ? null : (
           <ReadOrWriteFormGroup
@@ -109,6 +109,7 @@ function AccountInfoSection() {
           type="text"
           label={t('first_name')}
           value={firstName}
+          maxLength={255}
           handleChange={handleFirstNameChange}
           canEdit={canUpdateNames}
           required={false}
@@ -117,6 +118,7 @@ function AccountInfoSection() {
           id="last-name-input"
           type="text"
           label={t('last_name')}
+          maxLength={255}
           value={lastName}
           handleChange={handleLastNameChange}
           canEdit={canUpdateNames}
@@ -139,24 +141,30 @@ function AccountInfoSection() {
           </OLFormGroup>
         ) : null}
         {canUpdateEmail || canUpdateNames ? (
-          <OLButton
-            type="submit"
-            variant="primary"
-            form="account-info-form"
-            disabled={!isFormValid}
-            isLoading={isLoading}
-            bs3Props={{
-              loading: isLoading ? `${t('saving')}…` : t('update'),
-            }}
-          >
-            {t('update')}
-          </OLButton>
+          <OLFormGroup>
+            <OLButton
+              type="submit"
+              variant="primary"
+              form="account-info-form"
+              disabled={!isFormValid}
+              isLoading={isLoading}
+              loadingLabel={t('saving') + '…'}
+              aria-labelledby={isLoading ? undefined : 'update-account-info'}
+            >
+              {t('update')}
+            </OLButton>
+          </OLFormGroup>
         ) : null}
-        <div style={{ marginTop: '10px' }}>
-         <button type="button" onClick={() => getKey(userId)}>
-          Copy SSH key
-         </button>
-        </div>
+        <OLFormGroup>
+          <OLButton
+              type="button"
+              variant="secondary"
+              onClick={() => getKey(userId)}
+          >
+            Copy SSH key
+          </OLButton>
+        </OLFormGroup>
+
       </form>
     </>
   )
@@ -169,6 +177,7 @@ type ReadOrWriteFormGroupProps = {
   value?: string
   handleChange: (event: any) => void
   canEdit: boolean
+  maxLength?: number
   required: boolean
 }
 
@@ -179,6 +188,7 @@ function ReadOrWriteFormGroup({
   value,
   handleChange,
   canEdit,
+  maxLength,
   required,
 }: ReadOrWriteFormGroupProps) {
   const [validationMessage, setValidationMessage] = useState('')
@@ -210,11 +220,14 @@ function ReadOrWriteFormGroup({
         type={type}
         required={required}
         value={value}
+        maxLength={maxLength}
         data-ol-dirty={!!validationMessage}
         onChange={handleChangeAndValidity}
         onInvalid={handleInvalid}
       />
-      {validationMessage && <FormText isError>{validationMessage}</FormText>}
+      {validationMessage && (
+        <OLFormText type="error">{validationMessage}</OLFormText>
+      )}
     </OLFormGroup>
   )
 }

@@ -43,8 +43,43 @@ const outputFiles = () => {
   ]
 }
 
-export const interceptCompile = (prefix = 'compile', times = 1) => {
-  cy.intercept(
+const compileFromCacheResponse = () => {
+  return {
+    fromCache: true,
+    status: 'success',
+    clsiServerId: 'foo',
+    clsiCacheShard: 'clsi-cache-zone-b-shard-1',
+    compileGroup: 'priority',
+    pdfDownloadDomain: 'https://clsi.test-overleaf.com',
+    outputFiles: outputFiles(),
+    options: {
+      rootResourcePath: 'main.tex',
+      imageName: 'texlive-full:2024.1',
+      compiler: 'pdflatex',
+      stopOnFirstError: false,
+      draft: false,
+    },
+  }
+}
+
+export const interceptCompileFromCacheRequest = ({
+  times,
+  promise,
+}: {
+  times: number
+  promise: Promise<void>
+}) => {
+  return cy.intercept(
+    { path: '/project/*/output/cached/output.overleaf.json', times },
+    async req => {
+      await promise
+      req.reply({ body: compileFromCacheResponse() })
+    }
+  )
+}
+
+export const interceptCompileRequest = ({ times = 1 } = {}) => {
+  return cy.intercept(
     { method: 'POST', pathname: '/project/*/compile', times },
     {
       body: {
@@ -55,11 +90,48 @@ export const interceptCompile = (prefix = 'compile', times = 1) => {
         outputFiles: outputFiles(),
       },
     }
-  ).as(`${prefix}`)
+  )
+}
+
+export const interceptCompile = ({
+  prefix = 'compile',
+  times = 1,
+  cached = false,
+  regular = true,
+  outputPDFFixture = 'output.pdf',
+} = {}) => {
+  if (cached) {
+    cy.intercept(
+      { path: '/project/*/output/cached/output.overleaf.json', times },
+      { body: compileFromCacheResponse() }
+    ).as(`${prefix}-cached`)
+  } else {
+    cy.intercept(
+      { pathname: '/project/*/output/cached/output.overleaf.json', times },
+      { statusCode: 404 }
+    ).as(`${prefix}-cached`)
+  }
+
+  if (regular) {
+    interceptCompileRequest({ times }).as(`${prefix}`)
+  } else {
+    cy.intercept(
+      { method: 'POST', pathname: '/project/*/compile', times },
+      {
+        body: {
+          status: 'unavailable',
+          clsiServerId: 'foo',
+          compileGroup: 'priority',
+          pdfDownloadDomain: 'https://clsi.test-overleaf.com',
+          outputFiles: [],
+        },
+      }
+    ).as(`${prefix}`)
+  }
 
   cy.intercept(
     { pathname: '/build/*/output.pdf', times },
-    { fixture: 'build/output.pdf,null' }
+    { fixture: `build/${outputPDFFixture},null` }
   ).as(`${prefix}-pdf`)
 
   cy.intercept(
@@ -73,22 +145,42 @@ export const interceptCompile = (prefix = 'compile', times = 1) => {
   ).as(`${prefix}-blg`)
 }
 
-export const waitForCompile = ({ prefix = 'compile', pdf = false } = {}) => {
-  cy.wait(`@${prefix}`)
+export const waitForCompile = ({
+  prefix = 'compile',
+  pdf = false,
+  cached = false,
+  regular = true,
+} = {}) => {
+  if (cached) {
+    cy.wait(`@${prefix}-cached`)
+  }
+  if (regular) {
+    cy.wait(`@${prefix}`)
+  }
+  return waitForCompileOutput({ prefix, pdf, cached })
+}
+
+export const waitForCompileOutput = ({
+  prefix = 'compile',
+  pdf = false,
+  cached = false,
+} = {}) => {
   cy.wait(`@${prefix}-log`)
+    .its('request.query.clsiserverid')
+    .should('eq', cached ? 'clsi-cache-zone-b-shard-1' : 'foo') // straight from cache if cached
   cy.wait(`@${prefix}-blg`)
+    .its('request.query.clsiserverid')
+    .should('eq', cached ? 'clsi-cache-zone-b-shard-1' : 'foo') // straight from cache if cached
   if (pdf) {
     cy.wait(`@${prefix}-pdf`)
+      .its('request.query.clsiserverid')
+      .should('eq', 'foo') // always from VM first
   }
   return cy.wrap(null)
 }
 
 export const interceptDeferredCompile = (beforeResponse?: () => void) => {
-  let resolveDeferredCompile: (value?: unknown) => void
-
-  const promise = new Promise(resolve => {
-    resolveDeferredCompile = resolve
-  })
+  const { promise, resolve } = Promise.withResolvers<void>()
 
   cy.intercept(
     { method: 'POST', url: '/project/*/compile*', times: 1 },
@@ -148,6 +240,5 @@ export const interceptDeferredCompile = (beforeResponse?: () => void) => {
     { fixture: 'build/output.blg' }
   ).as(`compile-blg`)
 
-  // @ts-ignore
-  return cy.wrap(resolveDeferredCompile)
+  return cy.wrap(resolve)
 }

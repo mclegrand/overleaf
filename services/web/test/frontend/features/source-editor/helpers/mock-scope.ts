@@ -5,10 +5,18 @@ import { Folder } from '../../../../../types/folder'
 export const rootFolderId = '012345678901234567890123'
 export const figuresFolderId = '123456789012345678901234'
 export const figureId = '234567890123456789012345'
-export const mockScope = (content?: string) => {
+export const mockScope = (
+  content?: string,
+  {
+    docOptions = {},
+    projectFeatures = {},
+    permissions = {},
+    projectOwner = undefined,
+  }: any = {}
+) => {
   return {
     editor: {
-      sharejs_doc: mockDoc(content),
+      sharejs_doc: mockDoc(content, docOptions),
       open_doc_name: 'test.tex',
       open_doc_id: docId,
       showVisual: false,
@@ -35,16 +43,23 @@ export const mockScope = (content?: string) => {
             {
               _id: figuresFolderId,
               name: 'figures',
-              docs: [],
+              docs: [
+                {
+                  _id: 'fake-nested-doc-id',
+                  name: 'foo.tex',
+                },
+              ],
               folders: [],
               fileRefs: [
                 {
                   _id: figureId,
                   name: 'frog.jpg',
+                  hash: '42',
                 },
                 {
                   _id: 'fake-figure-id',
                   name: 'unicorn.png',
+                  hash: '43',
                 },
               ],
             },
@@ -54,23 +69,17 @@ export const mockScope = (content?: string) => {
       ] as Folder[],
       features: {
         trackChanges: true,
+        ...projectFeatures,
       },
       trackChangesState: {},
       members: [],
+      owner: projectOwner,
     },
     permissions: {
       comment: true,
+      trackedWrite: true,
       write: true,
-    },
-    reviewPanel: {
-      subView: 'cur_file',
-      formattedProjectMembers: {},
-      fullTCStateCollapsed: true,
-      entries: {},
-      resolvedComments: {},
-    },
-    ui: {
-      reviewPanelOpen: true,
+      ...permissions,
     },
     toggleReviewPanel: cy.stub(),
     toggleTrackChangesForEveryone: cy.stub(),

@@ -17,13 +17,13 @@ describe('<CopyProjectButton />', function () {
     resetProjectListContextFetch()
   })
 
-  it('renders tooltip for button', function () {
+  it('renders tooltip for button', async function () {
     renderWithProjectListContext(
       <CopyProjectButtonTooltip project={copyableProject} />
     )
     const btn = screen.getByRole('button', { name: 'Copy' })
     fireEvent.mouseOver(btn)
-    screen.getByRole('tooltip', { name: 'Copy' })
+    await screen.findByRole('tooltip', { name: 'Copy' })
   })
 
   it('does not render the button when project is archived', function () {
@@ -51,21 +51,26 @@ describe('<CopyProjectButton />', function () {
     renderWithProjectListContext(
       <CopyProjectButtonTooltip project={copyableProject} />
     )
+
     const btn = screen.getByRole('button', { name: 'Copy' })
+
     fireEvent.click(btn)
-    screen.getByText('Copy Project')
+    screen.getByText('Copy project')
     screen.getByLabelText('New Name')
     screen.getByDisplayValue(`${copyableProject.name} (Copy)`)
-    const copyBtn = screen.getByRole<HTMLButtonElement>('button', {
+    const copyBtn = screen.getAllByRole<HTMLButtonElement>('button', {
       name: 'Copy',
-    })
+    })[1]
     fireEvent.click(copyBtn)
     expect(copyBtn.disabled).to.be.true
 
     await waitFor(
       () =>
-        expect(copyProjectMock.called(`/project/${copyableProject.id}/clone`))
-          .to.be.true
+        expect(
+          copyProjectMock.callHistory.called(
+            `/project/${copyableProject.id}/clone`
+          )
+        ).to.be.true
     )
   })
 })

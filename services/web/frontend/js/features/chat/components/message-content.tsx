@@ -18,9 +18,15 @@ const MessageContent: FC<{ content: string }> = ({ content }) => {
 
       // MathJax v3 typesetting
       loadMathJax()
-        .then(MathJax => {
+        .then(async MathJax => {
           if (mounted.current) {
-            MathJax.typesetPromise([root.current]).catch(debugConsole.error)
+            const element = root.current
+            try {
+              await MathJax.typesetPromise([element])
+              MathJax.typesetClear([element])
+            } catch (error) {
+              debugConsole.error(error)
+            }
           }
         })
         .catch(debugConsole.error)
@@ -28,7 +34,7 @@ const MessageContent: FC<{ content: string }> = ({ content }) => {
   }, [content, mounted])
 
   return (
-    <p ref={root}>
+    <p ref={root} translate="no">
       <Linkify>{content}</Linkify>
     </p>
   )

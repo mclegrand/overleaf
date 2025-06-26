@@ -1,3 +1,7 @@
+const _ = require('lodash')
+const confusingBrowserGlobals = require('confusing-browser-globals')
+const globals = require('globals')
+
 module.exports = {
   root: true,
   parser: '@typescript-eslint/parser',
@@ -19,6 +23,7 @@ module.exports = {
   },
   rules: {
     'no-constant-binary-expression': 'error',
+    'no-restricted-globals': ['error', ...confusingBrowserGlobals],
 
     // do not allow importing of implicit dependencies.
     'import/no-extraneous-dependencies': 'error',
@@ -39,16 +44,22 @@ module.exports = {
       'error',
       { functions: false, classes: false, variables: false },
     ],
+    'react-hooks/exhaustive-deps': [
+      'warn',
+      {
+        additionalHooks: '(useCommandProvider)',
+      },
+    ],
   },
   overrides: [
     // NOTE: changing paths may require updating them in the Makefile too.
     {
       // Node
       files: [
-        '**/app/src/**/*.js',
-        'app.js',
+        '**/app/src/**/*.{js,mjs}',
+        'app.{js,mjs}',
         'i18next-scanner.config.js',
-        'scripts/**/*.js',
+        'scripts/**/*.{js,mjs}',
         'webpack.config*.js',
       ],
       env: {
@@ -58,6 +69,10 @@ module.exports = {
     {
       // Test specific rules
       files: ['**/test/**/*.*'],
+      excludedFiles: [
+        '**/test/unit/src/**/*.test.mjs',
+        'test/unit/vitest_bootstrap.mjs',
+      ], // exclude vitest files
       plugins: ['mocha', 'chai-expect', 'chai-friendly'],
       env: {
         mocha: true,
@@ -90,8 +105,70 @@ module.exports = {
       },
     },
     {
+      files: [
+        '**/test/unit/src/**/*.test.mjs',
+        'test/unit/vitest_bootstrap.mjs',
+      ],
+      env: {
+        jest: true, // best match for vitest API etc.
+      },
+      plugins: ['@vitest', 'chai-expect', 'chai-friendly'], // still using chai for now
+      rules: {
+        // vitest-specific rules
+        '@vitest/no-focused-tests': 'error',
+        '@vitest/no-disabled-tests': 'error',
+
+        // Swap the no-unused-expressions rule with a more chai-friendly one
+        'no-unused-expressions': 'off',
+        'chai-friendly/no-unused-expressions': 'error',
+
+        // chai-specific rules
+        'chai-expect/missing-assertion': 'error',
+        'chai-expect/terminating-properties': 'error',
+        '@typescript-eslint/no-unused-expressions': 'off',
+      },
+    },
+    {
+      // ES specific rules
+      files: [
+        '**/app/src/**/*.mjs',
+        'modules/*/index.mjs',
+        'app.mjs',
+        'scripts/**/*.mjs',
+        'migrations/**/*.mjs',
+      ],
+      excludedFiles: [
+        // migration template file
+        'migrations/lib/template.mjs',
+      ],
+      parserOptions: {
+        sourceType: 'module',
+      },
+      plugins: ['unicorn'],
+      rules: {
+        'import/no-unresolved': [
+          'error',
+          {
+            // eslint-plugin-import does not support exports directive in package.json
+            // https://github.com/import-js/eslint-plugin-import/issues/1810
+            ignore: ['^p-queue$'],
+          },
+        ],
+        'import/extensions': [
+          'error',
+          'ignorePackages',
+          {
+            js: 'always',
+            mjs: 'always',
+          },
+        ],
+        'unicorn/prefer-module': 'error',
+        'unicorn/prefer-node-protocol': 'error',
+      },
+    },
+    {
       // Backend specific rules
-      files: ['**/app/src/**/*.js', 'app.js'],
+      files: ['**/app/src/**/*.{js,mjs}', 'app.{js,mjs}'],
       parserOptions: {
         tsconfigRootDir: __dirname,
         project: './tsconfig.backend.json',
@@ -143,7 +220,10 @@ module.exports = {
               'Mongo find returns a cursor not a promise, use `for await (const result of cursor)` or `.toArray()` instead.',
           },
         ],
-        '@typescript-eslint/no-floating-promises': 'error',
+        '@typescript-eslint/no-floating-promises': [
+          'error',
+          { checkThenables: true },
+        ],
       },
     },
     {
@@ -185,6 +265,24 @@ module.exports = {
       extends: ['plugin:cypress/recommended'],
     },
     {
+      // Frontend test specific rules
+      files: ['**/frontend/**/*.test.{js,jsx,ts,tsx}'],
+      plugins: ['testing-library'],
+      extends: ['plugin:testing-library/react'],
+      rules: {
+        'testing-library/no-await-sync-events': 'off',
+        'testing-library/no-await-sync-queries': 'off',
+        'testing-library/no-container': 'off',
+        'testing-library/no-node-access': 'off',
+        'testing-library/no-render-in-lifecycle': 'off',
+        'testing-library/no-wait-for-multiple-assertions': 'off',
+        'testing-library/no-wait-for-side-effects': 'off',
+        'testing-library/prefer-query-by-disappearance': 'off',
+        'testing-library/prefer-screen-queries': 'off',
+        'testing-library/render-result-naming-convention': 'off',
+      },
+    },
+    {
       // Frontend specific rules
       files: [
         '**/frontend/js/**/*.{js,jsx,ts,tsx}',
@@ -210,7 +308,6 @@ module.exports = {
       globals: {
         __webpack_public_path__: true,
         $: true,
-        angular: true,
         ga: true,
       },
       rules: {
@@ -289,6 +386,18 @@ module.exports = {
               "CallExpression[callee.object.object.name='window'][callee.object.property.name='localStorage']",
             message:
               'Modify location via customLocalStorage instead of calling window.localStorage methods directly',
+          },
+        ],
+        'no-unused-vars': 'off',
+        '@typescript-eslint/no-unused-vars': [
+          'error',
+          {
+            args: 'after-used',
+            argsIgnorePattern: '^_',
+            ignoreRestSiblings: false,
+            caughtErrors: 'none',
+            vars: 'all',
+            varsIgnorePattern: '^_',
           },
         ],
       },
@@ -406,8 +515,8 @@ module.exports = {
         // Backend: Use @overleaf/logger
         //          Docs: https://manual.dev-overleaf.com/development/code/logging/#structured-logging
         '**/app/**/*.{js,cjs,mjs}',
-        'app.js',
-        'modules/*/*.js',
+        'app.{js,mjs}',
+        'modules/*/*.{js,mjs}',
         // Frontend: Prefer debugConsole over bare console
         //           Docs: https://manual.dev-overleaf.com/development/code/logging/#frontend
         '**/frontend/**/*.{js,jsx,ts,tsx}',
@@ -425,6 +534,18 @@ module.exports = {
       ],
       rules: {
         'no-console': 'error',
+      },
+    },
+    {
+      files: ['**/*.worker.{js,ts}'],
+      rules: {
+        'no-restricted-globals': [
+          'error',
+          ..._.difference(
+            Object.keys({ ...globals.browser, ...globals.node }),
+            Object.keys(globals.worker)
+          ),
+        ],
       },
     },
   ],

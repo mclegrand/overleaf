@@ -6,6 +6,7 @@ const MockResponse = require('../helpers/MockResponse')
 const modulePath =
   '../../../../app/src/Features/Subscription/SubscriptionController'
 const SubscriptionErrors = require('../../../../app/src/Features/Subscription/Errors')
+const SubscriptionHelper = require('../../../../app/src/Features/Subscription/SubscriptionHelper')
 
 const mockSubscriptions = {
   'subscription-123-active': {
@@ -53,22 +54,22 @@ describe('SubscriptionController', function () {
         updateSubscription: sinon.stub().resolves(),
         reactivateSubscription: sinon.stub().resolves(),
         cancelSubscription: sinon.stub().resolves(),
+        pauseSubscription: sinon.stub().resolves(),
+        resumeSubscription: sinon.stub().resolves(),
         syncSubscription: sinon.stub().resolves(),
         attemptPaypalInvoiceCollection: sinon.stub().resolves(),
         startFreeTrial: sinon.stub().resolves(),
       },
     }
 
-    this.PlansLocator = { findLocalPlanInSettings: sinon.stub() }
-
     this.LimitationsManager = {
       hasPaidSubscription: sinon.stub(),
-      userHasV1OrV2Subscription: sinon.stub(),
-      userHasV2Subscription: sinon.stub(),
+      userHasSubscription: sinon
+        .stub()
+        .yields(null, { hasSubscription: false }),
       promises: {
         hasPaidSubscription: sinon.stub().resolves(),
-        userHasV1OrV2Subscription: sinon.stub().resolves(),
-        userHasV2Subscription: sinon.stub().resolves(),
+        userHasSubscription: sinon.stub().resolves({ hasSubscription: false }),
       },
     }
 
@@ -77,7 +78,6 @@ describe('SubscriptionController', function () {
       buildPlansList: sinon.stub(),
       promises: {
         buildUsersSubscriptionViewModel: sinon.stub().resolves({}),
-        getBestSubscription: sinon.stub().resolves({}),
       },
       buildPlansListForSubscriptionDash: sinon
         .stub()
@@ -127,15 +127,15 @@ describe('SubscriptionController', function () {
       getUser: sinon.stub().callsArgWith(2, null, this.user),
       promises: {
         getUser: sinon.stub().resolves(this.user),
+        getWritefullData: sinon
+          .stub()
+          .resolves({ isPremium: false, premiumSource: null }),
       },
     }
     this.SplitTestV2Hander = {
       promises: {
         getAssignment: sinon.stub().resolves({ variant: 'default' }),
       },
-    }
-    this.SubscriptionHelper = {
-      generateInitialLocalizedGroupPrice: sinon.stub(),
     }
     this.Features = {
       hasFeature: sinon.stub().returns(false),
@@ -146,20 +146,25 @@ describe('SubscriptionController', function () {
         '../SplitTests/SplitTestHandler': this.SplitTestV2Hander,
         '../Authentication/SessionManager': this.SessionManager,
         './SubscriptionHandler': this.SubscriptionHandler,
-        './SubscriptionHelper': this.SubscriptionHelper,
-        './PlansLocator': this.PlansLocator,
+        './SubscriptionHelper': SubscriptionHelper,
         './SubscriptionViewModelBuilder': this.SubscriptionViewModelBuilder,
         './LimitationsManager': this.LimitationsManager,
         '../../infrastructure/GeoIpLookup': this.GeoIpLookup,
         '@overleaf/settings': this.settings,
         '../User/UserGetter': this.UserGetter,
         './RecurlyWrapper': (this.RecurlyWrapper = {
-          updateAccountEmailAddress: sinon.stub().yields(),
+          promises: {
+            updateAccountEmailAddress: sinon.stub().resolves(),
+          },
         }),
         './RecurlyEventHandler': {
           sendRecurlyAnalyticsEvent: sinon.stub().resolves(),
         },
-        './FeaturesUpdater': (this.FeaturesUpdater = {}),
+        './FeaturesUpdater': (this.FeaturesUpdater = {
+          promises: {
+            refreshFeatures: sinon.stub().resolves({ features: {} }),
+          },
+        }),
         './GroupPlansData': (this.GroupPlansData = {}),
         './V1SubscriptionManager': (this.V1SubscriptionManager = {}),
         '../Errors/HttpErrorHandler': (this.HttpErrorHandler = {
@@ -167,14 +172,30 @@ describe('SubscriptionController', function () {
             res.status(422)
             res.json({ message })
           }),
+          badRequest: sinon.stub().callsFake((req, res, message) => {
+            res.status(400)
+            res.json({ message })
+          }),
         }),
         './Errors': SubscriptionErrors,
         '../Analytics/AnalyticsManager': (this.AnalyticsManager = {
           recordEventForUser: sinon.stub(),
+          recordEventForUserInBackground: sinon.stub(),
           recordEventForSession: sinon.stub(),
           setUserPropertyForUser: sinon.stub(),
         }),
+        '../../infrastructure/Modules': (this.Modules = {
+          promises: { hooks: { fire: sinon.stub().resolves() } },
+        }),
         '../../infrastructure/Features': this.Features,
+        '../../util/currency': (this.currency = {
+          formatCurrency: sinon.stub(),
+        }),
+        '../../models/User': {
+          User: {
+            findById: sinon.stub().resolves(this.user),
+          },
+        },
       },
     })
 
@@ -184,151 +205,6 @@ describe('SubscriptionController', function () {
     this.req.query = { planCode: '123123' }
 
     this.stubbedCurrencyCode = 'GBP'
-  })
-
-  describe('plansPage', function () {
-    beforeEach(function () {
-      this.req.ip = '1234.3123.3131.333 313.133.445.666 653.5345.5345.534'
-      this.GeoIpLookup.promises.getCurrencyCode.resolves({
-        currencyCode: this.stubbedCurrencyCode,
-      })
-    })
-
-    describe('ip override', function () {
-      beforeEach(function () {
-        this.req.ip = '1.2.3.4'
-        this.req.query = { ip: '5.6.7.8' }
-        this.GeoIpLookup.promises.getCurrencyCode.withArgs('1.2.3.4').resolves({
-          currencyCode: 'GBP',
-        })
-        this.GeoIpLookup.promises.getCurrencyCode.withArgs('5.6.7.8').resolves({
-          currencyCode: 'USD',
-        })
-      })
-      it('should ignore override for non admin', function (done) {
-        this.res.render = (page, opts) => {
-          opts.recommendedCurrency.should.equal('GBP')
-          done()
-        }
-        this.AuthorizationManager.promises.isUserSiteAdmin.resolves(false)
-        this.SubscriptionController.plansPage(this.req, this.res)
-      })
-
-      it('should accept override for admin', function (done) {
-        this.res.render = (page, opts) => {
-          opts.recommendedCurrency.should.equal('USD')
-          done()
-        }
-        this.AuthorizationManager.promises.isUserSiteAdmin.resolves(true)
-        this.SubscriptionController.plansPage(this.req, this.res)
-      })
-    })
-
-    describe('groupPlanModal data', function () {
-      it('should pass local currency if valid', function (done) {
-        this.res.render = (page, opts) => {
-          page.should.equal('subscriptions/plans')
-          opts.groupPlanModalDefaults.currency.should.equal('GBP')
-          done()
-        }
-        this.GeoIpLookup.promises.getCurrencyCode.resolves({
-          currencyCode: 'GBP',
-        })
-        this.SubscriptionController.plansPage(this.req, this.res)
-      })
-
-      it('should fallback to USD when valid', function (done) {
-        this.res.render = (page, opts) => {
-          page.should.equal('subscriptions/plans')
-          opts.groupPlanModalDefaults.currency.should.equal('USD')
-          done()
-        }
-        this.GeoIpLookup.promises.getCurrencyCode.resolves({
-          currencyCode: 'FOO',
-        })
-        this.SubscriptionController.plansPage(this.req, this.res)
-      })
-
-      it('should pass valid options for group plan modal and discard invalid', function (done) {
-        this.res.render = (page, opts) => {
-          page.should.equal('subscriptions/plans')
-          opts.groupPlanModalDefaults.size.should.equal('42')
-          opts.groupPlanModalDefaults.plan_code.should.equal('collaborator')
-          opts.groupPlanModalDefaults.currency.should.equal('GBP')
-          opts.groupPlanModalDefaults.usage.should.equal('foo')
-          done()
-        }
-        this.GeoIpLookup.isValidCurrencyParam.returns(false)
-        this.req.query = {
-          number: '42',
-          currency: 'ABC',
-          plan: 'does-not-exist',
-          usage: 'foo',
-        }
-        this.SubscriptionController.plansPage(this.req, this.res)
-      })
-    })
-
-    describe('showInrGeoBanner data', function () {
-      it('should return true for Indian Users', function (done) {
-        this.res.render = (page, opts) => {
-          page.should.equal('subscriptions/plans')
-          opts.showInrGeoBanner.should.equal(true)
-          done()
-        }
-        this.GeoIpLookup.promises.getCurrencyCode.resolves({
-          countryCode: 'IN',
-        })
-        this.SubscriptionController.plansPage(this.req, this.res)
-      })
-    })
-  })
-
-  describe('interstitialPaymentPage', function () {
-    beforeEach(function () {
-      this.req.ip = '1234.3123.3131.333 313.133.445.666 653.5345.5345.534'
-      this.GeoIpLookup.promises.getCurrencyCode.resolves({
-        currencyCode: this.stubbedCurrencyCode,
-      })
-    })
-
-    describe('with a user without subscription', function () {
-      it('should render the interstitial payment page', function (done) {
-        this.res.render = (page, opts) => {
-          page.should.equal('subscriptions/interstitial-payment')
-          done()
-        }
-        this.SubscriptionController.interstitialPaymentPage(this.req, this.res)
-      })
-    })
-
-    describe('with a user with subscription', function () {
-      it('should redirect to the subscription dashboard', function (done) {
-        this.PlansLocator.findLocalPlanInSettings.returns({})
-        this.LimitationsManager.promises.userHasV1OrV2Subscription.resolves(
-          true
-        )
-        this.res.redirect = url => {
-          url.should.equal('/user/subscription?hasSubscription=true')
-          done()
-        }
-        this.SubscriptionController.interstitialPaymentPage(this.req, this.res)
-      })
-    })
-
-    describe('showInrGeoBanner data', function () {
-      it('should return true for Indian users', function (done) {
-        this.res.render = (page, opts) => {
-          page.should.equal('subscriptions/interstitial-payment')
-          opts.showInrGeoBanner.should.equal(true)
-          done()
-        }
-        this.GeoIpLookup.promises.getCurrencyCode.resolves({
-          countryCode: 'IN',
-        })
-        this.SubscriptionController.interstitialPaymentPage(this.req, this.res)
-      })
-    })
   })
 
   describe('successfulSubscription', function () {
@@ -355,6 +231,10 @@ describe('SubscriptionController', function () {
           title: 'thank_you',
           personalSubscription: 'foo',
           postCheckoutRedirect: undefined,
+          user: {
+            _id: this.user._id,
+            features: this.user.features,
+          },
         })
         done()
       }
@@ -397,7 +277,9 @@ describe('SubscriptionController', function () {
           planCodesChangingAtTermEnd: [],
         }
       )
-      this.LimitationsManager.promises.userHasV1OrV2Subscription.resolves(false)
+      this.LimitationsManager.promises.userHasSubscription.resolves({
+        hasSubscription: false,
+      })
       this.res.render = (view, data) => {
         this.data = data
         expect(view).to.equal('subscriptions/dashboard-react')
@@ -428,58 +310,51 @@ describe('SubscriptionController', function () {
     })
   })
 
-  describe('updateSubscription via post', function () {
-    beforeEach(function (done) {
-      this.res = {
-        redirect() {
-          done()
-        },
-      }
-      sinon.spy(this.res, 'redirect')
-      this.plan_code = '1234'
-      this.req.body.plan_code = this.plan_code
-      this.SubscriptionController.updateSubscription(this.req, this.res)
-    })
-
-    it('should send the user and subscriptionId to the handler', function (done) {
-      this.SubscriptionHandler.updateSubscription
-        .calledWith(this.user, this.plan_code)
-        .should.equal(true)
-      done()
-    })
-
-    it('should redurect to the subscription page', function (done) {
-      this.res.redirect.calledWith('/user/subscription').should.equal(true)
-      done()
-    })
-  })
-
   describe('updateAccountEmailAddress via put', function () {
-    it('should send the user and subscriptionId to RecurlyWrapper', function () {
-      this.res.sendStatus = sinon.spy()
-      this.SubscriptionController.updateAccountEmailAddress(this.req, this.res)
-      this.RecurlyWrapper.updateAccountEmailAddress
-        .calledWith(this.user._id, this.user.email)
-        .should.equal(true)
+    beforeEach(function () {
+      this.req.body = {
+        account_email: 'current_account_email@overleaf.com',
+      }
     })
 
-    it('should respond with 200', function () {
+    it('should send the user and subscriptionId to "updateAccountEmailAddress" hooks', async function () {
       this.res.sendStatus = sinon.spy()
-      this.SubscriptionController.updateAccountEmailAddress(this.req, this.res)
+
+      await this.SubscriptionController.updateAccountEmailAddress(
+        this.req,
+        this.res
+      )
+
+      expect(this.Modules.promises.hooks.fire).to.have.been.calledWith(
+        'updateAccountEmailAddress',
+        this.user._id,
+        this.user.email
+      )
+    })
+
+    it('should respond with 200', async function () {
+      this.res.sendStatus = sinon.spy()
+      await this.SubscriptionController.updateAccountEmailAddress(
+        this.req,
+        this.res
+      )
       this.res.sendStatus.calledWith(200).should.equal(true)
     })
 
-    it('should send the error to the next handler when updating recurly account email fails', function (done) {
-      this.RecurlyWrapper.updateAccountEmailAddress.yields(new Error())
+    it('should send the error to the next handler when updating recurly account email fails', async function () {
+      this.Modules.promises.hooks.fire
+        .withArgs('updateAccountEmailAddress', this.user._id, this.user.email)
+        .rejects(new Error())
+
       this.next = sinon.spy(error => {
-        expect(error).instanceOf(Error)
-        done()
+        expect(error).to.be.instanceOf(Error)
       })
-      this.SubscriptionController.updateAccountEmailAddress(
+      await this.SubscriptionController.updateAccountEmailAddress(
         this.req,
         this.res,
         this.next
       )
+      expect(this.next.calledOnce).to.be.true
     })
   })
 
@@ -554,6 +429,60 @@ describe('SubscriptionController', function () {
         this.next.calledWith(sinon.match.instanceOf(Error)).should.equal(true)
         done()
       })
+    })
+  })
+
+  describe('pauseSubscription', function () {
+    it('should throw an error if no pause length is provided', async function () {
+      this.res = new MockResponse()
+      this.req = new MockRequest()
+      this.next = sinon.stub()
+      await this.SubscriptionController.pauseSubscription(
+        this.req,
+        this.res,
+        this.next
+      )
+      expect(this.res.statusCode).to.equal(400)
+    })
+
+    it('should throw an error if an invalid pause length is provided', async function () {
+      this.res = new MockResponse()
+      this.req = new MockRequest()
+      this.req.params = { pauseCycles: -10 }
+      this.next = sinon.stub()
+      await this.SubscriptionController.pauseSubscription(
+        this.req,
+        this.res,
+        this.next
+      )
+      expect(this.res.statusCode).to.equal(400)
+    })
+
+    it('should return a 200 when requesting a pause', async function () {
+      this.res = new MockResponse()
+      this.req = new MockRequest()
+      this.req.params = { pauseCycles: 3 }
+      this.next = sinon.stub()
+      await this.SubscriptionController.pauseSubscription(
+        this.req,
+        this.res,
+        this.next
+      )
+      expect(this.res.statusCode).to.equal(200)
+    })
+  })
+
+  describe('resumeSubscription', function () {
+    it('should return a 200 when resuming a subscription', async function () {
+      this.res = new MockResponse()
+      this.req = new MockRequest()
+      this.next = sinon.stub()
+      await this.SubscriptionController.resumeSubscription(
+        this.req,
+        this.res,
+        this.next
+      )
+      expect(this.res.statusCode).to.equal(200)
     })
   })
 

@@ -1,6 +1,8 @@
+const SplitTestHandler = require('../SplitTests/SplitTestHandler')
 const AnalyticsManager = require('../Analytics/AnalyticsManager')
 const SubscriptionEmailHandler = require('./SubscriptionEmailHandler')
-const { ObjectId } = require('mongodb')
+const { AI_ADD_ON_CODE } = require('./PaymentProviderEntities')
+const { ObjectId } = require('mongodb-legacy')
 
 const INVOICE_SUBSCRIPTION_LIMIT = 10
 
@@ -29,6 +31,13 @@ async function sendRecurlyAnalyticsEvent(event, eventData) {
     case 'reactivated_account_notification':
       await _sendSubscriptionReactivatedEvent(userId, eventData)
       break
+    case 'subscription_paused_notification':
+      await _sendSubscriptionPausedEvent(userId, eventData)
+      break
+    case 'subscription_resumed_notification':
+      // 'resumed' here means resumed from pause
+      await _sendSubscriptionResumedEvent(userId, eventData)
+      break
     case 'paid_charge_invoice_notification':
       if (
         eventData.invoice.state === 'paid' &&
@@ -48,8 +57,49 @@ async function sendRecurlyAnalyticsEvent(event, eventData) {
   }
 }
 
+async function _sendSubscriptionResumedEvent(userId, eventData) {
+  const { planCode, state, subscriptionId } = _getSubscriptionData(eventData)
+
+  AnalyticsManager.recordEventForUserInBackground(
+    userId,
+    'subscription-resumed',
+    {
+      plan_code: planCode,
+      subscriptionId,
+      payment_provider: 'recurly',
+    }
+  )
+  AnalyticsManager.setUserPropertyForUserInBackground(
+    userId,
+    'subscription-state',
+    state
+  )
+}
+
+async function _sendSubscriptionPausedEvent(userId, eventData) {
+  const { planCode, state, subscriptionId } = _getSubscriptionData(eventData)
+
+  const pauseLength = eventData.subscription.remaining_pause_cycles
+
+  AnalyticsManager.recordEventForUserInBackground(
+    userId,
+    'subscription-paused',
+    {
+      pause_length: pauseLength,
+      plan_code: planCode,
+      subscriptionId,
+      payment_provider: 'recurly',
+    }
+  )
+  AnalyticsManager.setUserPropertyForUserInBackground(
+    userId,
+    'subscription-state',
+    state
+  )
+}
+
 async function _sendSubscriptionStartedEvent(userId, eventData) {
-  const { planCode, quantity, state, isTrial, subscriptionId } =
+  const { planCode, quantity, state, isTrial, hasAiAddOn, subscriptionId } =
     _getSubscriptionData(eventData)
   AnalyticsManager.recordEventForUserInBackground(
     userId,
@@ -58,7 +108,9 @@ async function _sendSubscriptionStartedEvent(userId, eventData) {
       plan_code: planCode,
       quantity,
       is_trial: isTrial,
+      has_ai_add_on: hasAiAddOn,
       subscriptionId,
+      payment_provider: 'recurly',
     }
   )
   AnalyticsManager.setUserPropertyForUserInBackground(
@@ -79,11 +131,22 @@ async function _sendSubscriptionStartedEvent(userId, eventData) {
 
   if (isTrial) {
     await SubscriptionEmailHandler.sendTrialOnboardingEmail(userId, planCode)
+    const cioAssignment = await SplitTestHandler.promises.getAssignmentForUser(
+      userId,
+      'customer-io-trial-conversion'
+    )
+    if (cioAssignment.variant === 'enabled') {
+      AnalyticsManager.setUserPropertyForUserInBackground(
+        userId,
+        'customer-io-integration',
+        true
+      )
+    }
   }
 }
 
 async function _sendSubscriptionUpdatedEvent(userId, eventData) {
-  const { planCode, quantity, state, isTrial, subscriptionId } =
+  const { planCode, quantity, state, isTrial, hasAiAddOn, subscriptionId } =
     _getSubscriptionData(eventData)
   AnalyticsManager.recordEventForUserInBackground(
     userId,
@@ -92,7 +155,9 @@ async function _sendSubscriptionUpdatedEvent(userId, eventData) {
       plan_code: planCode,
       quantity,
       is_trial: isTrial,
+      has_ai_add_on: hasAiAddOn,
       subscriptionId,
+      payment_provider: 'recurly',
     }
   )
   AnalyticsManager.setUserPropertyForUserInBackground(
@@ -113,7 +178,7 @@ async function _sendSubscriptionUpdatedEvent(userId, eventData) {
 }
 
 async function _sendSubscriptionCancelledEvent(userId, eventData) {
-  const { planCode, quantity, state, isTrial, subscriptionId } =
+  const { planCode, quantity, state, isTrial, hasAiAddOn, subscriptionId } =
     _getSubscriptionData(eventData)
   AnalyticsManager.recordEventForUserInBackground(
     userId,
@@ -122,7 +187,9 @@ async function _sendSubscriptionCancelledEvent(userId, eventData) {
       plan_code: planCode,
       quantity,
       is_trial: isTrial,
+      has_ai_add_on: hasAiAddOn,
       subscriptionId,
+      payment_provider: 'recurly',
     }
   )
   AnalyticsManager.setUserPropertyForUserInBackground(
@@ -138,7 +205,7 @@ async function _sendSubscriptionCancelledEvent(userId, eventData) {
 }
 
 async function _sendSubscriptionExpiredEvent(userId, eventData) {
-  const { planCode, quantity, state, isTrial, subscriptionId } =
+  const { planCode, quantity, state, isTrial, hasAiAddOn, subscriptionId } =
     _getSubscriptionData(eventData)
   AnalyticsManager.recordEventForUserInBackground(
     userId,
@@ -147,7 +214,9 @@ async function _sendSubscriptionExpiredEvent(userId, eventData) {
       plan_code: planCode,
       quantity,
       is_trial: isTrial,
+      has_ai_add_on: hasAiAddOn,
       subscriptionId,
+      payment_provider: 'recurly',
     }
   )
   AnalyticsManager.setUserPropertyForUserInBackground(
@@ -168,7 +237,7 @@ async function _sendSubscriptionExpiredEvent(userId, eventData) {
 }
 
 async function _sendSubscriptionRenewedEvent(userId, eventData) {
-  const { planCode, quantity, state, isTrial, subscriptionId } =
+  const { planCode, quantity, state, isTrial, hasAiAddOn, subscriptionId } =
     _getSubscriptionData(eventData)
   AnalyticsManager.recordEventForUserInBackground(
     userId,
@@ -177,7 +246,9 @@ async function _sendSubscriptionRenewedEvent(userId, eventData) {
       plan_code: planCode,
       quantity,
       is_trial: isTrial,
+      has_ai_add_on: hasAiAddOn,
       subscriptionId,
+      payment_provider: 'recurly',
     }
   )
   AnalyticsManager.setUserPropertyForUserInBackground(
@@ -198,7 +269,7 @@ async function _sendSubscriptionRenewedEvent(userId, eventData) {
 }
 
 async function _sendSubscriptionReactivatedEvent(userId, eventData) {
-  const { planCode, quantity, state, isTrial, subscriptionId } =
+  const { planCode, quantity, state, isTrial, hasAiAddOn, subscriptionId } =
     _getSubscriptionData(eventData)
   AnalyticsManager.recordEventForUserInBackground(
     userId,
@@ -206,7 +277,9 @@ async function _sendSubscriptionReactivatedEvent(userId, eventData) {
     {
       plan_code: planCode,
       quantity,
+      has_ai_add_on: hasAiAddOn,
       subscriptionId,
+      payment_provider: 'recurly',
     }
   )
   AnalyticsManager.setUserPropertyForUserInBackground(
@@ -253,6 +326,7 @@ async function _sendInvoicePaidEvent(userId, eventData) {
       taxInCents,
       country,
       collectionMethod,
+      payment_provider: 'recurly',
       ...subscriptionIds,
     }
   )
@@ -281,12 +355,17 @@ function _getSubscriptionData(eventData) {
     eventData.subscription.current_period_started_at &&
     eventData.subscription.trial_started_at.getTime() ===
       eventData.subscription.current_period_started_at.getTime()
+  const hasAiAddOn =
+    eventData.subscription.subscription_add_ons?.some(
+      addOn => addOn.add_on_code === AI_ADD_ON_CODE
+    ) ?? false
   return {
     planCode: eventData.subscription.plan.plan_code,
     quantity: eventData.subscription.quantity,
     state: eventData.subscription.state,
     subscriptionId: eventData.subscription.uuid,
     isTrial,
+    hasAiAddOn,
   }
 }
 

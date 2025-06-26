@@ -1,20 +1,21 @@
 import {
   CustomSubscription,
   GroupSubscription,
-  RecurlySubscription,
+  PaidSubscription,
 } from '../../../../../types/subscription/dashboard/subscription'
 import dateformat from 'dateformat'
 
 const today = new Date()
 const oneYearFromToday = new Date().setFullYear(today.getFullYear() + 1)
 const nextPaymentDueAt = dateformat(oneYearFromToday, 'dS mmmm yyyy')
+const nextPaymentDueDate = dateformat(oneYearFromToday, 'dS mmmm yyyy')
 const sevenDaysFromToday = new Date().setDate(today.getDate() + 7)
 const sevenDaysFromTodayFormatted = dateformat(
   sevenDaysFromToday,
   'dS mmmm yyyy'
 )
 
-export const annualActiveSubscription: RecurlySubscription = {
+export const annualActiveSubscription: PaidSubscription = {
   manager_ids: ['abc123'],
   member_ids: [],
   invited_emails: [],
@@ -24,7 +25,6 @@ export const annualActiveSubscription: RecurlySubscription = {
   admin_id: 'abc123',
   teamInvites: [],
   planCode: 'collaborator-annual',
-  recurlySubscription_id: 'ghi789',
   plan: {
     planCode: 'collaborator-annual',
     name: 'Standard (Collaborator) Annual',
@@ -32,29 +32,32 @@ export const annualActiveSubscription: RecurlySubscription = {
     annual: true,
     featureDescription: [],
   },
-  recurly: {
-    tax: 0,
+  payment: {
     taxRate: 0,
-    billingDetailsLink: '/user/subscription/recurly/billing-details',
-    accountManagementLink: '/user/subscription/recurly/account-management',
+    billingDetailsLink: '/user/subscription/payment/billing-details',
+    accountManagementLink: '/user/subscription/payment/account-management',
     additionalLicenses: 0,
     totalLicenses: 0,
     nextPaymentDueAt,
+    nextPaymentDueDate,
     currency: 'USD',
     state: 'active',
     trialEndsAtFormatted: null,
-    trial_ends_at: null,
+    trialEndsAt: null,
     activeCoupons: [],
-    account: {
-      email: 'fake@example.com',
-      has_canceled_subscription: { _: 'false', $: { type: 'boolean' } },
-      has_past_due_invoice: { _: 'false', $: { type: 'boolean' } },
-    },
+    accountEmail: 'fake@example.com',
+    hasPastDueInvoice: false,
     displayPrice: '$199.00',
+    planOnlyDisplayPrice: '',
+    addOns: [],
+    addOnDisplayPricesWithoutAdditionalLicense: {},
+    isEligibleForGroupPlan: true,
+    isEligibleForPause: false,
+    isEligibleForDowngradeUpsell: false,
   },
 }
 
-export const annualActiveSubscriptionEuro: RecurlySubscription = {
+export const annualActiveSubscriptionEuro: PaidSubscription = {
   manager_ids: ['abc123'],
   member_ids: [],
   invited_emails: [],
@@ -64,7 +67,6 @@ export const annualActiveSubscriptionEuro: RecurlySubscription = {
   admin_id: 'abc123',
   teamInvites: [],
   planCode: 'collaborator-annual',
-  recurlySubscription_id: 'ghi789',
   plan: {
     planCode: 'collaborator-annual',
     name: 'Standard (Collaborator) Annual',
@@ -72,29 +74,32 @@ export const annualActiveSubscriptionEuro: RecurlySubscription = {
     annual: true,
     featureDescription: [],
   },
-  recurly: {
-    tax: 4296,
+  payment: {
     taxRate: 0.24,
-    billingDetailsLink: '/user/subscription/recurly/billing-details',
-    accountManagementLink: '/user/subscription/recurly/account-management',
+    billingDetailsLink: '/user/subscription/payment/billing-details',
+    accountManagementLink: '/user/subscription/payment/account-management',
     additionalLicenses: 0,
     totalLicenses: 0,
     nextPaymentDueAt,
+    nextPaymentDueDate,
     currency: 'EUR',
     state: 'active',
     trialEndsAtFormatted: null,
-    trial_ends_at: null,
+    trialEndsAt: null,
     activeCoupons: [],
-    account: {
-      email: 'fake@example.com',
-      has_canceled_subscription: { _: 'false', $: { type: 'boolean' } },
-      has_past_due_invoice: { _: 'false', $: { type: 'boolean' } },
-    },
+    accountEmail: 'fake@example.com',
+    hasPastDueInvoice: false,
     displayPrice: '€221.96',
+    planOnlyDisplayPrice: '',
+    addOns: [],
+    addOnDisplayPricesWithoutAdditionalLicense: {},
+    isEligibleForGroupPlan: true,
+    isEligibleForPause: true,
+    isEligibleForDowngradeUpsell: false,
   },
 }
 
-export const annualActiveSubscriptionPro: RecurlySubscription = {
+export const annualActiveSubscriptionPro: PaidSubscription = {
   manager_ids: ['abc123'],
   member_ids: [],
   invited_emails: [],
@@ -104,36 +109,38 @@ export const annualActiveSubscriptionPro: RecurlySubscription = {
   admin_id: 'abc123',
   teamInvites: [],
   planCode: 'professional',
-  recurlySubscription_id: 'ghi789',
   plan: {
     planCode: 'professional',
     name: 'Professional',
     price_in_cents: 4500,
     featureDescription: [],
   },
-  recurly: {
-    tax: 0,
+  payment: {
     taxRate: 0,
-    billingDetailsLink: '/user/subscription/recurly/billing-details',
-    accountManagementLink: '/user/subscription/recurly/account-management',
+    billingDetailsLink: '/user/subscription/payment/billing-details',
+    accountManagementLink: '/user/subscription/payment/account-management',
     additionalLicenses: 0,
     totalLicenses: 0,
     nextPaymentDueAt,
+    nextPaymentDueDate,
     currency: 'USD',
     state: 'active',
     trialEndsAtFormatted: null,
-    trial_ends_at: null,
+    trialEndsAt: null,
     activeCoupons: [],
-    account: {
-      email: 'fake@example.com',
-      has_canceled_subscription: { _: 'false', $: { type: 'boolean' } },
-      has_past_due_invoice: { _: 'false', $: { type: 'boolean' } },
-    },
+    accountEmail: 'fake@example.com',
+    hasPastDueInvoice: false,
     displayPrice: '$42.00',
+    planOnlyDisplayPrice: '',
+    addOns: [],
+    addOnDisplayPricesWithoutAdditionalLicense: {},
+    isEligibleForGroupPlan: true,
+    isEligibleForPause: true,
+    isEligibleForDowngradeUpsell: false,
   },
 }
 
-export const pastDueExpiredSubscription: RecurlySubscription = {
+export const pastDueExpiredSubscription: PaidSubscription = {
   manager_ids: ['abc123'],
   member_ids: [],
   invited_emails: [],
@@ -143,7 +150,6 @@ export const pastDueExpiredSubscription: RecurlySubscription = {
   admin_id: 'abc123',
   teamInvites: [],
   planCode: 'collaborator-annual',
-  recurlySubscription_id: 'ghi789',
   plan: {
     planCode: 'collaborator-annual',
     name: 'Standard (Collaborator) Annual',
@@ -151,29 +157,32 @@ export const pastDueExpiredSubscription: RecurlySubscription = {
     annual: true,
     featureDescription: [],
   },
-  recurly: {
-    tax: 0,
+  payment: {
     taxRate: 0,
-    billingDetailsLink: '/user/subscription/recurly/billing-details',
-    accountManagementLink: '/user/subscription/recurly/account-management',
+    billingDetailsLink: '/user/subscription/payment/billing-details',
+    accountManagementLink: '/user/subscription/payment/account-management',
     additionalLicenses: 0,
     totalLicenses: 0,
     nextPaymentDueAt,
+    nextPaymentDueDate,
     currency: 'USD',
     state: 'expired',
     trialEndsAtFormatted: null,
-    trial_ends_at: null,
+    trialEndsAt: null,
     activeCoupons: [],
-    account: {
-      email: 'fake@example.com',
-      has_canceled_subscription: { _: 'false', $: { type: 'boolean' } },
-      has_past_due_invoice: { _: 'true', $: { type: 'boolean' } },
-    },
+    accountEmail: 'fake@example.com',
+    hasPastDueInvoice: true,
     displayPrice: '$199.00',
+    planOnlyDisplayPrice: '',
+    addOns: [],
+    addOnDisplayPricesWithoutAdditionalLicense: {},
+    isEligibleForGroupPlan: true,
+    isEligibleForPause: true,
+    isEligibleForDowngradeUpsell: false,
   },
 }
 
-export const canceledSubscription: RecurlySubscription = {
+export const canceledSubscription: PaidSubscription = {
   manager_ids: ['abc123'],
   member_ids: [],
   invited_emails: [],
@@ -183,7 +192,6 @@ export const canceledSubscription: RecurlySubscription = {
   admin_id: 'abc123',
   teamInvites: [],
   planCode: 'collaborator-annual',
-  recurlySubscription_id: 'ghi789',
   plan: {
     planCode: 'collaborator-annual',
     name: 'Standard (Collaborator) Annual',
@@ -191,29 +199,32 @@ export const canceledSubscription: RecurlySubscription = {
     annual: true,
     featureDescription: [],
   },
-  recurly: {
-    tax: 0,
+  payment: {
     taxRate: 0,
-    billingDetailsLink: '/user/subscription/recurly/billing-details',
-    accountManagementLink: '/user/subscription/recurly/account-management',
+    billingDetailsLink: '/user/subscription/payment/billing-details',
+    accountManagementLink: '/user/subscription/payment/account-management',
     additionalLicenses: 0,
     totalLicenses: 0,
     nextPaymentDueAt,
+    nextPaymentDueDate,
     currency: 'USD',
     state: 'canceled',
     trialEndsAtFormatted: null,
-    trial_ends_at: null,
+    trialEndsAt: null,
     activeCoupons: [],
-    account: {
-      email: 'fake@example.com',
-      has_canceled_subscription: { _: 'true', $: { type: 'boolean' } },
-      has_past_due_invoice: { _: 'false', $: { type: 'boolean' } },
-    },
+    accountEmail: 'fake@example.com',
+    hasPastDueInvoice: false,
     displayPrice: '$199.00',
+    planOnlyDisplayPrice: '',
+    addOns: [],
+    addOnDisplayPricesWithoutAdditionalLicense: {},
+    isEligibleForGroupPlan: true,
+    isEligibleForPause: true,
+    isEligibleForDowngradeUpsell: false,
   },
 }
 
-export const pendingSubscriptionChange: RecurlySubscription = {
+export const pendingSubscriptionChange: PaidSubscription = {
   manager_ids: ['abc123'],
   member_ids: [],
   invited_emails: [],
@@ -223,7 +234,6 @@ export const pendingSubscriptionChange: RecurlySubscription = {
   admin_id: 'abc123',
   teamInvites: [],
   planCode: 'collaborator-annual',
-  recurlySubscription_id: 'ghi789',
   plan: {
     planCode: 'collaborator-annual',
     name: 'Standard (Collaborator) Annual',
@@ -231,25 +241,28 @@ export const pendingSubscriptionChange: RecurlySubscription = {
     annual: true,
     featureDescription: [],
   },
-  recurly: {
-    tax: 0,
+  payment: {
     taxRate: 0,
-    billingDetailsLink: '/user/subscription/recurly/billing-details',
-    accountManagementLink: '/user/subscription/recurly/account-management',
+    billingDetailsLink: '/user/subscription/payment/billing-details',
+    accountManagementLink: '/user/subscription/payment/account-management',
     additionalLicenses: 0,
     totalLicenses: 0,
     nextPaymentDueAt,
+    nextPaymentDueDate,
     currency: 'USD',
     state: 'active',
     trialEndsAtFormatted: null,
-    trial_ends_at: null,
+    trialEndsAt: null,
     activeCoupons: [],
-    account: {
-      email: 'fake@example.com',
-      has_canceled_subscription: { _: 'false', $: { type: 'boolean' } },
-      has_past_due_invoice: { _: 'false', $: { type: 'boolean' } },
-    },
+    accountEmail: 'fake@example.com',
+    hasPastDueInvoice: false,
     displayPrice: '$199.00',
+    planOnlyDisplayPrice: '',
+    addOns: [],
+    addOnDisplayPricesWithoutAdditionalLicense: {},
+    isEligibleForGroupPlan: true,
+    isEligibleForPause: false,
+    isEligibleForDowngradeUpsell: false,
   },
   pendingPlan: {
     planCode: 'professional-annual',
@@ -271,7 +284,6 @@ export const groupActiveSubscription: GroupSubscription = {
   admin_id: 'abc123',
   teamInvites: [],
   planCode: 'group_collaborator_10_enterprise',
-  recurlySubscription_id: 'ghi789',
   plan: {
     planCode: 'group_collaborator_10_enterprise',
     name: 'Overleaf Standard (Collaborator) - Group Account (10 licenses) - Enterprise',
@@ -282,25 +294,28 @@ export const groupActiveSubscription: GroupSubscription = {
     membersLimit: 10,
     membersLimitAddOn: 'additional-license',
   },
-  recurly: {
-    tax: 0,
+  payment: {
     taxRate: 0,
-    billingDetailsLink: '/user/subscription/recurly/billing-details',
-    accountManagementLink: '/user/subscription/recurly/account-management',
+    billingDetailsLink: '/user/subscription/payment/billing-details',
+    accountManagementLink: '/user/subscription/payment/account-management',
     additionalLicenses: 0,
     totalLicenses: 10,
     nextPaymentDueAt,
+    nextPaymentDueDate,
     currency: 'USD',
     state: 'active',
     trialEndsAtFormatted: null,
-    trial_ends_at: null,
+    trialEndsAt: null,
     activeCoupons: [],
-    account: {
-      email: 'fake@example.com',
-      has_canceled_subscription: { _: 'false', $: { type: 'boolean' } },
-      has_past_due_invoice: { _: 'false', $: { type: 'boolean' } },
-    },
+    accountEmail: 'fake@example.com',
+    hasPastDueInvoice: false,
     displayPrice: '$1290.00',
+    planOnlyDisplayPrice: '',
+    addOns: [],
+    addOnDisplayPricesWithoutAdditionalLicense: {},
+    isEligibleForGroupPlan: true,
+    isEligibleForPause: false,
+    isEligibleForDowngradeUpsell: false,
   },
 }
 
@@ -316,7 +331,6 @@ export const groupActiveSubscriptionWithPendingLicenseChange: GroupSubscription 
     admin_id: 'abc123',
     teamInvites: [],
     planCode: 'group_collaborator_10_enterprise',
-    recurlySubscription_id: 'ghi789',
     plan: {
       planCode: 'group_collaborator_10_enterprise',
       name: 'Overleaf Standard (Collaborator) - Group Account (10 licenses) - Enterprise',
@@ -327,38 +341,30 @@ export const groupActiveSubscriptionWithPendingLicenseChange: GroupSubscription 
       membersLimit: 10,
       membersLimitAddOn: 'additional-license',
     },
-    recurly: {
-      tax: 0,
+    payment: {
       taxRate: 0,
-      billingDetailsLink: '/user/subscription/recurly/billing-details',
-      accountManagementLink: '/user/subscription/recurly/account-management',
+      billingDetailsLink: '/user/subscription/payment/billing-details',
+      accountManagementLink: '/user/subscription/payment/account-management',
       additionalLicenses: 11,
       totalLicenses: 21,
       nextPaymentDueAt,
+      nextPaymentDueDate,
       currency: 'USD',
       state: 'active',
       trialEndsAtFormatted: null,
-      trial_ends_at: null,
+      trialEndsAt: null,
       activeCoupons: [],
-      account: {
-        email: 'fake@example.com',
-        has_canceled_subscription: {
-          _: 'false',
-          $: {
-            type: 'boolean',
-          },
-        },
-        has_past_due_invoice: {
-          _: 'false',
-          $: {
-            type: 'boolean',
-          },
-        },
-      },
+      accountEmail: 'fake@example.com',
+      hasPastDueInvoice: false,
       displayPrice: '$2967.00',
-      currentPlanDisplayPrice: '$2709.00',
       pendingAdditionalLicenses: 13,
       pendingTotalLicenses: 23,
+      planOnlyDisplayPrice: '',
+      addOns: [],
+      addOnDisplayPricesWithoutAdditionalLicense: {},
+      isEligibleForGroupPlan: true,
+      isEligibleForPause: false,
+      isEligibleForDowngradeUpsell: false,
     },
     pendingPlan: {
       planCode: 'group_collaborator_10_enterprise',
@@ -372,7 +378,7 @@ export const groupActiveSubscriptionWithPendingLicenseChange: GroupSubscription 
     },
   }
 
-export const trialSubscription: RecurlySubscription = {
+export const trialSubscription: PaidSubscription = {
   manager_ids: ['abc123'],
   member_ids: [],
   invited_emails: [],
@@ -382,7 +388,6 @@ export const trialSubscription: RecurlySubscription = {
   admin_id: 'abc123',
   teamInvites: [],
   planCode: 'paid-personal_free_trial_7_days',
-  recurlySubscription_id: 'ghi789',
   plan: {
     planCode: 'paid-personal_free_trial_7_days',
     name: 'Personal',
@@ -390,35 +395,28 @@ export const trialSubscription: RecurlySubscription = {
     featureDescription: [],
     hideFromUsers: true,
   },
-  recurly: {
-    tax: 0,
+  payment: {
     taxRate: 0,
-    billingDetailsLink: '/user/subscription/recurly/billing-details',
-    accountManagementLink: '/user/subscription/recurly/account-management',
+    billingDetailsLink: '/user/subscription/payment/billing-details',
+    accountManagementLink: '/user/subscription/payment/account-management',
     additionalLicenses: 0,
     totalLicenses: 0,
     nextPaymentDueAt: sevenDaysFromTodayFormatted,
+    nextPaymentDueDate: sevenDaysFromTodayFormatted,
     currency: 'USD',
     state: 'active',
     trialEndsAtFormatted: sevenDaysFromTodayFormatted,
-    trial_ends_at: new Date(sevenDaysFromToday).toString(),
+    trialEndsAt: new Date(sevenDaysFromToday).toString(),
     activeCoupons: [],
-    account: {
-      email: 'fake@example.com',
-      has_canceled_subscription: {
-        _: 'false',
-        $: {
-          type: 'boolean',
-        },
-      },
-      has_past_due_invoice: {
-        _: 'false',
-        $: {
-          type: 'boolean',
-        },
-      },
-    },
+    accountEmail: 'fake@example.com',
+    hasPastDueInvoice: false,
     displayPrice: '$14.00',
+    planOnlyDisplayPrice: '',
+    addOns: [],
+    addOnDisplayPricesWithoutAdditionalLicense: {},
+    isEligibleForGroupPlan: true,
+    isEligibleForPause: false,
+    isEligibleForDowngradeUpsell: false,
   },
 }
 
@@ -432,7 +430,6 @@ export const customSubscription: CustomSubscription = {
   admin_id: 'abc123',
   teamInvites: [],
   planCode: 'collaborator-annual',
-  recurlySubscription_id: 'ghi789',
   plan: {
     planCode: 'collaborator-annual',
     name: 'Standard (Collaborator) Annual',
@@ -443,7 +440,7 @@ export const customSubscription: CustomSubscription = {
   customAccount: true,
 }
 
-export const trialCollaboratorSubscription: RecurlySubscription = {
+export const trialCollaboratorSubscription: PaidSubscription = {
   manager_ids: ['abc123'],
   member_ids: [],
   invited_emails: [],
@@ -453,7 +450,6 @@ export const trialCollaboratorSubscription: RecurlySubscription = {
   admin_id: 'abc123',
   teamInvites: [],
   planCode: 'collaborator_free_trial_7_days',
-  recurlySubscription_id: 'ghi789',
   plan: {
     planCode: 'collaborator_free_trial_7_days',
     name: 'Standard (Collaborator)',
@@ -461,39 +457,32 @@ export const trialCollaboratorSubscription: RecurlySubscription = {
     featureDescription: [],
     hideFromUsers: true,
   },
-  recurly: {
-    tax: 0,
+  payment: {
     taxRate: 0,
-    billingDetailsLink: '/user/subscription/recurly/billing-details',
-    accountManagementLink: '/user/subscription/recurly/account-management',
+    billingDetailsLink: '/user/subscription/payment/billing-details',
+    accountManagementLink: '/user/subscription/payment/account-management',
     additionalLicenses: 0,
     totalLicenses: 0,
     nextPaymentDueAt: sevenDaysFromTodayFormatted,
+    nextPaymentDueDate: sevenDaysFromTodayFormatted,
     currency: 'USD',
     state: 'active',
     trialEndsAtFormatted: sevenDaysFromTodayFormatted,
-    trial_ends_at: new Date(sevenDaysFromToday).toString(),
+    trialEndsAt: new Date(sevenDaysFromToday).toString(),
     activeCoupons: [],
-    account: {
-      email: 'foo@example.com',
-      has_canceled_subscription: {
-        _: 'false',
-        $: {
-          type: 'boolean',
-        },
-      },
-      has_past_due_invoice: {
-        _: 'false',
-        $: {
-          type: 'boolean',
-        },
-      },
-    },
+    accountEmail: 'foo@example.com',
+    hasPastDueInvoice: false,
     displayPrice: '$21.00',
+    planOnlyDisplayPrice: '',
+    addOns: [],
+    addOnDisplayPricesWithoutAdditionalLicense: {},
+    isEligibleForGroupPlan: true,
+    isEligibleForPause: true,
+    isEligibleForDowngradeUpsell: false,
   },
 }
 
-export const monthlyActiveCollaborator: RecurlySubscription = {
+export const monthlyActiveCollaborator: PaidSubscription = {
   manager_ids: ['abc123'],
   member_ids: [],
   invited_emails: [],
@@ -503,31 +492,33 @@ export const monthlyActiveCollaborator: RecurlySubscription = {
   admin_id: 'abc123',
   teamInvites: [],
   planCode: 'collaborator',
-  recurlySubscription_id: 'ghi789',
   plan: {
     planCode: 'collaborator',
     name: 'Standard (Collaborator)',
     price_in_cents: 212300900,
     featureDescription: [],
   },
-  recurly: {
-    tax: 0,
+  payment: {
     taxRate: 0,
-    billingDetailsLink: '/user/subscription/recurly/billing-details',
-    accountManagementLink: '/user/subscription/recurly/account-management',
+    billingDetailsLink: '/user/subscription/payment/billing-details',
+    accountManagementLink: '/user/subscription/payment/account-management',
     additionalLicenses: 0,
     totalLicenses: 0,
     nextPaymentDueAt,
+    nextPaymentDueDate,
     currency: 'USD',
     state: 'active',
     trialEndsAtFormatted: null,
-    trial_ends_at: null,
+    trialEndsAt: null,
     activeCoupons: [],
-    account: {
-      email: 'foo@example.com',
-      has_canceled_subscription: { _: 'false', $: { type: 'boolean' } },
-      has_past_due_invoice: { _: 'false', $: { type: 'boolean' } },
-    },
+    accountEmail: 'foo@example.com',
+    hasPastDueInvoice: false,
     displayPrice: '$21.00',
+    planOnlyDisplayPrice: '',
+    addOns: [],
+    addOnDisplayPricesWithoutAdditionalLicense: {},
+    isEligibleForGroupPlan: true,
+    isEligibleForPause: true,
+    isEligibleForDowngradeUpsell: true,
   },
 }

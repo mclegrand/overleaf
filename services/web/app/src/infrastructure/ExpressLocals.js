@@ -11,6 +11,7 @@ const Features = require('./Features')
 const SessionManager = require('../Features/Authentication/SessionManager')
 const PackageVersions = require('./PackageVersions')
 const Modules = require('./Modules')
+const Errors = require('../Features/Errors/Errors')
 const {
   canRedirectToAdminDomain,
   hasAdminAccess,
@@ -18,33 +19,36 @@ const {
 const {
   addOptionalCleanupHandlerAfterDrainingConnections,
 } = require('./GracefulShutdown')
+const { sanitizeSessionUserForFrontEnd } = require('./FrontEndUser')
 
 const IEEE_BRAND_ID = Settings.ieeeBrandId
 
 let webpackManifest
-switch (process.env.NODE_ENV) {
-  case 'production':
-    // Only load webpack manifest file in production.
-    webpackManifest = require('../../../public/manifest.json')
-    break
-  case 'development': {
-    // In dev, fetch the manifest from the webpack container.
-    loadManifestFromWebpackDevServer()
-    const intervalHandle = setInterval(
-      loadManifestFromWebpackDevServer,
-      10 * 1000
-    )
-    addOptionalCleanupHandlerAfterDrainingConnections(
-      'refresh webpack manifest',
-      () => {
-        clearInterval(intervalHandle)
-      }
-    )
-    break
+function loadManifest() {
+  switch (process.env.NODE_ENV) {
+    case 'production':
+      // Only load webpack manifest file in production.
+      webpackManifest = require('../../../public/manifest.json')
+      break
+    case 'development': {
+      // In dev, fetch the manifest from the webpack container.
+      loadManifestFromWebpackDevServer()
+      const intervalHandle = setInterval(
+        loadManifestFromWebpackDevServer,
+        10 * 1000
+      )
+      addOptionalCleanupHandlerAfterDrainingConnections(
+        'refresh webpack manifest',
+        () => {
+          clearInterval(intervalHandle)
+        }
+      )
+      break
+    }
+    default:
+      // In ci, all entries are undefined.
+      webpackManifest = {}
   }
-  default:
-    // In ci, all entries are undefined.
-    webpackManifest = {}
 }
 function loadManifestFromWebpackDevServer(done = function () {}) {
   fetchJson(new URL(`/manifest.json`, Settings.apis.webpack.url), {
@@ -71,6 +75,7 @@ function getWebpackAssets(entrypoint, section) {
 }
 
 module.exports = function (webRouter, privateApiRouter, publicApiRouter) {
+  loadManifest()
   if (process.env.NODE_ENV === 'development') {
     // In the dev-env, delay requests until we fetched the manifest once.
     webRouter.use(function (req, res, next) {
@@ -173,25 +178,28 @@ module.exports = function (webRouter, privateApiRouter, publicApiRouter) {
     }
 
     res.locals.mathJaxPath = `/js/libs/mathjax-${PackageVersions.version.mathjax}/es5/tex-svg-full.js`
+    res.locals.dictionariesRoot = `/js/dictionaries/${PackageVersions.version.dictionaries}/`
 
     res.locals.lib = PackageVersions.lib
 
     res.locals.moment = moment
 
-    res.locals.isIEEE = brandVariation =>
-      brandVariation?.brand_id === IEEE_BRAND_ID
+    res.locals.isIEEE = brandId => brandId === IEEE_BRAND_ID
 
     res.locals.getCssThemeModifier = function (
       userSettings,
       brandVariation,
-      ieeeStylesheetEnabled
+      enableIeeeBranding
     ) {
       // Themes only exist in OL v2
       if (Settings.overleaf != null) {
-        // The IEEE theme takes precedence over the user personal setting, i.e. a user with
-        // a theme setting of "light" will still get the IEE theme in IEEE branded projects.
-        if (ieeeStylesheetEnabled && res.locals.isIEEE(brandVariation)) {
-          return 'ieee-'
+        // The IEEE theme is no longer applied in the editor, which sets
+        // enableIeeeBranding to false, but is used in the IEEE portal. If
+        // this is an IEEE-branded page and IEEE branding is disabled in this
+        // page, always use the default theme (i.e. no light theme in the
+        // IEEE-branded editor)
+        if (res.locals.isIEEE(brandVariation?.brand_id)) {
+          return enableIeeeBranding ? 'ieee-' : ''
         } else if (userSettings && userSettings.overallTheme != null) {
           return userSettings.overallTheme
         }
@@ -208,10 +216,10 @@ module.exports = function (webRouter, privateApiRouter, publicApiRouter) {
       bootstrapVersion = 3
     ) {
       // Pick which main stylesheet to use based on Bootstrap version
-      const bootstrap5Modifier = bootstrapVersion === 5 ? '-bootstrap-5' : ''
-
       return res.locals.buildStylesheetPath(
-        `main-${themeModifier}style${bootstrap5Modifier}.css`
+        bootstrapVersion === 5
+          ? 'main-style-bootstrap-5.css'
+          : `main-${themeModifier}style.css`
       )
     }
 
@@ -226,12 +234,36 @@ module.exports = function (webRouter, privateApiRouter, publicApiRouter) {
   webRouter.use(function (req, res, next) {
     res.locals.translate = req.i18n.translate
 
+    const addTranslatedTextDeep = obj => {
+      if (_.isObject(obj)) {
+        if (_.has(obj, 'text')) {
+          obj.translatedText = req.i18n.translate(obj.text)
+        }
+        _.forOwn(obj, value => {
+          addTranslatedTextDeep(value)
+        })
+      }
+    }
+
+    // This function is used to add translations from the server for main
+    // navigation and footer items because it's tricky to get them in the front
+    // end otherwise.
+    res.locals.cloneAndTranslateText = obj => {
+      const clone = _.cloneDeep(obj)
+      addTranslatedTextDeep(clone)
+      return clone
+    }
+
     // Don't include the query string parameters, otherwise Google
     // treats ?nocdn=true as the canonical version
-    const parsedOriginalUrl = new URL(req.originalUrl, Settings.siteUrl)
-    res.locals.currentUrl = parsedOriginalUrl.pathname
-    res.locals.currentUrlWithQueryParams =
-      parsedOriginalUrl.pathname + parsedOriginalUrl.search
+    try {
+      const parsedOriginalUrl = new URL(req.originalUrl, Settings.siteUrl)
+      res.locals.currentUrl = parsedOriginalUrl.pathname
+      res.locals.currentUrlWithQueryParams =
+        parsedOriginalUrl.pathname + parsedOriginalUrl.search
+    } catch (err) {
+      return next(new Errors.InvalidError())
+    }
     res.locals.capitalize = function (string) {
       if (string.length === 0) {
         return ''
@@ -269,11 +301,7 @@ module.exports = function (webRouter, privateApiRouter, publicApiRouter) {
   webRouter.use(function (req, res, next) {
     const currentUser = SessionManager.getSessionUser(req.session)
     if (currentUser != null) {
-      res.locals.user = {
-        email: currentUser.email,
-        first_name: currentUser.first_name,
-        last_name: currentUser.last_name,
-      }
+      res.locals.user = sanitizeSessionUserForFrontEnd(currentUser)
     }
     next()
   })
@@ -344,6 +372,11 @@ module.exports = function (webRouter, privateApiRouter, publicApiRouter) {
   })
 
   webRouter.use(function (req, res, next) {
+    res.locals.websiteRedesignOverride = req.query.redesign === 'enabled'
+    next()
+  })
+
+  webRouter.use(function (req, res, next) {
     res.locals.ExposedSettings = {
       isOverleaf: Settings.overleaf != null,
       appName: Settings.appName,
@@ -376,6 +409,8 @@ module.exports = function (webRouter, privateApiRouter, publicApiRouter) {
       sentryDsn: Settings.sentry.publicDSN,
       sentryEnvironment: Settings.sentry.environment,
       sentryRelease: Settings.sentry.release,
+      hotjarId: Settings.hotjar?.id,
+      hotjarVersion: Settings.hotjar?.version,
       enableSubscriptions: Settings.enableSubscriptions,
       gaToken:
         Settings.analytics &&
@@ -388,10 +423,11 @@ module.exports = function (webRouter, privateApiRouter, publicApiRouter) {
       cookieDomain: Settings.cookieDomain,
       templateLinks: Settings.templateLinks,
       labsEnabled: Settings.labs && Settings.labs.enable,
-      groupSSOEnabled: Settings.groupSSO?.enabled,
       wikiEnabled: Settings.overleaf != null || Settings.proxyLearn,
       templatesEnabled:
         Settings.overleaf != null || Settings.templates?.user_id != null,
+      cioWriteKey: Settings.analytics?.cio?.writeKey,
+      cioSiteId: Settings.analytics?.cio?.siteId,
     }
     next()
   })

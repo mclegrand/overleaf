@@ -1,37 +1,44 @@
-import { FC, memo, useRef } from 'react'
-import { Button, ListGroup, Overlay, Popover } from 'react-bootstrap'
-import Icon from '../../../../shared/components/icon'
+import { FC, memo, useEffect, useRef } from 'react'
 import useDropdown from '../../../../shared/hooks/use-dropdown'
-import Tooltip from '../../../../shared/components/tooltip'
+import OLListGroup from '@/features/ui/components/ol/ol-list-group'
+import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
+import OLOverlay from '@/features/ui/components/ol/ol-overlay'
+import OLPopover from '@/features/ui/components/ol/ol-popover'
 import { EditorView } from '@codemirror/view'
 import { emitToolbarEvent } from '../../extensions/toolbar/utils/analytics'
-import { useCodeMirrorViewContext } from '../codemirror-editor'
-import MaterialIcon from '../../../../shared/components/material-icon'
+import { useCodeMirrorViewContext } from '../codemirror-context'
 
-export const ToolbarButtonMenu: FC<{
-  id: string
-  label: string
-  icon: string
-  materialIcon?: boolean
-  altCommand?: (view: EditorView) => void
-}> = memo(function ButtonMenu({
+export const ToolbarButtonMenu: FC<
+  React.PropsWithChildren<{
+    id: string
+    label: string
+    icon: React.ReactNode
+    disablePopover?: boolean
+    altCommand?: (view: EditorView) => void
+  }>
+> = memo(function ButtonMenu({
   icon,
   id,
   label,
-  materialIcon,
   altCommand,
+  disablePopover,
   children,
 }) {
   const target = useRef<any>(null)
   const { open, onToggle, ref } = useDropdown()
   const view = useCodeMirrorViewContext()
 
+  useEffect(() => {
+    if (disablePopover && open) {
+      onToggle(false)
+    }
+  }, [open, disablePopover, onToggle])
+
   const button = (
-    <Button
+    <button
       type="button"
       className="ol-cm-toolbar-button"
       aria-label={label}
-      bsStyle={null}
       onMouseDown={event => {
         event.preventDefault()
         event.stopPropagation()
@@ -48,36 +55,36 @@ export const ToolbarButtonMenu: FC<{
       }}
       ref={target}
     >
-      {materialIcon ? <MaterialIcon type={icon} /> : <Icon type={icon} fw />}
-    </Button>
+      {icon}
+    </button>
   )
 
   const overlay = (
-    <Overlay
-      show={open}
+    <OLOverlay
+      show={open && !disablePopover}
       target={target.current}
       placement="bottom"
       container={view.dom}
       containerPadding={0}
-      animation
+      transition
       rootClose
       onHide={() => onToggle(false)}
     >
-      <Popover
+      <OLPopover
         id={`${id}-menu`}
         ref={ref}
         className="ol-cm-toolbar-button-menu-popover"
       >
-        <ListGroup
+        <OLListGroup
           role="menu"
           onClick={() => {
             onToggle(false)
           }}
         >
           {children}
-        </ListGroup>
-      </Popover>
-    </Overlay>
+        </OLListGroup>
+      </OLPopover>
+    </OLOverlay>
   )
 
   if (!label) {
@@ -91,14 +98,14 @@ export const ToolbarButtonMenu: FC<{
 
   return (
     <>
-      <Tooltip
+      <OLTooltip
         hidden={open}
         id={id}
         description={<div>{label}</div>}
         overlayProps={{ placement: 'bottom' }}
       >
         {button}
-      </Tooltip>
+      </OLTooltip>
       {overlay}
     </>
   )

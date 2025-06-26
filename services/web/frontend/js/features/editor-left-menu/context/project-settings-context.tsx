@@ -27,6 +27,7 @@ type ProjectSettingsSetterContextValue = {
   setLineHeight: (lineHeight: UserSettings['lineHeight']) => void
   setPdfViewer: (pdfViewer: UserSettings['pdfViewer']) => void
   setMathPreview: (mathPreview: UserSettings['mathPreview']) => void
+  setBreadcrumbs: (breadcrumbs: UserSettings['breadcrumbs']) => void
 }
 
 type ProjectSettingsContextValue = Partial<ProjectSettings> &
@@ -37,7 +38,9 @@ export const ProjectSettingsContext = createContext<
   ProjectSettingsContextValue | undefined
 >(undefined)
 
-export const ProjectSettingsProvider: FC = ({ children }) => {
+export const ProjectSettingsProvider: FC<React.PropsWithChildren> = ({
+  children,
+}) => {
   const {
     compiler,
     setCompiler,
@@ -72,6 +75,8 @@ export const ProjectSettingsProvider: FC = ({ children }) => {
     setPdfViewer,
     mathPreview,
     setMathPreview,
+    breadcrumbs,
+    setBreadcrumbs,
   } = useUserWideSettings()
 
   useProjectWideSettingsSocketListener()
@@ -108,6 +113,8 @@ export const ProjectSettingsProvider: FC = ({ children }) => {
       setPdfViewer,
       mathPreview,
       setMathPreview,
+      breadcrumbs,
+      setBreadcrumbs,
     }),
     [
       compiler,
@@ -140,6 +147,8 @@ export const ProjectSettingsProvider: FC = ({ children }) => {
       setPdfViewer,
       mathPreview,
       setMathPreview,
+      breadcrumbs,
+      setBreadcrumbs,
     ]
   )
 

@@ -3,22 +3,29 @@ import { screen, within } from '@testing-library/react'
 import SuccessfulSubscription from '../../../../../../frontend/js/features/subscription/components/successful-subscription/successful-subscription'
 import { renderWithSubscriptionDashContext } from '../../helpers/render-with-subscription-dash-context'
 import { annualActiveSubscription } from '../../fixtures/subscriptions'
+import { ExposedSettings } from '../../../../../../types/exposed-settings'
+import { UserProvider } from '@/shared/context/user-context'
 
 describe('successful subscription page', function () {
   it('renders the invoices link', function () {
     const adminEmail = 'foo@example.com'
-    const options = {
-      metaTags: [
-        {
-          name: 'ol-ExposedSettings',
-          value: {
-            adminEmail,
+    renderWithSubscriptionDashContext(
+      <UserProvider>
+        <SuccessfulSubscription />
+      </UserProvider>,
+
+      {
+        metaTags: [
+          {
+            name: 'ol-ExposedSettings',
+            value: {
+              adminEmail,
+            } as ExposedSettings,
           },
-        },
-        { name: 'ol-subscription', value: annualActiveSubscription },
-      ],
-    }
-    renderWithSubscriptionDashContext(<SuccessfulSubscription />, options)
+          { name: 'ol-subscription', value: annualActiveSubscription },
+        ],
+      }
+    )
 
     screen.getByRole('heading', { name: /thanks for subscribing/i })
     const alert = screen.getByRole('alert')
@@ -37,7 +44,7 @@ describe('successful subscription page', function () {
       /it’s support from people like yourself that allows .* to continue to grow and improve/i
     )
     expect(screen.getByText(/get the most out of your/i).textContent).to.match(
-      /get the most out of your .* subscription by checking out .*’s features/i
+      /get the most out of your subscription by checking out Overleaf’s features/i
     )
     expect(
       screen
@@ -66,9 +73,11 @@ describe('successful subscription page', function () {
     )
 
     const helpLink = screen.getByRole('link', {
-      name: /.*’s features/i,
+      name: /Overleaf’s features/i,
     })
-    expect(helpLink.getAttribute('href')).to.equal('/about/features-overview')
+    expect(helpLink.getAttribute('href')).to.equal(
+      '/learn/how-to/Overleaf_premium_features'
+    )
 
     const backToYourProjectsLink = screen.getByRole('link', {
       name: /back to your projects/i,

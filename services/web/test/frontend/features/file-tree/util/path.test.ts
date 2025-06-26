@@ -34,6 +34,7 @@ describe('Path utils', function () {
             {
               _id: 'test-file-in-folder',
               name: 'example.png',
+              hash: '42',
             },
           ],
           folders: [
@@ -50,6 +51,7 @@ describe('Path utils', function () {
                 {
                   _id: 'test-file-in-subfolder',
                   name: 'nested-example.png',
+                  hash: '43',
                 },
               ],
               folders: [],
@@ -61,10 +63,12 @@ describe('Path utils', function () {
         {
           _id: 'test-image-file',
           name: 'frog.jpg',
+          hash: '21',
         },
         {
           _id: 'uppercase-extension-image-file',
           name: 'frog.JPG',
+          hash: '22',
         },
       ],
     }
@@ -150,7 +154,7 @@ describe('Path utils', function () {
         'test-folder/example.png'
       )
       expect(preview).to.deep.equal({
-        url: '/project/test-project-id/file/test-file-in-folder',
+        url: '/project/test-project-id/blob/42?fallback=test-file-in-folder',
         extension: 'png',
       })
     })

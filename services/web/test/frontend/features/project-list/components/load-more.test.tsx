@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/dom'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { expect } from 'chai'
 import fetchMock from 'fetch-mock'
 import LoadMore from '../../../../../frontend/js/features/project-list/components/load-more'
@@ -11,7 +11,7 @@ import { renderWithProjectListContext } from '../helpers/render-with-context'
 
 describe('<LoadMore />', function () {
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   it('renders on a project list longer than 40', async function () {

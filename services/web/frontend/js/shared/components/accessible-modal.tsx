@@ -8,23 +8,23 @@ import { Modal, ModalProps } from 'react-bootstrap'
 // There are other ARIA attributes on these modals which could be improved,
 // but this at least makes them accessible for tests.
 function AccessibleModal(props: ModalProps) {
-  const modalRef = useCallback(
-    element => {
-      const modalNode = element?._modal?.modalNode
-      if (modalNode) {
-        if (props.show) {
-          modalNode.removeAttribute('role')
-          modalNode.removeAttribute('aria-hidden')
-        } else {
-          // NOTE: possibly not ever used, as the modal is only rendered when shown
-          modalNode.setAttribute('aria-hidden', 'true')
-        }
-      }
-    },
-    [props.show]
-  )
+    const modalRef = useCallback(
+        element => {
+            const modalNode = element?._modal?.modalNode
+            if (modalNode) {
+                if (props.show) {
+                    modalNode.removeAttribute('role')
+                    modalNode.removeAttribute('aria-hidden')
+                } else {
+                    // NOTE: possibly not ever used, as the modal is only rendered when shown
+                    modalNode.setAttribute('aria-hidden', 'true')
+                }
+            }
+        },
+        [props.show]
+    )
 
-  return <Modal {...props} ref={modalRef} />
+    return <Modal {...props} ref={modalRef} />
 }
 
 export default AccessibleModal

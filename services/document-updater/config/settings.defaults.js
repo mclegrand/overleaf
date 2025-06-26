@@ -1,3 +1,9 @@
+const http = require('node:http')
+const https = require('node:https')
+
+http.globalAgent.keepAlive = false
+https.globalAgent.keepAlive = false
+
 module.exports = {
   internal: {
     documentupdater: {
@@ -170,10 +176,6 @@ module.exports = {
     },
   },
 
-  sentry: {
-    dsn: process.env.SENTRY_DSN,
-  },
-
   publishOnIndividualChannels:
     process.env.PUBLISH_ON_INDIVIDUAL_CHANNELS === 'true',
 
@@ -182,4 +184,8 @@ module.exports = {
   smoothingOffset: process.env.SMOOTHING_OFFSET || 1000, // milliseconds
   gracefulShutdownDelayInMs:
     parseInt(process.env.GRACEFUL_SHUTDOWN_DELAY_SECONDS ?? '10', 10) * 1000,
+
+  shortHistoryQueues: (process.env.SHORT_HISTORY_QUEUES || '')
+    .split(',')
+    .filter(s => !!s),
 }

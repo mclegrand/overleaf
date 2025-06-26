@@ -323,6 +323,44 @@ describe('RangesManager', function () {
         })
       })
 
+      describe('tracked delete rejections with multiple tracked deletes at the same position', function () {
+        beforeEach(function () {
+          // original text is "one [two ][three ][four ]five"
+          // [] denotes tracked deletes
+          this.ranges = {
+            changes: makeRanges([
+              { d: 'two ', p: 4 },
+              { d: 'three ', p: 4 },
+              { d: 'four ', p: 4 },
+            ]),
+          }
+          this.updates = makeUpdates([{ i: 'three ', p: 4, u: true }])
+          this.newDocLines = ['one three five']
+          this.result = this.RangesManager.applyUpdate(
+            this.project_id,
+            this.doc_id,
+            this.ranges,
+            this.updates,
+            this.newDocLines,
+            { historyRangesSupport: true }
+          )
+        })
+
+        it('should insert the text at the right history position', function () {
+          expect(this.result.historyUpdates.map(x => x.op)).to.deep.equal([
+            [
+              {
+                i: 'three ',
+                p: 4,
+                hpos: 8,
+                u: true,
+                trackedDeleteRejection: true,
+              },
+            ],
+          ])
+        })
+      })
+
       describe('deletes over tracked changes', function () {
         beforeEach(function () {
           // original text is "on[1]e [22](three) f[333]ou[4444]r [55555]five"
@@ -658,6 +696,7 @@ describe('RangesManager', function () {
           { i: 'amet', p: 40 },
         ]),
       }
+      this.lines = ['lorem xxx', 'ipsum yyy', 'dolor zzz', 'sit wwwww', 'amet']
       this.removeChangeIdsSpy = sinon.spy(
         this.RangesTracker.prototype,
         'removeChangeIds'
@@ -668,8 +707,11 @@ describe('RangesManager', function () {
       beforeEach(function () {
         this.change_ids = [this.ranges.changes[1].id]
         this.result = this.RangesManager.acceptChanges(
+          this.project_id,
+          this.doc_id,
           this.change_ids,
-          this.ranges
+          this.ranges,
+          this.lines
         )
       })
 
@@ -714,8 +756,11 @@ describe('RangesManager', function () {
           this.ranges.changes[4].id,
         ]
         this.result = this.RangesManager.acceptChanges(
+          this.project_id,
+          this.doc_id,
           this.change_ids,
-          this.ranges
+          this.ranges,
+          this.lines
         )
       })
 
@@ -757,6 +802,7 @@ describe('RangesManager', function () {
 
   describe('getHistoryUpdatesForAcceptedChanges', function () {
     beforeEach(function () {
+      this.clock = sinon.useFakeTimers()
       this.RangesManager = SandboxedModule.require(MODULE_PATH, {
         requires: {
           '@overleaf/ranges-tracker': (this.RangesTracker =
@@ -764,6 +810,10 @@ describe('RangesManager', function () {
           '@overleaf/metrics': {},
         },
       })
+    })
+
+    afterEach(function () {
+      this.clock.restore()
     })
 
     it('should create history updates for accepted track inserts', function () {
@@ -776,6 +826,8 @@ describe('RangesManager', function () {
         ]),
       }
       const lines = ['loremone two thipsumree four five']
+
+      const now = Date.now()
 
       const result = this.RangesManager.getHistoryUpdatesForAcceptedChanges({
         docId: this.doc_id,
@@ -793,7 +845,7 @@ describe('RangesManager', function () {
             user_id: TEST_USER_ID,
             doc_length: 33,
             pathname: '',
-            ts: ranges.changes[0].metadata.ts,
+            ts: now,
           },
           op: [
             {
@@ -809,7 +861,7 @@ describe('RangesManager', function () {
             user_id: TEST_USER_ID,
             doc_length: 33,
             pathname: '',
-            ts: ranges.changes[1].metadata.ts,
+            ts: now,
           },
           op: [
             {
@@ -833,6 +885,8 @@ describe('RangesManager', function () {
       }
       const lines = ['one   four five']
 
+      const now = Date.now()
+
       const result = this.RangesManager.getHistoryUpdatesForAcceptedChanges({
         docId: this.doc_id,
         acceptedChangeIds: ranges.changes.map(change => change.id),
@@ -850,7 +904,7 @@ describe('RangesManager', function () {
             doc_length: 15,
             history_doc_length: 23,
             pathname: '',
-            ts: ranges.changes[0].metadata.ts,
+            ts: now,
           },
           op: [
             {
@@ -866,7 +920,7 @@ describe('RangesManager', function () {
             doc_length: 15,
             history_doc_length: 20,
             pathname: '',
-            ts: ranges.changes[1].metadata.ts,
+            ts: now,
           },
           op: [
             {
@@ -889,6 +943,8 @@ describe('RangesManager', function () {
       }
       const lines = ['one   four five']
 
+      const now = Date.now()
+
       const result = this.RangesManager.getHistoryUpdatesForAcceptedChanges({
         docId: this.doc_id,
         acceptedChangeIds: [ranges.changes[1].id],
@@ -906,7 +962,7 @@ describe('RangesManager', function () {
             doc_length: 15,
             history_doc_length: 23,
             pathname: '',
-            ts: ranges.changes[1].metadata.ts,
+            ts: now,
           },
           op: [
             {
@@ -932,6 +988,8 @@ describe('RangesManager', function () {
       }
       const lines = ['one   xxx four ']
 
+      const now = Date.now()
+
       const result = this.RangesManager.getHistoryUpdatesForAcceptedChanges({
         docId: this.doc_id,
         acceptedChangeIds: [
@@ -954,7 +1012,7 @@ describe('RangesManager', function () {
             doc_length: 15,
             history_doc_length: 27,
             pathname: '',
-            ts: ranges.changes[0].metadata.ts,
+            ts: now,
           },
           op: [
             {
@@ -970,7 +1028,7 @@ describe('RangesManager', function () {
             doc_length: 15,
             history_doc_length: 24,
             pathname: '',
-            ts: ranges.changes[2].metadata.ts,
+            ts: now,
           },
           op: [
             {
@@ -988,7 +1046,7 @@ describe('RangesManager', function () {
             doc_length: 15,
             history_doc_length: 24,
             pathname: '',
-            ts: ranges.changes[3].metadata.ts,
+            ts: now,
           },
           op: [
             {
@@ -1011,7 +1069,7 @@ function makeRanges(ops) {
     changes.push({
       id: id.toString(),
       op,
-      metadata: { user_id: TEST_USER_ID, ts: new Date(ts) },
+      metadata: { user_id: TEST_USER_ID, ts: new Date(ts).toISOString() },
     })
     id += 1
     ts += 1000 // use a unique timestamp for each change

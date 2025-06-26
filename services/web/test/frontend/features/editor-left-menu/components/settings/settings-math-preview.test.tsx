@@ -1,16 +1,23 @@
-import { screen, within } from '@testing-library/dom'
+import { screen, within, render } from '@testing-library/react'
 import { expect } from 'chai'
 import fetchMock from 'fetch-mock'
 import SettingsMathPreview from '@/features/editor-left-menu/components/settings/settings-math-preview'
-import { renderWithEditorContext } from '../../../../helpers/render-with-context'
+import { EditorProviders } from '../../../../helpers/editor-providers'
+import { EditorLeftMenuProvider } from '@/features/editor-left-menu/components/editor-left-menu-context'
 
 describe('<SettingsMathPreview />', function () {
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   it('shows correct menu', async function () {
-    renderWithEditorContext(<SettingsMathPreview />)
+    render(
+      <EditorProviders>
+        <EditorLeftMenuProvider>
+          <SettingsMathPreview />
+        </EditorLeftMenuProvider>
+      </EditorProviders>
+    )
 
     const select = screen.getByLabelText('Equation preview')
 

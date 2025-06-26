@@ -1,24 +1,23 @@
 import { useProjectContext } from '../../../shared/context/project-context'
+import { BinaryFile } from '@/features/file-view/types/binary-file'
+import { fileUrl } from '../../utils/fileUrl'
 
 export default function FileViewImage({
-  fileName,
-  fileId,
+  file,
   onLoad,
   onError,
 }: {
-  fileName: string
-  fileId: string
+  file: BinaryFile
   onLoad: () => void
   onError: () => void
 }) {
   const { _id: projectId } = useProjectContext()
-
   return (
     <img
-      src={`/project/${projectId}/file/${fileId}`}
+      src={fileUrl(projectId, file.id, file.hash)}
       onLoad={onLoad}
       onError={onError}
-      alt={fileName}
+      alt={file.name}
     />
   )
 }

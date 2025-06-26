@@ -9,17 +9,26 @@ import {
   highlightSelectionMatches,
   togglePanel,
 } from '@codemirror/search'
-import { Decoration, EditorView, keymap, ViewPlugin } from '@codemirror/view'
+import {
+  Decoration,
+  EditorView,
+  KeyBinding,
+  keymap,
+  ViewPlugin,
+} from '@codemirror/view'
 import {
   Annotation,
   Compartment,
   EditorSelection,
   EditorState,
+  Prec,
   SelectionRange,
   StateEffect,
   StateField,
   TransactionSpec,
 } from '@codemirror/state'
+import { sendSearchEvent } from '@/features/event-tracking/search-events'
+import { isVisual } from '@/features/source-editor/extensions/visual/visual'
 
 const restoreSearchQueryAnnotation = Annotation.define<boolean>()
 
@@ -122,6 +131,25 @@ const scrollToMatch = (range: SelectionRange, view: EditorView) => {
   })
 }
 
+const searchEventKeymap: KeyBinding[] = [
+  // record an event when the search panel is opened using the keyboard shortcut
+  {
+    key: 'Mod-f',
+    preventDefault: true,
+    scope: 'editor search-panel',
+    run(view) {
+      if (!searchPanelOpen(view.state)) {
+        sendSearchEvent('search-open', {
+          searchType: 'document',
+          method: 'keyboard',
+          mode: isVisual(view) ? 'visual' : 'source',
+        })
+      }
+      return false // continue with the regular search shortcut
+    },
+  },
+]
+
 /**
  * A collection of extensions related to the search feature.
  */
@@ -129,6 +157,9 @@ export const search = () => {
   let open = false
 
   return [
+    // keymap for search events
+    Prec.high(keymap.of(searchEventKeymap)),
+
     // keymap for search
     keymap.of(searchKeymap),
 
@@ -257,29 +288,47 @@ export const search = () => {
 
 const searchFormTheme = EditorView.theme({
   '.ol-cm-search-form': {
-    padding: '10px',
+    '--ol-cm-search-form-gap': '10px',
+    '--ol-cm-search-form-button-margin': '3px',
+    padding: 'var(--ol-cm-search-form-gap)',
     display: 'flex',
-    gap: '10px',
-    background: 'var(--ol-blue-gray-1)',
+    gap: 'var(--ol-cm-search-form-gap)',
+    background: 'var(--neutral-20)',
     '--ol-cm-search-form-focus-shadow':
       'inset 0 1px 1px rgb(0 0 0 / 8%), 0 0 8px rgb(102 175 233 / 60%)',
     '--ol-cm-search-form-error-shadow':
-      'inset 0 1px 1px rgb(0 0 0 / 8%), 0 0 8px var(--input-shadow-danger-color)',
+      'inset 0 1px 1px rgb(0 0 0 / 8%), 0 0 8px var(--red-50)',
+    containerType: 'inline-size',
+    '& .form-control-sm, & .btn-sm': {
+      padding: 'var(--spacing-03) var(--spacing-05)',
+    },
+  },
+  '&.ol-cm-search-form': {
+    '--ol-cm-search-form-gap': 'var(--spacing-05)',
+    '--ol-cm-search-form-button-margin': 'var(--spacing-02)',
+    '--input-border': 'var(--border-primary)',
+    '--input-border-focus': 'var(--border-active)',
   },
   '.ol-cm-search-controls': {
     display: 'grid',
     gridTemplateColumns: 'auto auto',
     gridTemplateRows: 'auto auto',
-    gap: '10px',
+    gap: 'var(--ol-cm-search-form-gap)',
+    flex: 1,
+  },
+  '@container (max-width: 450px)': {
+    '.ol-cm-search-controls': {
+      gridTemplateColumns: 'auto',
+    },
   },
   '.ol-cm-search-form-row': {
     display: 'flex',
-    gap: '10px',
+    gap: 'var(--ol-cm-search-form-gap)',
     justifyContent: 'space-between',
   },
   '.ol-cm-search-form-group': {
     display: 'flex',
-    gap: '10px',
+    gap: 'var(--ol-cm-search-form-gap)',
     alignItems: 'center',
   },
   '.ol-cm-search-input-group': {
@@ -287,7 +336,9 @@ const searchFormTheme = EditorView.theme({
     borderRadius: '20px',
     background: 'white',
     width: '100%',
-    maxWidth: '25em',
+    maxWidth: '50em',
+    display: 'inline-flex',
+    alignItems: 'center',
     '& input[type="text"]': {
       background: 'none',
       boxShadow: 'none',
@@ -297,18 +348,18 @@ const searchFormTheme = EditorView.theme({
       boxShadow: 'none',
     },
     '& .btn.btn': {
-      background: 'var(--ol-blue-gray-0)',
-      color: 'var(--ol-blue-gray-3)',
+      background: 'var(--neutral-10)',
+      color: 'var(--neutral-60)',
       borderRadius: '50%',
       height: '2em',
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
       width: '2em',
-      marginRight: '3px',
+      marginRight: 'var(--ol-cm-search-form-button-margin)',
       '&.checked': {
-        color: '#fff',
-        backgroundColor: 'var(--ol-blue)',
+        color: 'var(--white)',
+        backgroundColor: 'var(--blue-50)',
       },
       '&:active': {
         boxShadow: 'none',
@@ -325,7 +376,7 @@ const searchFormTheme = EditorView.theme({
       boxShadow: 'var(--ol-cm-search-form-error-shadow)',
     },
   },
-  '.input-group .ol-cm-search-form-input': {
+  '.ol-cm-search-form-input': {
     border: 'none',
   },
   '.ol-cm-search-input-button': {
@@ -342,14 +393,16 @@ const searchFormTheme = EditorView.theme({
   },
   '.ol-cm-search-form-position': {
     flexShrink: 0,
-    color: 'var(--ol-blue-gray-4)',
+    color: 'var(--content-secondary)',
   },
   '.ol-cm-search-hidden-inputs': {
     position: 'absolute',
     left: '-10000px',
   },
   '.ol-cm-search-form-close': {
-    flex: 1,
+    marginLeft: 'auto',
+    display: 'flex',
+    alignItems: 'start',
   },
   '.ol-cm-search-replace-input': {
     order: 3,

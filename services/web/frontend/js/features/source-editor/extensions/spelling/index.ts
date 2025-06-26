@@ -1,26 +1,22 @@
 import { EditorView, ViewPlugin } from '@codemirror/view'
 import {
-  Compartment,
-  Facet,
+  EditorState,
   StateEffect,
   StateField,
   TransactionSpec,
 } from '@codemirror/state'
-import { misspelledWordsField, resetMisspelledWords } from './misspelled-words'
-import {
-  ignoredWordsField,
-  resetSpellChecker,
-  updateAfterAddingIgnoredWord,
-} from './ignored-words'
-import { addWordToCache, cacheField, removeWordFromCache } from './cache'
-import { spellingMenuField } from './context-menu'
+import { misspelledWordsField } from './misspelled-words'
+import { removeLearnedWord } from './learned-words'
+import { cacheField } from './cache'
+import { hideSpellingMenu, spellingMenuField } from './context-menu'
 import { SpellChecker } from './spellchecker'
 import { parserWatcher } from '../wait-for-parser'
+import type { HunspellManager } from '@/features/source-editor/hunspell/HunspellManager'
 
-const spellCheckLanguageConf = new Compartment()
-const spellCheckLanguageFacet = Facet.define<string | undefined>()
-
-type Options = { spellCheckLanguage?: string }
+type Options = {
+  spellCheckLanguage?: string
+  hunspellManager?: HunspellManager
+}
 
 /**
  * A custom extension that creates a spell checker for the current language (from the user settings).
@@ -29,18 +25,36 @@ type Options = { spellCheckLanguage?: string }
  * Mis-spelled words are decorated with a Mark decoration.
  * The suggestions menu is displayed in a tooltip, activated with a right-click on the decoration.
  */
-export const spelling = ({ spellCheckLanguage }: Options) => {
+export const spelling = ({ spellCheckLanguage, hunspellManager }: Options) => {
   return [
     spellingTheme,
     parserWatcher,
-    spellCheckLanguageConf.of(spellCheckLanguageFacet.of(spellCheckLanguage)),
-    spellCheckField,
+    spellCheckLanguageField.init(() => spellCheckLanguage),
+    spellCheckerField.init(() =>
+      spellCheckLanguage
+        ? new SpellChecker(spellCheckLanguage, hunspellManager)
+        : null
+    ),
     misspelledWordsField,
-    ignoredWordsField,
     cacheField,
     spellingMenuField,
+    dictionary,
   ]
 }
+
+const dictionary = ViewPlugin.define(view => {
+  const listener = (event: Event) => {
+    view.dispatch(removeLearnedWord((event as CustomEvent<string>).detail))
+  }
+
+  window.addEventListener('editor:remove-learned-word', listener)
+
+  return {
+    destroy() {
+      window.removeEventListener('editor:remove-learned-word', listener)
+    },
+  }
+})
 
 const spellingTheme = EditorView.baseTheme({
   '.ol-cm-spelling-error': {
@@ -53,19 +67,27 @@ const spellingTheme = EditorView.baseTheme({
   },
   '.cm-tooltip.ol-cm-spelling-context-menu-tooltip': {
     borderWidth: '0',
+    background: 'transparent',
   },
 })
 
-const spellCheckField = StateField.define<SpellChecker | null>({
-  create(state) {
-    const [spellCheckLanguage] = state.facet(spellCheckLanguageFacet)
-    return spellCheckLanguage ? new SpellChecker(spellCheckLanguage) : null
+export const getSpellChecker = (state: EditorState) =>
+  state.field(spellCheckerField, false)
+
+const spellCheckerField = StateField.define<SpellChecker | null>({
+  create() {
+    return null
   },
   update(value, tr) {
     for (const effect of tr.effects) {
       if (effect.is(setSpellCheckLanguageEffect)) {
         value?.destroy()
-        return effect.value ? new SpellChecker(effect.value) : null
+        value = effect.value.spellCheckLanguage
+          ? new SpellChecker(
+              effect.value.spellCheckLanguage,
+              effect.value.hunspellManager
+            )
+          : null
       }
     }
     return value
@@ -80,9 +102,9 @@ const spellCheckField = StateField.define<SpellChecker | null>({
         }
       }),
       EditorView.domEventHandlers({
-        focus: (event, view) => {
+        focus: (_event, view) => {
           if (view.state.facet(EditorView.editable)) {
-            view.state.field(field)?.spellCheckAsap(view)
+            view.state.field(field)?.scheduleSpellCheck(view)
           }
         },
       }),
@@ -95,54 +117,39 @@ const spellCheckField = StateField.define<SpellChecker | null>({
   },
 })
 
-const setSpellCheckLanguageEffect = StateEffect.define<string | undefined>()
+export const getSpellCheckLanguage = (state: EditorState) =>
+  state.field(spellCheckLanguageField, false)
 
-export const setSpelling = ({
+const spellCheckLanguageField = StateField.define<string | undefined>({
+  create() {
+    return undefined
+  },
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setSpellCheckLanguageEffect)) {
+        value = effect.value.spellCheckLanguage
+      }
+    }
+    return value
+  },
+})
+
+export const setSpellCheckLanguageEffect = StateEffect.define<{
+  spellCheckLanguage: string | undefined
+  hunspellManager?: HunspellManager
+}>()
+
+export const setSpellCheckLanguage = ({
   spellCheckLanguage,
+  hunspellManager,
 }: Options): TransactionSpec => {
   return {
     effects: [
-      resetMisspelledWords.of(null),
-      spellCheckLanguageConf.reconfigure(
-        spellCheckLanguageFacet.of(spellCheckLanguage)
-      ),
-      setSpellCheckLanguageEffect.of(spellCheckLanguage),
-    ],
-  }
-}
-
-export const addLearnedWord = (
-  spellCheckLanguage: string,
-  word: string
-): TransactionSpec => {
-  return {
-    effects: [
-      addWordToCache.of({
-        lang: spellCheckLanguage,
-        wordText: word,
-        value: true,
+      setSpellCheckLanguageEffect.of({
+        spellCheckLanguage,
+        hunspellManager,
       }),
-      updateAfterAddingIgnoredWord.of(word),
+      hideSpellingMenu.of(null),
     ],
-  }
-}
-
-export const removeLearnedWord = (
-  spellCheckLanguage: string,
-  word: string
-): TransactionSpec => {
-  return {
-    effects: [
-      removeWordFromCache.of({
-        lang: spellCheckLanguage,
-        wordText: word,
-      }),
-    ],
-  }
-}
-
-export const resetLearnedWords = (): TransactionSpec => {
-  return {
-    effects: [resetSpellChecker.of(null)],
   }
 }

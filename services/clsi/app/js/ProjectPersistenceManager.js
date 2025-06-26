@@ -13,46 +13,89 @@ const CompileManager = require('./CompileManager')
 const async = require('async')
 const logger = require('@overleaf/logger')
 const oneDay = 24 * 60 * 60 * 1000
+const Metrics = require('@overleaf/metrics')
 const Settings = require('@overleaf/settings')
-const diskusage = require('diskusage')
-const { callbackify } = require('util')
-const Path = require('path')
-const fs = require('fs')
+const { callbackify } = require('node:util')
+const Path = require('node:path')
+const fs = require('node:fs')
 
 // projectId -> timestamp mapping.
 const LAST_ACCESS = new Map()
 
-async function refreshExpiryTimeout() {
+let ANY_DISK_LOW = false
+let ANY_DISK_CRITICAL_LOW = false
+
+async function collectDiskStats() {
   const paths = [
     Settings.path.compilesDir,
     Settings.path.outputDir,
     Settings.path.clsiCacheDir,
   ]
+
+  const diskStats = {}
+  let anyDiskLow = false
+  let anyDiskCriticalLow = false
   for (const path of paths) {
     try {
-      const stats = await diskusage.check(path)
-      const lowDisk = stats.available / stats.total < 0.1
-
-      const lowerExpiry = ProjectPersistenceManager.EXPIRY_TIMEOUT * 0.9
-      if (lowDisk && Settings.project_cache_length_ms / 2 < lowerExpiry) {
-        logger.warn(
-          {
-            stats,
-            newExpiryTimeoutInDays: (lowerExpiry / oneDay).toFixed(2),
-          },
-          'disk running low on space, modifying EXPIRY_TIMEOUT'
-        )
-        ProjectPersistenceManager.EXPIRY_TIMEOUT = lowerExpiry
-        break
+      const { blocks, bavail, bsize } = await fs.promises.statfs(path)
+      const stats = {
+        // Warning: these values will be wrong by a factor in Docker-for-Mac.
+        // See https://github.com/docker/for-mac/issues/2136
+        total: blocks * bsize, // Total size of the file system in bytes
+        available: bavail * bsize, // Free space available to unprivileged users.
       }
+      const diskAvailablePercent = (stats.available / stats.total) * 100
+      Metrics.gauge('disk_available_percent', diskAvailablePercent, 1, {
+        path,
+      })
+      const lowDisk = diskAvailablePercent < 10
+      diskStats[path] = { stats, lowDisk }
+
+      const criticalLowDisk = diskAvailablePercent < 3
+      anyDiskLow = anyDiskLow || lowDisk
+      anyDiskCriticalLow = anyDiskCriticalLow || criticalLowDisk
     } catch (err) {
       logger.err({ err, path }, 'error getting disk usage')
     }
   }
+  ANY_DISK_LOW = anyDiskLow
+  ANY_DISK_CRITICAL_LOW = anyDiskCriticalLow
+  return diskStats
+}
+
+async function refreshExpiryTimeout() {
+  for (const [path, { stats, lowDisk }] of Object.entries(
+    await collectDiskStats()
+  )) {
+    const lowerExpiry = ProjectPersistenceManager.EXPIRY_TIMEOUT * 0.9
+    if (lowDisk && Settings.project_cache_length_ms / 2 < lowerExpiry) {
+      logger.warn(
+        {
+          path,
+          stats,
+          newExpiryTimeoutInDays: (lowerExpiry / oneDay).toFixed(2),
+        },
+        'disk running low on space, modifying EXPIRY_TIMEOUT'
+      )
+      ProjectPersistenceManager.EXPIRY_TIMEOUT = lowerExpiry
+      break
+    }
+  }
+  Metrics.gauge(
+    'project_persistence_expiry_timeout',
+    ProjectPersistenceManager.EXPIRY_TIMEOUT
+  )
 }
 
 module.exports = ProjectPersistenceManager = {
   EXPIRY_TIMEOUT: Settings.project_cache_length_ms || oneDay * 2.5,
+
+  isAnyDiskLow() {
+    return ANY_DISK_LOW
+  },
+  isAnyDiskCriticalLow() {
+    return ANY_DISK_CRITICAL_LOW
+  },
 
   promises: {
     refreshExpiryTimeout,
@@ -103,6 +146,13 @@ module.exports = ProjectPersistenceManager = {
         }
       )
     })
+
+    // Collect disk stats frequently to have them ready the next time /metrics is scraped (60s +- jitter) or every 5th scrape of the load agent (3s +- jitter).
+    setInterval(() => {
+      collectDiskStats().catch(err => {
+        logger.err({ err }, 'low level error collecting disk stats')
+      })
+    }, 15_000)
   },
 
   markProjectAsJustAccessed(projectId, callback) {

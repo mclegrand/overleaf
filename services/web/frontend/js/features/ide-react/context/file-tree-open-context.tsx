@@ -11,9 +11,6 @@ import {
 import { useProjectContext } from '@/shared/context/project-context'
 import { useIdeReactContext } from '@/features/ide-react/context/ide-react-context'
 import { useEditorManagerContext } from '@/features/ide-react/context/editor-manager-context'
-import { useSelectFileTreeEntity } from '@/features/ide-react/hooks/use-select-file-tree-entity'
-import useScopeValue from '@/shared/hooks/use-scope-value'
-import { BinaryFile } from '@/features/file-view/types/binary-file'
 import {
   FileTreeDocumentFindResult,
   FileTreeFileRefFindResult,
@@ -23,7 +20,7 @@ import { debugConsole } from '@/utils/debugging'
 import { convertFileRefToBinaryFile } from '@/features/ide-react/util/file-view'
 import { sendMB } from '@/infrastructure/event-tracking'
 import { FileRef } from '../../../../../types/file-ref'
-import useEventListener from '@/shared/hooks/use-event-listener'
+import { useLayoutContext } from '@/shared/context/layout-context'
 
 const FileTreeOpenContext = createContext<
   | {
@@ -32,25 +29,32 @@ const FileTreeOpenContext = createContext<
       handleFileTreeInit: () => void
       handleFileTreeSelect: (selectedEntities: FileTreeFindResult[]) => void
       handleFileTreeDelete: (entity: FileTreeFindResult) => void
+      fileTreeExpanded: boolean
+      toggleFileTreeExpanded: () => void
     }
   | undefined
 >(undefined)
 
-export const FileTreeOpenProvider: FC = ({ children }) => {
+export const FileTreeOpenProvider: FC<React.PropsWithChildren> = ({
+  children,
+}) => {
   const { rootDocId, owner } = useProjectContext()
   const { eventEmitter, projectJoined } = useIdeReactContext()
-  const {
-    openDocId: openDocWithId,
-    currentDocumentId: openDocId,
-    openInitialDoc,
-  } = useEditorManagerContext()
-  const { selectEntity } = useSelectFileTreeEntity()
-  const [, setOpenFile] = useScopeValue<BinaryFile | null>('openFile')
+  const { openDocWithId, currentDocumentId, openInitialDoc } =
+    useEditorManagerContext()
+  const { setOpenFile } = useLayoutContext()
   const [openEntity, setOpenEntity] = useState<
     FileTreeDocumentFindResult | FileTreeFileRefFindResult | null
   >(null)
   const [selectedEntityCount, setSelectedEntityCount] = useState(0)
   const [fileTreeReady, setFileTreeReady] = useState(false)
+
+  // NOTE: Only used in editor redesign
+  const [fileTreeExpanded, setFileTreeExpanded] = useState(true)
+
+  const toggleFileTreeExpanded = useCallback(() => {
+    setFileTreeExpanded(prev => !prev)
+  }, [])
 
   const handleFileTreeInit = useCallback(() => {
     setFileTreeReady(true)
@@ -107,25 +111,11 @@ export const FileTreeOpenProvider: FC = ({ children }) => {
     (entity: FileTreeFindResult) => {
       eventEmitter.emit('entity:deleted', entity)
       // Select the root document if the current document was deleted
-      if (entity.entity._id === openDocId) {
+      if (entity.entity._id === currentDocumentId) {
         openDocWithId(rootDocId!)
       }
     },
-    [eventEmitter, openDocId, openDocWithId, rootDocId]
-  )
-
-  // Synchronize the file tree when openDoc or openDocId is called on the editor
-  // manager context from elsewhere. If the file tree does change, it will
-  // trigger the onSelect handler in this component, which will update the local
-  // state.
-  useEventListener(
-    'doc:after-opened',
-    useCallback(
-      (event: CustomEvent<{ docId: string }>) => {
-        selectEntity(event.detail.docId)
-      },
-      [selectEntity]
-    )
+    [eventEmitter, currentDocumentId, openDocWithId, rootDocId]
   )
 
   // Open a document once the file tree and project are ready
@@ -149,6 +139,8 @@ export const FileTreeOpenProvider: FC = ({ children }) => {
       handleFileTreeInit,
       handleFileTreeSelect,
       handleFileTreeDelete,
+      fileTreeExpanded,
+      toggleFileTreeExpanded,
     }
   }, [
     handleFileTreeDelete,
@@ -156,6 +148,8 @@ export const FileTreeOpenProvider: FC = ({ children }) => {
     handleFileTreeSelect,
     openEntity,
     selectedEntityCount,
+    fileTreeExpanded,
+    toggleFileTreeExpanded,
   ])
 
   return (

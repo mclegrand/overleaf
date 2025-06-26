@@ -1,15 +1,18 @@
 const express = require('express')
 const bodyParser = require('body-parser')
-const http = require('http')
-const https = require('https')
-const { promisify } = require('util')
+const { EventEmitter } = require('node:events')
+const http = require('node:http')
+const https = require('node:https')
+const { promisify } = require('node:util')
 
 class TestServer {
   constructor() {
     this.app = express()
+    this.events = new EventEmitter()
 
     this.app.use(bodyParser.json())
     this.app.use((req, res, next) => {
+      this.events.emit('request-received')
       this.lastReq = req
       next()
     })
@@ -75,6 +78,7 @@ class TestServer {
 
     // Never returns
 
+    this.app.get('/hang', (req, res) => {})
     this.app.post('/hang', (req, res) => {})
 
     // Redirect
@@ -117,6 +121,8 @@ class TestServer {
   stop() {
     const stopHttp = promisify(this.server.close).bind(this.server)
     const stopHttps = promisify(this.https_server.close).bind(this.https_server)
+    this.server.closeAllConnections()
+    this.https_server.closeAllConnections()
     return Promise.all([stopHttp(), stopHttps()])
   }
 }

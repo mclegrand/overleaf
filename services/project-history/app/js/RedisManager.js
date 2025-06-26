@@ -136,6 +136,9 @@ async function getUpdatesInBatches(projectId, batchSize, runner) {
         moreBatches = true
         break
       }
+      if (update.resyncProjectStructureOnly) {
+        update._raw = rawUpdate
+      }
 
       rawUpdates.push(rawUpdate)
       updates.push(update)
@@ -151,6 +154,26 @@ async function getUpdatesInBatches(projectId, batchSize, runner) {
   }
 }
 
+/**
+ * @param {string} projectId
+ * @param {ResyncProjectStructureUpdate} update
+ * @return {Promise<void>}
+ */
+async function deleteAppliedDocUpdate(projectId, update) {
+  const raw = update._raw
+  // Delete the first occurrence of the update with LREM KEY COUNT
+  // VALUE by setting COUNT to 1 which 'removes COUNT elements equal to
+  // value moving from head to tail.'
+  //
+  // If COUNT is 0 the entire list would be searched which would block
+  // redis since it would be an O(N) operation where N is the length of
+  // the queue, in a multi of the batch size.
+  metrics.summary('redis.projectHistoryOps', raw.length, {
+    status: 'lrem',
+  })
+  await rclient.lrem(Keys.projectHistoryOps({ project_id: projectId }), 1, raw)
+}
+
 async function deleteAppliedDocUpdates(projectId, updates) {
   const multi = rclient.multi()
   // Delete all the updates which have been applied (exact match)
@@ -160,7 +183,7 @@ async function deleteAppliedDocUpdates(projectId, updates) {
     // value moving from head to tail.'
     //
     // If COUNT is 0 the entire list would be searched which would block
-    // redis snce it would be an O(N) operation where N is the length of
+    // redis since it would be an O(N) operation where N is the length of
     // the queue, in a multi of the batch size.
     metrics.summary('redis.projectHistoryOps', update.length, {
       status: 'lrem',
@@ -275,6 +298,26 @@ async function getFirstOpTimestamp(projectId) {
   return firstOpTimestamp
 }
 
+async function getFirstOpTimestamps(projectIds) {
+  const keys = projectIds.map(projectId =>
+    Keys.projectHistoryFirstOpTimestamp({ project_id: projectId })
+  )
+  const results = await rclient.mget(keys)
+  const timestamps = results.map(result => {
+    // convert stored time back to a numeric timestamp
+    const timestamp = parseInt(result, 10)
+
+    // check for invalid timestamp
+    if (isNaN(timestamp)) {
+      return null
+    }
+
+    // convert numeric timestamp to a date object
+    return new Date(timestamp)
+  })
+  return timestamps
+}
+
 async function clearFirstOpTimestamp(projectId) {
   const key = Keys.projectHistoryFirstOpTimestamp({ project_id: projectId })
   await rclient.del(key)
@@ -334,6 +377,7 @@ const getProjectIdsWithHistoryOpsCountCb = callbackify(
 )
 const setFirstOpTimestampCb = callbackify(setFirstOpTimestamp)
 const getFirstOpTimestampCb = callbackify(getFirstOpTimestamp)
+const getFirstOpTimestampsCb = callbackify(getFirstOpTimestamps)
 const clearFirstOpTimestampCb = callbackify(clearFirstOpTimestamp)
 const getProjectIdsWithFirstOpTimestampsCb = callbackify(
   getProjectIdsWithFirstOpTimestamps
@@ -371,6 +415,7 @@ export {
   getProjectIdsWithHistoryOpsCountCb as getProjectIdsWithHistoryOpsCount,
   setFirstOpTimestampCb as setFirstOpTimestamp,
   getFirstOpTimestampCb as getFirstOpTimestamp,
+  getFirstOpTimestampsCb as getFirstOpTimestamps,
   clearFirstOpTimestampCb as clearFirstOpTimestamp,
   getProjectIdsWithFirstOpTimestampsCb as getProjectIdsWithFirstOpTimestamps,
   clearDanglingFirstOpTimestampCb as clearDanglingFirstOpTimestamp,
@@ -383,12 +428,14 @@ export const promises = {
   countUnprocessedUpdates,
   getRawUpdatesBatch,
   deleteAppliedDocUpdates,
+  deleteAppliedDocUpdate,
   destroyDocUpdatesQueue,
   getUpdatesInBatches,
   getProjectIdsWithHistoryOps,
   getProjectIdsWithHistoryOpsCount,
   setFirstOpTimestamp,
   getFirstOpTimestamp,
+  getFirstOpTimestamps,
   clearFirstOpTimestamp,
   getProjectIdsWithFirstOpTimestamps,
   clearDanglingFirstOpTimestamp,

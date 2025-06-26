@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useRef } from 'react'
 import classNames from 'classnames'
 import scrollIntoViewIfNeeded from 'scroll-into-view-if-needed'
 
-import { useEditorContext } from '../../../../shared/context/editor-context'
+import { useFileTreeData } from '@/shared/context/file-tree-data-context'
 import { useFileTreeMainContext } from '../../contexts/file-tree-main'
 import { useDraggable } from '../../contexts/file-tree-draggable'
 
@@ -25,16 +25,14 @@ function FileTreeItemInner({
   isSelected: boolean
   icons?: ReactNode
 }) {
-  const { permissionsLevel } = useEditorContext()
+  const { fileTreeReadOnly } = useFileTreeData()
   const { setContextMenuCoords } = useFileTreeMainContext()
   const { isRenaming } = useFileTreeActionable()
 
   const { selectedEntityIds } = useFileTreeSelectable()
 
   const hasMenu =
-    permissionsLevel !== 'readOnly' &&
-    isSelected &&
-    selectedEntityIds.size === 1
+    !fileTreeReadOnly && isSelected && selectedEntityIds.size === 1
 
   const { dragRef, setIsDraggable } = useDraggable(id)
 
@@ -92,7 +90,7 @@ function FileTreeItemInner({
           isSelected={isSelected}
           setIsDraggable={setIsDraggable}
         />
-        {hasMenu ? <FileTreeItemMenu id={id} /> : null}
+        {hasMenu ? <FileTreeItemMenu id={id} name={name} /> : null}
       </div>
     </div>
   )

@@ -14,15 +14,11 @@ const DocumentManager = require('./DocumentManager')
 const RangesManager = require('./RangesManager')
 const SnapshotManager = require('./SnapshotManager')
 const Profiler = require('./Profiler')
-const { isInsert, isDelete, getDocLength } = require('./Utils')
+const { isInsert, isDelete, getDocLength, computeDocHash } = require('./Utils')
+const HistoryOTUpdateManager = require('./HistoryOTUpdateManager')
 
 /**
- * @typedef {import("./types").DeleteOp} DeleteOp
- * @typedef {import("./types").HistoryUpdate } HistoryUpdate
- * @typedef {import("./types").InsertOp} InsertOp
- * @typedef {import("./types").Op} Op
- * @typedef {import("./types").Ranges} Ranges
- * @typedef {import("./types").Update} Update
+ * @import { Ranges, Update, HistoryUpdate } from "./types"
  */
 
 const UpdateManager = {
@@ -85,7 +81,11 @@ const UpdateManager = {
     profile.log('getPendingUpdatesForDoc')
 
     for (const update of updates) {
-      await UpdateManager.applyUpdate(projectId, docId, update)
+      if (HistoryOTUpdateManager.isHistoryOTEditOperationUpdate(update)) {
+        await HistoryOTUpdateManager.applyUpdate(projectId, docId, update)
+      } else {
+        await UpdateManager.applyUpdate(projectId, docId, update)
+      }
       profile.log('applyUpdate')
     }
     profile.log('async done').end()
@@ -115,11 +115,15 @@ const UpdateManager = {
         pathname,
         projectHistoryId,
         historyRangesSupport,
+        type,
       } = await DocumentManager.promises.getDoc(projectId, docId)
       profile.log('getDoc')
 
       if (lines == null || version == null) {
         throw new Errors.NotFoundError(`document not found: ${docId}`)
+      }
+      if (type !== 'sharejs-text-ot') {
+        throw new Errors.OTTypeMismatchError(type, 'sharejs-text-ot')
       }
 
       const previousVersion = version
@@ -167,6 +171,7 @@ const UpdateManager = {
         projectHistoryId,
         lines,
         ranges,
+        updatedDocLines,
         historyRangesSupport
       )
 
@@ -295,8 +300,9 @@ const UpdateManager = {
    * @param {HistoryUpdate[]} updates
    * @param {string} pathname
    * @param {string} projectHistoryId
-   * @param {string[]} lines
-   * @param {Ranges} ranges
+   * @param {string[]} lines - document lines before updates were applied
+   * @param {Ranges} ranges - ranges before updates were applied
+   * @param {string[]} newLines - document lines after updates were applied
    * @param {boolean} historyRangesSupport
    */
   _adjustHistoryUpdatesMetadata(
@@ -305,6 +311,7 @@ const UpdateManager = {
     projectHistoryId,
     lines,
     ranges,
+    newLines,
     historyRangesSupport
   ) {
     let docLength = getDocLength(lines)
@@ -367,6 +374,12 @@ const UpdateManager = {
         // Prevent project-history from processing tracked changes
         delete update.meta.tc
       }
+    }
+
+    if (historyRangesSupport && updates.length > 0) {
+      const lastUpdate = updates[updates.length - 1]
+      lastUpdate.meta ??= {}
+      lastUpdate.meta.doc_hash = computeDocHash(newLines)
     }
   },
 }

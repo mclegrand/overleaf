@@ -5,12 +5,12 @@ import SystemMessages from '@/shared/components/system-messages'
 
 describe('<SystemMessages />', function () {
   beforeEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
     localStorage.clear()
   })
 
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
     localStorage.clear()
   })
 
@@ -22,9 +22,9 @@ describe('<SystemMessages />', function () {
     fetchMock.get(/\/system\/messages/, [data])
     render(<SystemMessages />)
 
-    await fetchMock.flush(true)
+    await fetchMock.callHistory.flush(true)
 
-    screen.getByText(data.content)
+    await screen.findByText(data.content)
     expect(screen.queryByRole('button', { name: /close/i })).to.be.null
   })
 
@@ -36,9 +36,9 @@ describe('<SystemMessages />', function () {
     fetchMock.get(/\/system\/messages/, [data])
     render(<SystemMessages />)
 
-    await fetchMock.flush(true)
+    await fetchMock.callHistory.flush(true)
 
-    screen.getByText(data.content)
+    await screen.findByText(data.content)
     const closeBtn = screen.getByRole('button', { name: /close/i })
     fireEvent.click(closeBtn)
 
@@ -60,7 +60,7 @@ describe('<SystemMessages />', function () {
     window.metaAttributesCache.set('ol-currentUrl', currentUrl)
     render(<SystemMessages />)
 
-    await fetchMock.flush(true)
+    await fetchMock.callHistory.flush(true)
 
     const link = screen.getByRole('link', { name: /click here/i })
     expect(link.getAttribute('href')).to.equal(`${data.url}${currentUrl}`)

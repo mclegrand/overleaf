@@ -15,6 +15,7 @@ const { Cookie } = require('tough-cookie')
 const ClsiCookieManager = require('./ClsiCookieManager')(
   Settings.apis.clsi?.backendGroupName
 )
+const Features = require('../../infrastructure/Features')
 const NewBackendCloudClsiCookieManager = require('./ClsiCookieManager')(
   Settings.apis.clsi_new?.backendGroupName
 )
@@ -24,6 +25,8 @@ const ClsiFormatChecker = require('./ClsiFormatChecker')
 const DocumentUpdaterHandler = require('../DocumentUpdater/DocumentUpdaterHandler')
 const Metrics = require('@overleaf/metrics')
 const Errors = require('../Errors/Errors')
+const ClsiCacheHandler = require('./ClsiCacheHandler')
+const { getBlobLocation } = require('../History/HistoryManager')
 
 const VALID_COMPILERS = ['pdflatex', 'latex', 'xelatex', 'lualatex']
 const OUTPUT_FILE_TIMEOUT_MS = 60000
@@ -146,6 +149,13 @@ async function deleteAuxFiles(projectId, userId, options, clsiserverid) {
       clsiserverid
     )
   } finally {
+    // always clear the clsi-cache
+    try {
+      await ClsiCacheHandler.clearCache(projectId, userId)
+    } catch (err) {
+      logger.warn({ err, projectId, userId }, 'purge clsi-cache failed')
+    }
+
     // always clear the project state from the docupdater, even if there
     // was a problem with the request to the clsi
     try {
@@ -197,6 +207,7 @@ async function _sendBuiltRequest(projectId, userId, req, options, callback) {
     stats: compile.stats,
     timings: compile.timings,
     outputUrlPrefix: compile.outputUrlPrefix,
+    clsiCacheShard: compile.clsiCacheShard,
   }
 }
 
@@ -532,6 +543,7 @@ async function _buildRequest(projectId, options) {
     rootDoc_id: 1,
     imageName: 1,
     rootFolder: 1,
+    'overleaf.history.id': 1,
   })
   if (project == null) {
     throw new Errors.NotFoundError(`project does not exist: ${projectId}`)
@@ -731,12 +743,26 @@ function _finaliseRequest(projectId, options, project, docs, files) {
     }
   }
 
+  const historyId = project.overleaf.history.id
+  if (!historyId) {
+    throw new OError('project does not have a history id', { projectId })
+  }
   for (let path in files) {
     const file = files[path]
     path = path.replace(/^\//, '') // Remove leading /
+
+    const filestoreURL = `${Settings.apis.filestore.url}/project/${project._id}/file/${file._id}`
+    let url = filestoreURL
+    let fallbackURL
+    if (file.hash && Features.hasFeature('project-history-blobs')) {
+      const { bucket, key } = getBlobLocation(historyId, file.hash)
+      url = `${Settings.apis.filestore.url}/bucket/${bucket}/key/${key}`
+      fallbackURL = filestoreURL
+    }
     resources.push({
       path,
-      url: `${Settings.apis.filestore.url}/project/${project._id}/file/${file._id}`,
+      url,
+      fallbackURL,
       modified: file.created?.getTime(),
     })
   }
@@ -748,6 +774,8 @@ function _finaliseRequest(projectId, options, project, docs, files) {
   return {
     compile: {
       options: {
+        buildId: options.buildId,
+        editorId: options.editorId,
         compiler: project.compiler,
         timeout: options.timeout,
         imageName: project.imageName,
@@ -757,6 +785,13 @@ function _finaliseRequest(projectId, options, project, docs, files) {
         syncType: options.syncType,
         syncState: options.syncState,
         compileGroup: options.compileGroup,
+        // Overleaf alpha/staff users get compileGroup=alpha (via getProjectCompileLimits in CompileManager), enroll them into the premium rollout of clsi-cache.
+        compileFromClsiCache:
+          ['alpha', 'priority'].includes(options.compileGroup) &&
+          options.compileFromClsiCache,
+        populateClsiCache:
+          ['alpha', 'priority'].includes(options.compileGroup) &&
+          options.populateClsiCache,
         enablePdfCaching:
           (Settings.enablePdfCaching && options.enablePdfCaching) || false,
         pdfCachingMinChunkSize: options.pdfCachingMinChunkSize,
@@ -819,6 +854,7 @@ module.exports = {
     'timings',
     'outputUrlPrefix',
     'buildId',
+    'clsiCacheShard',
   ]),
   sendExternalRequest: callbackifyMultiResult(sendExternalRequest, [
     'status',

@@ -20,10 +20,10 @@ export const ButtonWithIcons = (args: Args) => {
 }
 
 const meta: Meta<typeof Button> = {
-  title: 'Shared / Components / Bootstrap 5 / Button',
+  title: 'Shared / Components / Button',
   component: Button,
   args: {
-    children: 'A Bootstrap 5 Button',
+    children: 'A Button',
     disabled: false,
     isLoading: false,
   },
@@ -41,11 +41,9 @@ const meta: Meta<typeof Button> = {
         'danger',
         'danger-ghost',
         'premium',
+        'premium-secondary',
       ],
     },
-  },
-  parameters: {
-    bootstrap5: true,
   },
 }
 

@@ -1,9 +1,13 @@
 const _ = require('lodash')
-const { Readable } = require('stream')
+const { Readable } = require('node:stream')
 const OError = require('@overleaf/o-error')
 const fetch = require('node-fetch')
-const http = require('http')
-const https = require('https')
+const http = require('node:http')
+const https = require('node:https')
+
+/**
+ * @import { Response } from 'node-fetch'
+ */
 
 /**
  * Make a request and return the parsed JSON response.
@@ -19,11 +23,11 @@ async function fetchJson(url, opts = {}) {
 }
 
 async function fetchJsonWithResponse(url, opts = {}) {
-  const { fetchOpts } = parseOpts(opts)
+  const { fetchOpts, detachSignal } = parseOpts(opts)
   fetchOpts.headers = fetchOpts.headers ?? {}
-  fetchOpts.headers.Accept = 'application/json'
+  fetchOpts.headers.Accept = fetchOpts.headers.Accept ?? 'application/json'
 
-  const response = await performRequest(url, fetchOpts)
+  const response = await performRequest(url, fetchOpts, detachSignal)
   if (!response.ok) {
     const body = await maybeGetResponseBody(response)
     throw new RequestFailedError(url, opts, response, body)
@@ -49,8 +53,8 @@ async function fetchStream(url, opts = {}) {
 }
 
 async function fetchStreamWithResponse(url, opts = {}) {
-  const { fetchOpts, abortController } = parseOpts(opts)
-  const response = await performRequest(url, fetchOpts)
+  const { fetchOpts, abortController, detachSignal } = parseOpts(opts)
+  const response = await performRequest(url, fetchOpts, detachSignal)
 
   if (!response.ok) {
     const body = await maybeGetResponseBody(response)
@@ -72,8 +76,8 @@ async function fetchStreamWithResponse(url, opts = {}) {
  * @throws {RequestFailedError} if the response has a failure status code
  */
 async function fetchNothing(url, opts = {}) {
-  const { fetchOpts } = parseOpts(opts)
-  const response = await performRequest(url, fetchOpts)
+  const { fetchOpts, detachSignal } = parseOpts(opts)
+  const response = await performRequest(url, fetchOpts, detachSignal)
   if (!response.ok) {
     const body = await maybeGetResponseBody(response)
     throw new RequestFailedError(url, opts, response, body)
@@ -91,9 +95,22 @@ async function fetchNothing(url, opts = {}) {
  * @throws {RequestFailedError} if the response has a non redirect status code or missing Location header
  */
 async function fetchRedirect(url, opts = {}) {
-  const { fetchOpts } = parseOpts(opts)
+  const { location } = await fetchRedirectWithResponse(url, opts)
+  return location
+}
+
+/**
+ * Make a request and extract the redirect from the response.
+ *
+ * @param {string | URL} url - request URL
+ * @param {object} opts - fetch options
+ * @return {Promise<{location: string, response: Response}>}
+ * @throws {RequestFailedError} if the response has a non redirect status code or missing Location header
+ */
+async function fetchRedirectWithResponse(url, opts = {}) {
+  const { fetchOpts, detachSignal } = parseOpts(opts)
   fetchOpts.redirect = 'manual'
-  const response = await performRequest(url, fetchOpts)
+  const response = await performRequest(url, fetchOpts, detachSignal)
   if (response.status < 300 || response.status >= 400) {
     const body = await maybeGetResponseBody(response)
     throw new RequestFailedError(url, opts, response, body)
@@ -108,7 +125,7 @@ async function fetchRedirect(url, opts = {}) {
     )
   }
   await discardResponseBody(response)
-  return location
+  return { location, response }
 }
 
 /**
@@ -125,8 +142,8 @@ async function fetchString(url, opts = {}) {
 }
 
 async function fetchStringWithResponse(url, opts = {}) {
-  const { fetchOpts } = parseOpts(opts)
-  const response = await performRequest(url, fetchOpts)
+  const { fetchOpts, detachSignal } = parseOpts(opts)
+  const response = await performRequest(url, fetchOpts, detachSignal)
   if (!response.ok) {
     const body = await maybeGetResponseBody(response)
     throw new RequestFailedError(url, opts, response, body)
@@ -161,13 +178,14 @@ function parseOpts(opts) {
 
   const abortController = new AbortController()
   fetchOpts.signal = abortController.signal
+  let detachSignal = () => {}
   if (opts.signal) {
-    abortOnSignal(abortController, opts.signal)
+    detachSignal = abortOnSignal(abortController, opts.signal)
   }
   if (opts.body instanceof Readable) {
     abortOnDestroyedRequest(abortController, fetchOpts.body)
   }
-  return { fetchOpts, abortController }
+  return { fetchOpts, abortController, detachSignal }
 }
 
 function setupJsonBody(fetchOpts, json) {
@@ -191,6 +209,9 @@ function abortOnSignal(abortController, signal) {
     abortController.abort(signal.reason)
   }
   signal.addEventListener('abort', listener)
+  return () => {
+    signal.removeEventListener('abort', listener)
+  }
 }
 
 function abortOnDestroyedRequest(abortController, stream) {
@@ -209,11 +230,12 @@ function abortOnDestroyedResponse(abortController, response) {
   })
 }
 
-async function performRequest(url, fetchOpts) {
+async function performRequest(url, fetchOpts, detachSignal) {
   let response
   try {
     response = await fetch(url, fetchOpts)
   } catch (err) {
+    detachSignal()
     if (fetchOpts.body instanceof Readable) {
       fetchOpts.body.destroy()
     }
@@ -222,6 +244,7 @@ async function performRequest(url, fetchOpts) {
       method: fetchOpts.method ?? 'GET',
     })
   }
+  response.body.on('close', detachSignal)
   if (fetchOpts.body instanceof Readable) {
     response.body.on('close', () => {
       if (!fetchOpts.body.readableEnded) {
@@ -240,8 +263,6 @@ async function discardResponseBody(response) {
 }
 
 /**
- * @typedef {import('node-fetch').Response} Response
- *
  * @param {Response} response
  */
 async function maybeGetResponseBody(response) {
@@ -295,6 +316,7 @@ module.exports = {
   fetchStreamWithResponse,
   fetchNothing,
   fetchRedirect,
+  fetchRedirectWithResponse,
   fetchString,
   fetchStringWithResponse,
   RequestFailedError,

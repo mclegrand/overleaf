@@ -6,7 +6,7 @@ version: "2.3"
 
 services:
   test_unit:
-    image: node:18.20.2
+    image: node:22.15.1
     volumes:
       - .:/overleaf/services/real-time
       - ../../node_modules:/overleaf/node_modules
@@ -14,13 +14,14 @@ services:
     working_dir: /overleaf/services/real-time
     environment:
       MOCHA_GREP: ${MOCHA_GREP}
+      LOG_LEVEL: ${LOG_LEVEL:-}
       NODE_ENV: test
       NODE_OPTIONS: "--unhandled-rejections=strict"
     command: npm run --silent test:unit
     user: node
 
   test_acceptance:
-    image: node:18.20.2
+    image: node:22.15.1
     volumes:
       - .:/overleaf/services/real-time
       - ../../node_modules:/overleaf/node_modules
@@ -29,12 +30,13 @@ services:
     environment:
       ELASTIC_SEARCH_DSN: es:9200
       REDIS_HOST: redis
+      HISTORY_REDIS_HOST: redis
       QUEUES_REDIS_HOST: redis
       ANALYTICS_QUEUES_REDIS_HOST: redis
       MONGO_HOST: mongo
       POSTGRES_HOST: postgres
       MOCHA_GREP: ${MOCHA_GREP}
-      LOG_LEVEL: ERROR
+      LOG_LEVEL: ${LOG_LEVEL:-}
       NODE_ENV: test
       NODE_OPTIONS: "--unhandled-rejections=strict"
     user: node
@@ -44,7 +46,7 @@ services:
     command: npm run --silent test:acceptance
 
   redis:
-    image: redis
+    image: redis:7.4.3
     healthcheck:
       test: ping=$$(redis-cli ping) && [ "$$ping" = 'PONG' ]
       interval: 1s

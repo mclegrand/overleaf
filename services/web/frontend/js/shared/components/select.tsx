@@ -1,5 +1,3 @@
-/* eslint-disable jsx-a11y/label-has-for */
-/* eslint-disable jsx-a11y/label-has-associated-control */
 import {
   useRef,
   useEffect,
@@ -10,8 +8,11 @@ import {
 } from 'react'
 import classNames from 'classnames'
 import { useSelect } from 'downshift'
-import Icon from './icon'
 import { useTranslation } from 'react-i18next'
+import { Form, Spinner } from 'react-bootstrap'
+import FormControl from '@/features/ui/components/bootstrap-5/form/form-control'
+import MaterialIcon from '@/shared/components/material-icon'
+import { DropdownItem } from '@/features/ui/components/bootstrap-5/dropdown-menu'
 
 export type SelectProps<T> = {
   // The items rendered as dropdown options.
@@ -28,7 +29,7 @@ export type SelectProps<T> = {
   defaultText?: string
   // Initial selected item, displayed in the initial render. When both `defaultText`
   // and `defaultItem` are set the latter is ignored.
-  defaultItem?: T
+  defaultItem?: T | null
   // Stringifies an item. The resulting string is rendered as a subtitle in a dropdown option.
   itemToSubtitle?: (item: T | null | undefined) => string
   // Stringifies an item. The resulting string is rendered as a React `key` for each item.
@@ -36,7 +37,7 @@ export type SelectProps<T> = {
   // Callback invoked after the selected item is updated.
   onSelectedItemChanged?: (item: T | null | undefined) => void
   // Optionally directly control the selected item.
-  selected?: T
+  selected?: T | null
   // When `true` item selection is disabled.
   disabled?: boolean
   // Determine which items should be disabled
@@ -47,6 +48,8 @@ export type SelectProps<T> = {
   loading?: boolean
   // Show a checkmark next to the selected item
   selectedIcon?: boolean
+  // testId for the input element
+  dataTestId?: string
 }
 
 export const Select = <T,>({
@@ -65,6 +68,7 @@ export const Select = <T,>({
   optionalLabel = false,
   loading = false,
   selectedIcon = false,
+  dataTestId,
 }: SelectProps<T>) => {
   const [selectedItem, setSelectedItem] = useState<T | undefined | null>(
     defaultItem
@@ -79,9 +83,11 @@ export const Select = <T,>({
     getItemProps,
     highlightedIndex,
     openMenu,
+    closeMenu,
   } = useSelect({
     items: items ?? [],
     itemToString,
+    isItemDisabled: item => itemToDisabled?.(item) || false,
     selectedItem: selected || defaultItem,
     onSelectedItemChange: changes => {
       if (onSelectedItemChanged) {
@@ -117,15 +123,18 @@ export const Select = <T,>({
     }
   }, [name, itemToString, selectedItem, defaultItem])
 
-  const onKeyDown: KeyboardEventHandler<HTMLButtonElement> = useCallback(
+  const onKeyDown: KeyboardEventHandler<HTMLInputElement> = useCallback(
     event => {
-      if (event.key === 'Enter' && !isOpen) {
+      if ((event.key === 'Enter' || event.key === ' ') && !isOpen) {
         event.preventDefault()
         ;(event.nativeEvent as any).preventDownshiftDefault = true
         openMenu()
+      } else if (event.key === 'Escape' && isOpen) {
+        event.stopPropagation()
+        closeMenu()
       }
     },
-    [isOpen, openMenu]
+    [closeMenu, isOpen, openMenu]
   )
 
   let value: string | undefined
@@ -134,74 +143,76 @@ export const Select = <T,>({
   } else {
     value = defaultText
   }
+
   return (
     <div className="select-wrapper" ref={rootRef}>
-      <div>
-        {label ? (
-          <label {...getLabelProps()}>
-            {label}{' '}
-            {optionalLabel && (
-              <span className="select-optional-label text-muted">
-                ({t('optional')})
-              </span>
-            )}{' '}
-            {loading && <Icon data-testid="spinner" fw type="spinner" spin />}
-          </label>
-        ) : null}
-        <div
-          className={classNames({ disabled }, 'select-trigger')}
-          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-          tabIndex={0}
-          {...getToggleButtonProps({
-            disabled,
-            onKeyDown,
-          })}
-        >
-          <div>{value}</div>
-          <div>
-            {isOpen ? (
-              <Icon type="chevron-up" fw />
-            ) : (
-              <Icon type="chevron-down" fw />
-            )}
-          </div>
-        </div>
-      </div>
+      {label ? (
+        <Form.Label {...getLabelProps()}>
+          {label}{' '}
+          {optionalLabel && (
+            <span className="fw-normal">({t('optional')})</span>
+          )}{' '}
+          {loading && (
+            <span data-testid="spinner">
+              <Spinner
+                animation="border"
+                aria-hidden="true"
+                as="span"
+                role="status"
+                size="sm"
+              />
+            </span>
+          )}
+        </Form.Label>
+      ) : null}
+      <FormControl
+        data-testid={dataTestId}
+        {...getToggleButtonProps({
+          disabled,
+          onKeyDown,
+          className: 'select-trigger',
+        })}
+        value={value}
+        readOnly
+        append={
+          <MaterialIcon
+            type={isOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
+            className="align-text-bottom"
+          />
+        }
+      />
       <ul
-        className={classNames({ hidden: !isOpen }, 'select-items')}
         {...getMenuProps({ disabled })}
+        className={classNames('dropdown-menu w-100', { show: isOpen })}
       >
         {isOpen &&
           items?.map((item, index) => {
-            const isDisabled = itemToDisabled && itemToDisabled(item)
+            // We're using an actual disabled button so we don't need the
+            // aria-disabled prop
+            const { 'aria-disabled': disabled, ...itemProps } = getItemProps({
+              item,
+              index,
+            })
             return (
-              <li
-                className={classNames({
-                  'select-highlighted': highlightedIndex === index,
-                  'selected-active': selectedItem === item,
-                  'select-icon': selectedIcon,
-                  'select-disabled': isDisabled,
-                })}
-                key={itemToKey(item)}
-                {...getItemProps({ item, index, disabled: isDisabled })}
-              >
-                <span className="select-item-title">
-                  {selectedIcon && (
-                    <div className="select-item-icon">
-                      {(selectedItem === item ||
-                        (!selectedItem && defaultItem === item)) && (
-                        <Icon type="check" fw />
-                      )}
-                    </div>
-                  )}
+              <li role="none" key={itemToKey(item)}>
+                <DropdownItem
+                  as="button"
+                  type="button"
+                  className={classNames({
+                    'select-highlighted': highlightedIndex === index,
+                  })}
+                  active={selectedItem === item}
+                  trailingIcon={
+                    selectedIcon && selectedItem === item ? 'check' : undefined
+                  }
+                  description={
+                    itemToSubtitle ? itemToSubtitle(item) : undefined
+                  }
+                  {...itemProps}
+                  disabled={disabled}
+                >
                   {itemToString(item)}
-                </span>
-
-                {itemToSubtitle ? (
-                  <span className="text-muted select-item-subtitle">
-                    {itemToSubtitle(item)}
-                  </span>
-                ) : null}
+                </DropdownItem>
               </li>
             )
           })}

@@ -196,18 +196,18 @@ function PasswordForm() {
           />
         </OLFormGroup>
       ) : null}
-      <OLButton
-        form="password-change-form"
-        type="submit"
-        variant="primary"
-        disabled={!isFormValid}
-        isLoading={isLoading}
-        bs3Props={{
-          loading: isLoading ? `${t('saving')}…` : t('change'),
-        }}
-      >
-        {t('change')}
-      </OLButton>
+      <OLFormGroup>
+        <OLButton
+          form="password-change-form"
+          type="submit"
+          variant="primary"
+          disabled={!isFormValid}
+          isLoading={isLoading}
+          loadingLabel={`${t('saving')}…`}
+        >
+          {t('change')}
+        </OLButton>
+      </OLFormGroup>
     </form>
   )
 }
@@ -266,7 +266,7 @@ function PasswordFormGroup({
         isInvalid={isInvalid}
       />
       {isInvalid && (
-        <OLFormText isError>
+        <OLFormText type="error">
           {parentValidationMessage || validationMessage}
         </OLFormText>
       )}

@@ -6,12 +6,14 @@ const SandboxedModule = require('sandboxed-module')
 const Errors = require('../../../../app/src/Features/Errors/Errors')
 const PrivilegeLevels = require('../../../../app/src/Features/Authorization/PrivilegeLevels')
 const PublicAccessLevels = require('../../../../app/src/Features/Authorization/PublicAccessLevels')
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 
 describe('AuthorizationManager', function () {
   beforeEach(function () {
     this.user = { _id: new ObjectId() }
     this.project = { _id: new ObjectId() }
+    this.doc = { _id: new ObjectId() }
+    this.thread = { _id: new ObjectId() }
     this.token = 'some-token'
 
     this.ProjectGetter = {
@@ -25,7 +27,10 @@ describe('AuthorizationManager', function () {
 
     this.CollaboratorsGetter = {
       promises: {
-        getMemberIdPrivilegeLevel: sinon.stub().resolves(PrivilegeLevels.NONE),
+        getProjectAccess: sinon.stub().resolves({
+          publicAccessLevel: sinon.stub().returns(PublicAccessLevels.PRIVATE),
+          privilegeLevelForUser: sinon.stub().returns(PrivilegeLevels.NONE),
+        }),
       },
     }
 
@@ -46,14 +51,24 @@ describe('AuthorizationManager', function () {
       },
     }
 
+    this.DocumentUpdaterHandler = {
+      promises: {
+        getComment: sinon
+          .stub()
+          .resolves({ metadata: { user_id: new ObjectId() } }),
+      },
+    }
+
     this.AuthorizationManager = SandboxedModule.require(modulePath, {
       requires: {
-        mongodb: { ObjectId },
+        'mongodb-legacy': { ObjectId },
         '../Collaborators/CollaboratorsGetter': this.CollaboratorsGetter,
         '../Collaborators/CollaboratorsHandler': this.CollaboratorsHandler,
         '../Project/ProjectGetter': this.ProjectGetter,
         '../../models/User': { User: this.User },
         '../TokenAccess/TokenAccessHandler': this.TokenAccessHandler,
+        '../DocumentUpdater/DocumentUpdaterHandler':
+          this.DocumentUpdaterHandler,
         '@overleaf/settings': {
           passwordStrengthOptions: {},
           adminPrivilegeAvailable: true,
@@ -70,6 +85,7 @@ describe('AuthorizationManager', function () {
         ['id', 'readAndWrite', true, true],
         ['id', 'readOnly', false, false],
         ['id', 'readOnly', false, true],
+        ['id', 'review', false, true],
       ]
       const restrictedScenarios = [
         [null, 'readOnly', false, false],
@@ -100,9 +116,17 @@ describe('AuthorizationManager', function () {
 
       describe('with a user id with a privilege level', function () {
         beforeEach(async function () {
-          this.CollaboratorsGetter.promises.getMemberIdPrivilegeLevel
-            .withArgs(this.user._id, this.project._id)
-            .resolves(PrivilegeLevels.READ_ONLY)
+          this.CollaboratorsGetter.promises.getProjectAccess
+            .withArgs(this.project._id)
+            .resolves({
+              publicAccessLevel: sinon
+                .stub()
+                .returns(PublicAccessLevels.PRIVATE),
+              privilegeLevelForUser: sinon
+                .stub()
+                .withArgs(this.user._id)
+                .returns(PrivilegeLevels.READ_ONLY),
+            })
           this.result =
             await this.AuthorizationManager.promises.getPrivilegeLevelForProject(
               this.user._id,
@@ -158,8 +182,8 @@ describe('AuthorizationManager', function () {
               )
           })
 
-          it('should not call CollaboratorsGetter.getMemberIdPrivilegeLevel', function () {
-            this.CollaboratorsGetter.promises.getMemberIdPrivilegeLevel.called.should.equal(
+          it('should not call CollaboratorsGetter.getProjectAccess', function () {
+            this.CollaboratorsGetter.promises.getProjectAccess.called.should.equal(
               false
             )
           })
@@ -191,8 +215,8 @@ describe('AuthorizationManager', function () {
               )
           })
 
-          it('should not call CollaboratorsGetter.getMemberIdPrivilegeLevel', function () {
-            this.CollaboratorsGetter.promises.getMemberIdPrivilegeLevel.called.should.equal(
+          it('should not call CollaboratorsGetter.getProjectAccess', function () {
+            this.CollaboratorsGetter.promises.getProjectAccess.called.should.equal(
               false
             )
           })
@@ -224,8 +248,8 @@ describe('AuthorizationManager', function () {
               )
           })
 
-          it('should not call CollaboratorsGetter.getMemberIdPrivilegeLevel', function () {
-            this.CollaboratorsGetter.promises.getMemberIdPrivilegeLevel.called.should.equal(
+          it('should not call CollaboratorsGetter.getProjectAccess', function () {
+            this.CollaboratorsGetter.promises.getProjectAccess.called.should.equal(
               false
             )
           })
@@ -251,9 +275,17 @@ describe('AuthorizationManager', function () {
 
       describe('with a user id with a privilege level', function () {
         beforeEach(async function () {
-          this.CollaboratorsGetter.promises.getMemberIdPrivilegeLevel
-            .withArgs(this.user._id, this.project._id)
-            .resolves(PrivilegeLevels.READ_ONLY)
+          this.CollaboratorsGetter.promises.getProjectAccess
+            .withArgs(this.project._id)
+            .resolves({
+              publicAccessLevel: sinon
+                .stub()
+                .returns(PublicAccessLevels.PRIVATE),
+              privilegeLevelForUser: sinon
+                .stub()
+                .withArgs(this.user._id)
+                .returns(PrivilegeLevels.READ_ONLY),
+            })
           this.result =
             await this.AuthorizationManager.promises.getPrivilegeLevelForProject(
               this.user._id,
@@ -308,8 +340,8 @@ describe('AuthorizationManager', function () {
             )
         })
 
-        it('should not call CollaboratorsGetter.getMemberIdPrivilegeLevel', function () {
-          this.CollaboratorsGetter.promises.getMemberIdPrivilegeLevel.called.should.equal(
+        it('should not call CollaboratorsGetter.getProjectAccess', function () {
+          this.CollaboratorsGetter.promises.getProjectAccess.called.should.equal(
             false
           )
         })
@@ -323,13 +355,32 @@ describe('AuthorizationManager', function () {
     describe('with a public project', function () {
       beforeEach(function () {
         this.project.publicAccesLevel = 'readAndWrite'
+        this.CollaboratorsGetter.promises.getProjectAccess
+          .withArgs(this.project._id)
+          .resolves({
+            publicAccessLevel: sinon
+              .stub()
+              .returns(this.project.publicAccesLevel),
+            privilegeLevelForUser: sinon
+              .stub()
+              .withArgs(this.user._id)
+              .returns(PrivilegeLevels.NONE),
+          })
       })
 
       describe('with a user id with a privilege level', function () {
         beforeEach(async function () {
-          this.CollaboratorsGetter.promises.getMemberIdPrivilegeLevel
-            .withArgs(this.user._id, this.project._id)
-            .resolves(PrivilegeLevels.READ_ONLY)
+          this.CollaboratorsGetter.promises.getProjectAccess
+            .withArgs(this.project._id)
+            .resolves({
+              publicAccessLevel: sinon
+                .stub()
+                .returns(this.project.publicAccesLevel),
+              privilegeLevelForUser: sinon
+                .stub()
+                .withArgs(this.user._id)
+                .returns(PrivilegeLevels.READ_ONLY),
+            })
           this.result =
             await this.AuthorizationManager.promises.getPrivilegeLevelForProject(
               this.user._id,
@@ -384,8 +435,8 @@ describe('AuthorizationManager', function () {
             )
         })
 
-        it('should not call CollaboratorsGetter.getMemberIdPrivilegeLevel', function () {
-          this.CollaboratorsGetter.promises.getMemberIdPrivilegeLevel.called.should.equal(
+        it('should not call CollaboratorsGetter.getProjectAccess', function () {
+          this.CollaboratorsGetter.promises.getProjectAccess.called.should.equal(
             false
           )
         })
@@ -397,6 +448,11 @@ describe('AuthorizationManager', function () {
     })
 
     describe("when the project doesn't exist", function () {
+      beforeEach(function () {
+        this.CollaboratorsGetter.promises.getProjectAccess.rejects(
+          new Errors.NotFoundError()
+        )
+      })
       it('should return a NotFoundError', async function () {
         const someOtherId = new ObjectId()
         await expect(
@@ -411,9 +467,15 @@ describe('AuthorizationManager', function () {
 
     describe('when the project id is not valid', function () {
       beforeEach(function () {
-        this.CollaboratorsGetter.promises.getMemberIdPrivilegeLevel
-          .withArgs(this.user._id, this.project._id)
-          .resolves(PrivilegeLevels.READ_ONLY)
+        this.CollaboratorsGetter.promises.getProjectAccess
+          .withArgs(this.project._id)
+          .resolves({
+            publicAccessLevel: sinon.stub().returns(PublicAccessLevels.PRIVATE),
+            privilegeLevelForUser: sinon
+              .stub()
+              .withArgs(this.user._id)
+              .returns(PrivilegeLevels.READ_ONLY),
+          })
       })
 
       it('should return a error', async function () {
@@ -432,11 +494,21 @@ describe('AuthorizationManager', function () {
     siteAdmin: true,
     owner: true,
     readAndWrite: true,
+    review: true,
     readOnly: true,
     publicReadAndWrite: true,
     publicReadOnly: true,
     tokenReadAndWrite: true,
     tokenReadOnly: true,
+  })
+
+  testPermission('canUserWriteOrReviewProjectContent', {
+    siteAdmin: true,
+    owner: true,
+    readAndWrite: true,
+    review: true,
+    publicReadAndWrite: true,
+    tokenReadAndWrite: true,
   })
 
   testPermission('canUserWriteProjectContent', {
@@ -503,6 +575,98 @@ describe('AuthorizationManager', function () {
       })
     })
   })
+
+  describe('canUserDeleteOrResolveThread', function () {
+    it('should return true when user has write permissions', async function () {
+      this.CollaboratorsGetter.promises.getProjectAccess
+        .withArgs(this.project._id)
+        .resolves({
+          publicAccessLevel: sinon.stub().returns(PublicAccessLevels.PRIVATE),
+          privilegeLevelForUser: sinon
+            .stub()
+            .withArgs(this.user._id)
+            .returns(PrivilegeLevels.READ_AND_WRITE),
+        })
+
+      const canResolve =
+        await this.AuthorizationManager.promises.canUserDeleteOrResolveThread(
+          this.user._id,
+          this.project._id,
+          this.doc._id,
+          this.thread._id,
+          this.token
+        )
+
+      expect(canResolve).to.equal(true)
+    })
+
+    it('should return false when user has read permission', async function () {
+      this.CollaboratorsGetter.promises.getProjectAccess
+        .withArgs(this.project._id)
+        .resolves({
+          publicAccessLevel: sinon.stub().returns(PublicAccessLevels.PRIVATE),
+          privilegeLevelForUser: sinon
+            .stub()
+            .withArgs(this.user._id)
+            .returns(PrivilegeLevels.READ_ONLY),
+        })
+
+      const canResolve =
+        await this.AuthorizationManager.promises.canUserDeleteOrResolveThread(
+          this.user._id,
+          this.project._id,
+          this.doc._id,
+          this.thread._id,
+          this.token
+        )
+
+      expect(canResolve).to.equal(false)
+    })
+
+    describe('when user has review permission', function () {
+      beforeEach(function () {
+        this.CollaboratorsGetter.promises.getProjectAccess
+          .withArgs(this.project._id)
+          .resolves({
+            publicAccessLevel: sinon.stub().returns(PublicAccessLevels.PRIVATE),
+            privilegeLevelForUser: sinon
+              .stub()
+              .withArgs(this.user._id)
+              .returns(PrivilegeLevels.REVIEW),
+          })
+      })
+
+      it('should return false when user is not the comment author', async function () {
+        const canResolve =
+          await this.AuthorizationManager.promises.canUserDeleteOrResolveThread(
+            this.user._id,
+            this.project._id,
+            this.doc._id,
+            this.thread._id,
+            this.token
+          )
+
+        expect(canResolve).to.equal(false)
+      })
+
+      it('should return true when user is the comment author', async function () {
+        this.DocumentUpdaterHandler.promises.getComment
+          .withArgs(this.project._id, this.doc._id, this.thread._id)
+          .resolves({ metadata: { user_id: this.user._id } })
+
+        const canResolve =
+          await this.AuthorizationManager.promises.canUserDeleteOrResolveThread(
+            this.user._id,
+            this.project._id,
+            this.doc._id,
+            this.thread._id,
+            this.token
+          )
+
+        expect(canResolve).to.equal(true)
+      })
+    })
+  })
 })
 
 function testPermission(permission, privilegeLevels) {
@@ -523,6 +687,11 @@ function testPermission(permission, privilegeLevels) {
       describe('when user has read-write access', function () {
         setupUserPrivilegeLevel(PrivilegeLevels.READ_AND_WRITE)
         expectPermission(permission, privilegeLevels.readAndWrite || false)
+      })
+
+      describe('when user has review access', function () {
+        setupUserPrivilegeLevel(PrivilegeLevels.REVIEW)
+        expectPermission(permission, privilegeLevels.review || false)
       })
 
       describe('when user has read-only access', function () {
@@ -589,15 +758,27 @@ function testPermission(permission, privilegeLevels) {
 
 function setupUserPrivilegeLevel(privilegeLevel) {
   beforeEach(`set user privilege level to ${privilegeLevel}`, function () {
-    this.CollaboratorsGetter.promises.getMemberIdPrivilegeLevel
-      .withArgs(this.user._id, this.project._id)
-      .resolves(privilegeLevel)
+    this.CollaboratorsGetter.promises.getProjectAccess
+      .withArgs(this.project._id)
+      .resolves({
+        publicAccessLevel: sinon.stub().returns(PublicAccessLevels.PRIVATE),
+        privilegeLevelForUser: sinon
+          .stub()
+          .withArgs(this.user._id)
+          .returns(privilegeLevel),
+      })
   })
 }
 
 function setupPublicAccessLevel(level) {
   beforeEach(`set public access level to ${level}`, function () {
     this.project.publicAccesLevel = level
+    this.CollaboratorsGetter.promises.getProjectAccess
+      .withArgs(this.project._id)
+      .resolves({
+        publicAccessLevel: sinon.stub().returns(this.project.publicAccesLevel),
+        privilegeLevelForUser: sinon.stub().returns(PrivilegeLevels.NONE),
+      })
   })
 }
 

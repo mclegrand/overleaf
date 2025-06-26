@@ -13,12 +13,25 @@
       "deleteConcurrency": "50"
     }
   },
+  "backupPersistor": {
+    "backend": "s3SSEC",
+    "s3SSEC": {
+      "maxRetries": "1",
+      "pathStyle": false,
+      "httpOptions": {
+        "timeout": "120000"
+      }
+    }
+  },
+  "backupRPOInMS": "3600000",
   "chunkStore": {
     "historyStoreConcurrency": "4"
   },
   "zipStore": {
     "zipTimeoutMs": "360000"
   },
+  "hasProjectsWithoutHistory": false,
+  "minSoftDeletionPeriodDays": "90",
   "maxDeleteKeys": "1000",
   "useDeleteObjects": "true",
   "clusterWorkers": "1",
@@ -26,5 +39,8 @@
   "databasePoolMin": "2",
   "databasePoolMax": "10",
   "httpsOnly": "false",
-  "httpRequestTimeout": "300000"
+  "httpRequestTimeout": "300000",
+  "projectHistory": {
+    "port": "3054"
+  }
 }

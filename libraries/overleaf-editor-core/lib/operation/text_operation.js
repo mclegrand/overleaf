@@ -30,11 +30,11 @@ const ClearTrackingProps = require('../file_data/clear_tracking_props')
 const TrackingProps = require('../file_data/tracking_props')
 
 /**
- * @typedef {import('../file_data/string_file_data')} StringFileData
- * @typedef {import('../types').RawTextOperation} RawTextOperation
- * @typedef {import('../operation/scan_op').ScanOp} ScanOp
- * @typedef {import('../file_data/tracked_change_list')} TrackedChangeList
- * @typedef {import('../types').TrackingDirective} TrackingDirective
+ * @import StringFileData from '../file_data/string_file_data'
+ * @import { RawTextOperation, TrackingDirective } from '../types'
+ * @import { ScanOp } from '../operation/scan_op'
+ * @import TrackedChangeList from '../file_data/tracked_change_list'
+ *
  * @typedef {{tracking?: TrackingProps, commentIds?: string[]}} InsertOptions
  */
 
@@ -56,18 +56,34 @@ class TextOperation extends EditOperation {
 
   constructor() {
     super()
-    // When an operation is applied to an input string, you can think of this as
-    // if an imaginary cursor runs over the entire string and skips over some
-    // parts, removes some parts and inserts characters at some positions. These
-    // actions (skip/remove/insert) are stored as an array in the "ops" property.
-    /** @type {ScanOp[]} */
+
+    /**
+     * When an operation is applied to an input string, you can think of this as
+     * if an imaginary cursor runs over the entire string and skips over some
+     * parts, removes some parts and inserts characters at some positions. These
+     * actions (skip/remove/insert) are stored as an array in the "ops" property.
+     * @type {ScanOp[]}
+     */
     this.ops = []
-    // An operation's baseLength is the length of every string the operation
-    // can be applied to.
+
+    /**
+     * An operation's baseLength is the length of every string the operation
+     * can be applied to.
+     */
     this.baseLength = 0
-    // The targetLength is the length of every string that results from applying
-    // the operation on a valid input string.
+
+    /**
+     * The targetLength is the length of every string that results from applying
+     * the operation on a valid input string.
+     */
     this.targetLength = 0
+
+    /**
+     * The expected content hash after this operation is applied
+     *
+     * @type {string | null}
+     */
+    this.contentHash = null
   }
 
   /**
@@ -223,7 +239,12 @@ class TextOperation extends EditOperation {
    * @returns {RawTextOperation}
    */
   toJSON() {
-    return { textOperation: this.ops.map(op => op.toJSON()) }
+    /** @type {RawTextOperation} */
+    const json = { textOperation: this.ops.map(op => op.toJSON()) }
+    if (this.contentHash != null) {
+      json.contentHash = this.contentHash
+    }
+    return json
   }
 
   /**
@@ -231,7 +252,7 @@ class TextOperation extends EditOperation {
    * @param {RawTextOperation} obj
    * @returns {TextOperation}
    */
-  static fromJSON = function ({ textOperation: ops }) {
+  static fromJSON = function ({ textOperation: ops, contentHash }) {
     const o = new TextOperation()
     for (const op of ops) {
       if (isRetain(op)) {
@@ -249,6 +270,9 @@ class TextOperation extends EditOperation {
       } else {
         throw new UnprocessableError('unknown operation: ' + JSON.stringify(op))
       }
+    }
+    if (contentHash != null) {
+      o.contentHash = contentHash
     }
     return o
   }
@@ -290,25 +314,18 @@ class TextOperation extends EditOperation {
             str
           )
         }
-        file.trackedChanges.applyRetain(result.length, op.length, {
-          tracking: op.tracking,
-        })
         result += str.slice(inputCursor, inputCursor + op.length)
         inputCursor += op.length
       } else if (op instanceof InsertOp) {
         if (containsNonBmpChars(op.insertion)) {
           throw new InvalidInsertionError(str, op.toJSON())
         }
-        file.trackedChanges.applyInsert(result.length, op.insertion, {
-          tracking: op.tracking,
-        })
         file.comments.applyInsert(
           new Range(result.length, op.insertion.length),
           { commentIds: op.commentIds }
         )
         result += op.insertion
       } else if (op instanceof RemoveOp) {
-        file.trackedChanges.applyDelete(result.length, op.length)
         file.comments.applyDelete(new Range(result.length, op.length))
         inputCursor += op.length
       } else {
@@ -327,6 +344,8 @@ class TextOperation extends EditOperation {
     if (result.length > TextOperation.MAX_STRING_LENGTH) {
       throw new TextOperation.TooLongError(operation, result.length)
     }
+
+    file.trackedChanges.applyTextOperation(this)
 
     file.content = result
   }
@@ -376,44 +395,36 @@ class TextOperation extends EditOperation {
     for (let i = 0, l = ops.length; i < l; i++) {
       const op = ops[i]
       if (op instanceof RetainOp) {
-        // Where we need to end up after the retains
-        const target = strIndex + op.length
-        // A previous retain could have overriden some tracking info. Now we
-        // need to restore it.
-        const previousRanges = previousState.trackedChanges.inRange(
-          new Range(strIndex, op.length)
-        )
-
-        let removeTrackingInfoIfNeeded
         if (op.tracking) {
-          removeTrackingInfoIfNeeded = new ClearTrackingProps()
-        }
+          // Where we need to end up after the retains
+          const target = strIndex + op.length
+          // A previous retain could have overriden some tracking info. Now we
+          // need to restore it.
+          const previousChanges = previousState.trackedChanges.intersectRange(
+            new Range(strIndex, op.length)
+          )
 
-        for (const trackedChange of previousRanges) {
-          if (strIndex < trackedChange.range.start) {
-            inverse.retain(trackedChange.range.start - strIndex, {
-              tracking: removeTrackingInfoIfNeeded,
+          for (const change of previousChanges) {
+            if (strIndex < change.range.start) {
+              inverse.retain(change.range.start - strIndex, {
+                tracking: new ClearTrackingProps(),
+              })
+              strIndex = change.range.start
+            }
+            inverse.retain(change.range.length, {
+              tracking: change.tracking,
             })
-            strIndex = trackedChange.range.start
+            strIndex += change.range.length
           }
-          if (trackedChange.range.end < strIndex + op.length) {
-            inverse.retain(trackedChange.range.length, {
-              tracking: trackedChange.tracking,
+          if (strIndex < target) {
+            inverse.retain(target - strIndex, {
+              tracking: new ClearTrackingProps(),
             })
-            strIndex = trackedChange.range.end
+            strIndex = target
           }
-          if (trackedChange.range.end !== strIndex) {
-            // No need to split the range at the end
-            const [left] = trackedChange.range.splitAt(strIndex)
-            inverse.retain(left.length, { tracking: trackedChange.tracking })
-            strIndex = left.end
-          }
-        }
-        if (strIndex < target) {
-          inverse.retain(target - strIndex, {
-            tracking: removeTrackingInfoIfNeeded,
-          })
-          strIndex = target
+        } else {
+          inverse.retain(op.length)
+          strIndex += op.length
         }
       } else if (op instanceof InsertOp) {
         inverse.remove(op.insertion.length)

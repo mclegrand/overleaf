@@ -1,60 +1,104 @@
-import React from 'react'
+import React, { useCallback, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
-import { Dropdown } from 'react-bootstrap'
-import { useEditorContext } from '../../../shared/context/editor-context'
+import {
+  Dropdown,
+  DropdownMenu,
+} from '@/features/ui/components/bootstrap-5/dropdown-menu'
+import { useFileTreeData } from '@/shared/context/file-tree-data-context'
 import { useFileTreeMainContext } from '../contexts/file-tree-main'
 
 import FileTreeItemMenuItems from './file-tree-item/file-tree-item-menu-items'
 
 function FileTreeContextMenu() {
-  const { permissionsLevel } = useEditorContext()
+  const { fileTreeReadOnly } = useFileTreeData()
   const { contextMenuCoords, setContextMenuCoords } = useFileTreeMainContext()
+  const toggleButtonRef = useRef<HTMLButtonElement | null>(null)
+  const keyboardInputRef = useRef(false)
 
-  if (permissionsLevel === 'readOnly' || !contextMenuCoords) return null
+  useEffect(() => {
+    if (contextMenuCoords) {
+      toggleButtonRef.current = document.querySelector(
+        '.entity-menu-toggle'
+      ) as HTMLButtonElement | null
+    }
+  }, [contextMenuCoords])
+
+  useEffect(() => {
+    if (contextMenuCoords && keyboardInputRef.current) {
+      const firstDropdownMenuItem = document.querySelector(
+        '#dropdown-file-tree-context-menu .dropdown-item:not([disabled])'
+      ) as HTMLButtonElement | null
+
+      if (firstDropdownMenuItem) {
+        firstDropdownMenuItem.focus()
+      }
+    }
+  }, [contextMenuCoords])
 
   function close() {
-    // reset context menu
+    if (!contextMenuCoords) return
     setContextMenuCoords(null)
+
+    if (toggleButtonRef.current) {
+      // A11y - Focus moves back to the trigger button when the context menu is dismissed
+      toggleButtonRef.current.focus()
+    }
   }
 
   function handleToggle(wantOpen: boolean) {
     if (!wantOpen) close()
   }
 
-  function handleClick() {
-    handleToggle(false)
+  function handleClose(event: React.KeyboardEvent<Element>) {
+    if (event.key === 'Tab' || event.key === 'Escape') {
+      event.preventDefault()
+      close()
+    }
   }
 
+  const handleKeyDown = useCallback(() => {
+    keyboardInputRef.current = true
+  }, [])
+
+  const handleMouseDown = useCallback(() => {
+    keyboardInputRef.current = false
+  }, [])
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('mousedown', handleMouseDown)
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('mousedown', handleMouseDown)
+    }
+  }, [handleKeyDown, handleMouseDown])
+
+  if (!contextMenuCoords || fileTreeReadOnly) return null
+
   return ReactDOM.createPortal(
-    <Dropdown
-      onClick={handleClick}
-      open
-      id="dropdown-file-tree-context-menu"
-      onToggle={handleToggle}
-      dropup={
-        document.body.offsetHeight / contextMenuCoords.top < 2 &&
-        document.body.offsetHeight - contextMenuCoords.top < 250
-      }
-      className="context-menu"
-      style={contextMenuCoords}
-    >
-      <FakeDropDownToggle bsRole="toggle" />
-      <Dropdown.Menu>
-        <FileTreeItemMenuItems />
-      </Dropdown.Menu>
-    </Dropdown>,
+    <div style={contextMenuCoords} className="context-menu">
+      <Dropdown
+        show
+        drop={
+          document.body.offsetHeight / contextMenuCoords.top < 2 &&
+          document.body.offsetHeight - contextMenuCoords.top < 250
+            ? 'up'
+            : 'down'
+        }
+        onKeyDown={handleClose}
+        onToggle={handleToggle}
+      >
+        <DropdownMenu
+          className="dropdown-menu-sm-width"
+          id="dropdown-file-tree-context-menu"
+        >
+          <FileTreeItemMenuItems />
+        </DropdownMenu>
+      </Dropdown>
+    </div>,
     document.body
   )
 }
-
-// fake component required as Dropdowns require a Toggle, even tho we don't want
-// one for the context menu
-const FakeDropDownToggle = React.forwardRef<undefined, { bsRole: string }>(
-  ({ bsRole }, ref) => {
-    return null
-  }
-)
-
-FakeDropDownToggle.displayName = 'FakeDropDownToggle'
 
 export default FileTreeContextMenu

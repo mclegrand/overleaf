@@ -108,6 +108,41 @@ export function getFileTreeDiff(projectId, from, to, callback) {
   )
 }
 
+export function getChangesInChunkSince(projectId, since, options, callback) {
+  request.get(
+    {
+      url: `http://127.0.0.1:3054/project/${projectId}/changes-in-chunk`,
+      qs: {
+        since,
+      },
+      json: true,
+    },
+    (error, res, body) => {
+      if (error) return callback(error)
+      if (!options.allowErrors) {
+        expect(res.statusCode).to.equal(200)
+      }
+      callback(null, body, res.statusCode)
+    }
+  )
+}
+
+export function getLatestSnapshot(projectId, callback) {
+  request.get(
+    {
+      url: `http://127.0.0.1:3054/project/${projectId}/snapshot`,
+      json: true,
+    },
+    (error, res, body) => {
+      if (error) {
+        return callback(error)
+      }
+      expect(res.statusCode).to.equal(200)
+      callback(null, body)
+    }
+  )
+}
+
 export function getSnapshot(projectId, pathname, version, options, callback) {
   if (typeof options === 'function') {
     callback = options
@@ -205,8 +240,8 @@ export function createLabel(
 ) {
   request.post(
     {
-      url: `http://127.0.0.1:3054/project/${projectId}/user/${userId}/labels`,
-      json: { comment, version, created_at: createdAt },
+      url: `http://127.0.0.1:3054/project/${projectId}/labels`,
+      json: { comment, version, created_at: createdAt, user_id: userId },
     },
     (error, res, body) => {
       if (error) {
@@ -274,6 +309,10 @@ export function setFailure(failureEntry, callback) {
       db.projectHistoryFailures.insertOne(failureEntry, callback)
     }
   )
+}
+
+export function getFailure(projectId, callback) {
+  db.projectHistoryFailures.findOne({ project_id: projectId }, callback)
 }
 
 export function transferLabelOwnership(fromUser, toUser, callback) {

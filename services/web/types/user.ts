@@ -2,6 +2,7 @@ import { Brand } from './helpers/brand'
 
 export type RefProviders = {
   mendeley?: boolean
+  papers?: boolean
   zotero?: boolean
 }
 
@@ -16,6 +17,7 @@ export type Features = {
   gitBridge?: boolean
   github?: boolean
   mendeley?: boolean
+  papers?: boolean
   references?: boolean
   referencesSearch?: boolean
   symbolPalette?: boolean
@@ -25,23 +27,59 @@ export type Features = {
   zotero?: boolean
 }
 
+export type FeatureUsage = {
+  [feature: string]: {
+    remainingUsage: number
+    resetDate: string // date string
+  }
+}
+
 export type User = {
   id: UserId
   isAdmin?: boolean
   email: string
   allowedFreeTrial?: boolean
+  hasPaidSubscription?: boolean
   first_name?: string
   last_name?: string
   alphaProgram?: boolean
   betaProgram?: boolean
   labsProgram?: boolean
-  isLatexBeginner?: boolean
   signUpDate?: string // date string
   features?: Features
   refProviders?: RefProviders
   writefull?: {
     enabled: boolean
+    autoCreatedAccount: boolean
+    firstAutoLoad: boolean
+    premiumSource: string
   }
+  aiErrorAssistant?: {
+    enabled: boolean
+  }
+  featureUsage?: FeatureUsage
+  planCode?: string
+  planName?: string
+  isAnnualPlan?: boolean
+  isMemberOfGroupSubscription?: boolean
+  hasInstitutionLicence?: boolean
+}
+
+export type LoggedOutUser = {
+  id: null
+  email?: undefined
+  first_name?: undefined
+  last_name?: undefined
+  signUpDate?: undefined
+  labsProgram?: undefined
+  alphaProgram?: undefined
+  betaProgram?: undefined
+  allowedFreeTrial?: undefined
+  features?: undefined
+  refProviders?: undefined
+  writefull?: undefined
+  isAdmin?: undefined
+  featureUsage?: undefined
 }
 
 export type MongoUser = Pick<User, Exclude<keyof User, 'id'>> & { _id: string }

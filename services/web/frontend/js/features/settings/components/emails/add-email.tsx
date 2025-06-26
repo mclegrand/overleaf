@@ -18,7 +18,8 @@ import getMeta from '../../../../utils/meta'
 import { ReCaptcha2 } from '../../../../shared/components/recaptcha-2'
 import { useRecaptcha } from '../../../../shared/hooks/use-recaptcha'
 import OLCol from '@/features/ui/components/ol/ol-col'
-import { bsVersion } from '@/features/utils/bootstrap-5'
+import { ConfirmEmailForm } from '@/features/settings/components/emails/confirm-email-form'
+import RecaptchaConditions from '@/shared/components/recaptcha-conditions'
 
 function AddEmail() {
   const { t } = useTranslation()
@@ -26,6 +27,7 @@ function AddEmail() {
     () => window.location.hash === '#add-email'
   )
   const [newEmail, setNewEmail] = useState('')
+  const [confirmationStep, setConfirmationStep] = useState(false)
   const [newEmailMatchedDomain, setNewEmailMatchedDomain] =
     useState<DomainInfo | null>(null)
   const [countryCode, setCountryCode] = useState<CountryCode | null>(null)
@@ -90,7 +92,7 @@ function AddEmail() {
     runAsync(
       (async () => {
         const token = await getReCaptchaToken()
-        await postJSON('/user/emails', {
+        await postJSON('/user/emails/secondary', {
           body: {
             email: newEmail,
             ...knownUniversityData,
@@ -101,9 +103,26 @@ function AddEmail() {
       })()
     )
       .then(() => {
-        getEmails()
+        setConfirmationStep(true)
       })
       .catch(() => {})
+  }
+
+  if (confirmationStep) {
+    return (
+      <ConfirmEmailForm
+        confirmationEndpoint="/user/emails/confirm-secondary"
+        resendEndpoint="/user/emails/resend-secondary-confirmation"
+        flow="secondary"
+        email={newEmail}
+        onSuccessfulConfirmation={getEmails}
+        interstitial={false}
+        onCancel={() => {
+          setConfirmationStep(false)
+          setIsFormVisible(false)
+        }}
+      />
+    )
   }
 
   if (!isFormVisible) {
@@ -134,10 +153,7 @@ function AddEmail() {
 
   const InputComponent = (
     <>
-      <label
-        htmlFor="affiliations-email"
-        className={bsVersion({ bs5: 'visually-hidden', bs3: 'sr-only' })}
-      >
+      <label htmlFor="affiliations-email" className="visually-hidden">
         {t('email')}
       </label>
       <Input
@@ -145,6 +161,15 @@ function AddEmail() {
         handleAddNewEmail={handleAddNewEmail}
       />
     </>
+  )
+  const recaptchaConditions = (
+    <OLCol>
+      <Cell>
+        <div className="affiliations-table-cell-tabbed">
+          <RecaptchaConditions />
+        </div>
+      </Cell>
+    </OLCol>
   )
 
   if (!isValidEmail(newEmail)) {
@@ -165,6 +190,7 @@ function AddEmail() {
               <AddNewEmailBtn email={newEmail} disabled />
             </Cell>
           </OLCol>
+          {recaptchaConditions}
         </Layout>
       </form>
     )
@@ -222,6 +248,7 @@ function AddEmail() {
             </Cell>
           </OLCol>
         )}
+        {recaptchaConditions}
       </Layout>
     </form>
   )

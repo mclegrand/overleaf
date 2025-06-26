@@ -1,5 +1,5 @@
 import { Panel, PanelGroup } from 'react-resizable-panels'
-import { FC } from 'react'
+import { ElementType, FC } from 'react'
 import { HorizontalResizeHandle } from '../resize/horizontal-resize-handle'
 import classNames from 'classnames'
 import { useLayoutContext } from '@/shared/context/layout-context'
@@ -13,9 +13,18 @@ import { useSidebarPane } from '@/features/ide-react/hooks/use-sidebar-pane'
 import { useChatPane } from '@/features/ide-react/hooks/use-chat-pane'
 import { EditorAndPdf } from '@/features/ide-react/components/editor-and-pdf'
 import HistoryContainer from '@/features/ide-react/components/history-container'
+import getMeta from '@/utils/meta'
+import { useEditorContext } from '@/shared/context/editor-context'
+import importOverleafModules from '../../../../../macros/import-overleaf-module.macro'
+
+const mainEditorLayoutModalsModules: Array<{
+  import: { default: ElementType }
+  path: string
+}> = importOverleafModules('mainEditorLayoutModals')
 
 export const MainLayout: FC = () => {
   const { view } = useLayoutContext()
+  const { isRestrictedTokenMember } = useEditorContext()
 
   const {
     isOpen: sidebarIsOpen,
@@ -37,6 +46,9 @@ export const MainLayout: FC = () => {
     handlePaneCollapse: handleChatCollapse,
     handlePaneExpand: handleChatExpand,
   } = useChatPane()
+
+  const chatEnabled =
+    getMeta('ol-capabilities')?.includes('chat') && !isRestrictedTokenMember
 
   const { t } = useTranslation()
 
@@ -71,6 +83,7 @@ export const MainLayout: FC = () => {
             onDoubleClick={toggleSidebar}
             resizable={sidebarIsOpen}
             onDragging={setSidebarResizing}
+            hitAreaMargins={{ coarse: 0, fine: 0 }}
           >
             <HorizontalToggler
               id="panel-sidebar"
@@ -89,30 +102,40 @@ export const MainLayout: FC = () => {
                 <EditorAndPdf />
               </Panel>
 
-              <HorizontalResizeHandle
-                onDoubleClick={toggleChat}
-                resizable={chatIsOpen}
-                onDragging={setChatResizing}
-              />
+              {chatEnabled && (
+                <>
+                  <HorizontalResizeHandle
+                    onDoubleClick={toggleChat}
+                    resizable={chatIsOpen}
+                    onDragging={setChatResizing}
+                    hitAreaMargins={{ coarse: 0, fine: 0 }}
+                  />
 
-              {/* chat */}
-              <Panel
-                ref={chatPanelRef}
-                id="panel-chat"
-                order={2}
-                defaultSize={20}
-                minSize={5}
-                maxSize={30}
-                collapsible
-                onCollapse={handleChatCollapse}
-                onExpand={handleChatExpand}
-              >
-                <ChatPane />
-              </Panel>
+                  {/* chat */}
+                  <Panel
+                    ref={chatPanelRef}
+                    id="panel-chat"
+                    order={2}
+                    defaultSize={20}
+                    minSize={5}
+                    maxSize={30}
+                    collapsible
+                    onCollapse={handleChatCollapse}
+                    onExpand={handleChatExpand}
+                  >
+                    <ChatPane />
+                  </Panel>
+                </>
+              )}
             </PanelGroup>
           </Panel>
         </PanelGroup>
       </div>
+      {mainEditorLayoutModalsModules.map(
+        ({ import: { default: Component }, path }) => (
+          <Component key={path} />
+        )
+      )}
     </div>
   )
 }

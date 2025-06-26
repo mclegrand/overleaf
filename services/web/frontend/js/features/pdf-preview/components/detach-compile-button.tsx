@@ -1,10 +1,9 @@
 import { useTranslation } from 'react-i18next'
 import { memo } from 'react'
-import { Button } from 'react-bootstrap'
-import classNames from 'classnames'
-import Icon from '../../../shared/components/icon'
+import classnames from 'classnames'
 import { useDetachCompileContext } from '../../../shared/context/detach-compile-context'
-import Tooltip from '../../../shared/components/tooltip'
+import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
+import OLButton from '@/features/ui/components/ol/ol-button'
 
 const modifierKey = /Mac/i.test(navigator.platform) ? 'Cmd' : 'Ctrl'
 
@@ -12,7 +11,6 @@ function DetachCompileButton() {
   const { t } = useTranslation()
   const { compiling, startCompile, hasChanges } = useDetachCompileContext()
 
-  const compileButtonLabel = compiling ? `${t('compiling')}…` : t('recompile')
   const tooltipElement = (
     <>
       {t('recompile_pdf')}{' '}
@@ -21,28 +19,27 @@ function DetachCompileButton() {
   )
 
   return (
-    <div className="detach-compile-button-container">
-      <Tooltip
+    <div className="detach-compile-button-container ms-1">
+      <OLTooltip
         id="detach-compile"
         description={tooltipElement}
         tooltipProps={{ className: 'keyboard-tooltip' }}
-        overlayProps={{ delayShow: 500 }}
+        overlayProps={{ delay: { show: 500, hide: 0 } }}
       >
-        <Button
-          bsStyle="primary"
+        <OLButton
+          variant="primary"
           onClick={() => startCompile()}
           disabled={compiling}
-          className={classNames('detach-compile-button', {
+          className={classnames('detach-compile-button', {
             'btn-striped-animated': hasChanges,
             'detach-compile-button-disabled': compiling,
           })}
+          size="sm"
+          isLoading={compiling}
         >
-          <Icon type="refresh" spin={compiling} />
-          <span className="detach-compile-button-label">
-            {compileButtonLabel}
-          </span>
-        </Button>
-      </Tooltip>
+          {t('recompile')}
+        </OLButton>
+      </OLTooltip>
     </div>
   )
 }

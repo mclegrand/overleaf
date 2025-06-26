@@ -3,7 +3,7 @@
 */
 const SandboxedModule = require('sandboxed-module')
 const sinon = require('sinon')
-const modulePath = require('path').join(
+const modulePath = require('node:path').join(
   __dirname,
   '../../../../app/js/HistoryManager'
 )
@@ -14,6 +14,7 @@ describe('HistoryManager', function () {
       requires: {
         request: (this.request = {}),
         '@overleaf/settings': (this.Settings = {
+          shortHistoryQueues: [],
           apis: {
             project_history: {
               url: 'http://project_history.example.com',
@@ -118,7 +119,7 @@ describe('HistoryManager', function () {
       beforeEach(function () {
         this.HistoryManager.shouldFlushHistoryOps = sinon.stub()
         this.HistoryManager.shouldFlushHistoryOps
-          .withArgs(this.project_ops_length)
+          .withArgs(this.project_id, this.project_ops_length)
           .returns(true)
 
         this.HistoryManager.recordAndFlushHistoryOps(
@@ -139,7 +140,7 @@ describe('HistoryManager', function () {
       beforeEach(function () {
         this.HistoryManager.shouldFlushHistoryOps = sinon.stub()
         this.HistoryManager.shouldFlushHistoryOps
-          .withArgs(this.project_ops_length)
+          .withArgs(this.project_id, this.project_ops_length)
           .returns(false)
 
         this.HistoryManager.recordAndFlushHistoryOps(
@@ -157,6 +158,7 @@ describe('HistoryManager', function () {
     describe('shouldFlushHistoryOps', function () {
       it('should return false if the number of ops is not known', function () {
         this.HistoryManager.shouldFlushHistoryOps(
+          this.project_id,
           null,
           ['a', 'b', 'c'].length,
           1
@@ -168,6 +170,7 @@ describe('HistoryManager', function () {
         // Previously we were on 11 ops
         // We didn't pass over a multiple of 5
         this.HistoryManager.shouldFlushHistoryOps(
+          this.project_id,
           14,
           ['a', 'b', 'c'].length,
           5
@@ -178,6 +181,7 @@ describe('HistoryManager', function () {
         // Previously we were on 12 ops
         // We've reached a new multiple of 5
         this.HistoryManager.shouldFlushHistoryOps(
+          this.project_id,
           15,
           ['a', 'b', 'c'].length,
           5
@@ -189,7 +193,18 @@ describe('HistoryManager', function () {
         // Previously we were on 16 ops
         // We didn't pass over a multiple of 5
         this.HistoryManager.shouldFlushHistoryOps(
+          this.project_id,
           17,
+          ['a', 'b', 'c'].length,
+          5
+        ).should.equal(true)
+      })
+
+      it('should return true if the project has a short queue', function () {
+        this.Settings.shortHistoryQueues = [this.project_id]
+        this.HistoryManager.shouldFlushHistoryOps(
+          this.project_id,
+          14,
           ['a', 'b', 'c'].length,
           5
         ).should.equal(true)
@@ -217,34 +232,75 @@ describe('HistoryManager', function () {
         .stub()
         .yields()
       this.DocumentManager.resyncDocContentsWithLock = sinon.stub().yields()
-      this.HistoryManager.resyncProjectHistory(
-        this.project_id,
-        this.projectHistoryId,
-        this.docs,
-        this.files,
-        this.callback
-      )
     })
 
-    it('should queue a project structure reync', function () {
-      this.ProjectHistoryRedisManager.queueResyncProjectStructure
-        .calledWith(
+    describe('full sync', function () {
+      beforeEach(function () {
+        this.HistoryManager.resyncProjectHistory(
           this.project_id,
           this.projectHistoryId,
           this.docs,
-          this.files
+          this.files,
+          {},
+          this.callback
         )
-        .should.equal(true)
+      })
+
+      it('should queue a project structure reync', function () {
+        this.ProjectHistoryRedisManager.queueResyncProjectStructure
+          .calledWith(
+            this.project_id,
+            this.projectHistoryId,
+            this.docs,
+            this.files
+          )
+          .should.equal(true)
+      })
+
+      it('should queue doc content reyncs', function () {
+        this.DocumentManager.resyncDocContentsWithLock
+          .calledWith(this.project_id, this.docs[0].doc, this.docs[0].path)
+          .should.equal(true)
+      })
+
+      it('should call the callback', function () {
+        this.callback.called.should.equal(true)
+      })
     })
 
-    it('should queue doc content reyncs', function () {
-      this.DocumentManager.resyncDocContentsWithLock
-        .calledWith(this.project_id, this.docs[0].doc, this.docs[0].path)
-        .should.equal(true)
-    })
+    describe('resyncProjectStructureOnly=true', function () {
+      beforeEach(function () {
+        this.HistoryManager.resyncProjectHistory(
+          this.project_id,
+          this.projectHistoryId,
+          this.docs,
+          this.files,
+          { resyncProjectStructureOnly: true },
+          this.callback
+        )
+      })
 
-    it('should call the callback', function () {
-      this.callback.called.should.equal(true)
+      it('should queue a project structure reync', function () {
+        this.ProjectHistoryRedisManager.queueResyncProjectStructure
+          .calledWith(
+            this.project_id,
+            this.projectHistoryId,
+            this.docs,
+            this.files,
+            { resyncProjectStructureOnly: true }
+          )
+          .should.equal(true)
+      })
+
+      it('should not queue doc content reyncs', function () {
+        this.DocumentManager.resyncDocContentsWithLock.called.should.equal(
+          false
+        )
+      })
+
+      it('should call the callback', function () {
+        this.callback.called.should.equal(true)
+      })
     })
   })
 })

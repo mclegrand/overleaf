@@ -5,8 +5,10 @@ import type { NewProjectButtonModalVariant } from './new-project-button/new-proj
 import type { Nullable } from '../../../../../types/utils'
 import WelcomeMessageLink from './welcome-message-new/welcome-message-link'
 import WelcomeMessageCreateNewProjectDropdown from './welcome-message-new/welcome-message-create-new-project-dropdown'
+import learnLatexImage from '../images/learn-latex.svg'
+import browseTemplatesImage from '../images/browse-templates.svg'
 import getMeta from '@/utils/meta'
-import OLCard from '@/features/ui/components/ol/ol-card'
+import OLPageContentCard from '@/features/ui/components/ol/ol-page-content-card'
 
 export default function WelcomeMessage() {
   const { t } = useTranslation()
@@ -17,7 +19,7 @@ export default function WelcomeMessage() {
 
   return (
     <>
-      <OLCard>
+      <OLPageContentCard>
         <div className="welcome-new-wrapper">
           <div className="welcome text-center">
             <h2 className="welcome-title">{t('welcome_to_sl')}</h2>
@@ -27,7 +29,7 @@ export default function WelcomeMessage() {
               />
               {wikiEnabled && (
                 <WelcomeMessageLink
-                  imgSrc="/img/welcome-page/learn-latex.svg"
+                  imgSrc={learnLatexImage}
                   title="Learn LaTeX with a tutorial"
                   href="/learn/latex/Learn_LaTeX_in_30_minutes"
                   target="_blank"
@@ -35,7 +37,7 @@ export default function WelcomeMessage() {
               )}
               {templatesEnabled && (
                 <WelcomeMessageLink
-                  imgSrc="/img/welcome-page/browse-templates.svg"
+                  imgSrc={browseTemplatesImage}
                   title="Browse templates"
                   href="/templates"
                 />
@@ -43,7 +45,7 @@ export default function WelcomeMessage() {
             </div>
           </div>
         </div>
-      </OLCard>
+      </OLPageContentCard>
       <NewProjectButtonModal
         modal={activeModal}
         onHide={() => setActiveModal(null)}

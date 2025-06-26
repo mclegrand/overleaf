@@ -53,7 +53,11 @@ export const pasteHtml = [
           // fall back to creating a figure when there's an image on the clipoard,
           // unless the HTML indicates that it came from an Office application
           // (which also puts an image on the clipboard)
-          if (clipboardData.files.length > 0 && !hasProgId(documentElement)) {
+          if (
+            clipboardData.files.length > 0 &&
+            !hasProgId(documentElement) &&
+            !isOnlyTable(documentElement)
+          ) {
             return false
           }
 
@@ -133,6 +137,17 @@ const hasProgId = (documentElement: HTMLElement) => {
     'meta[name="ProgId"]'
   )
   return meta && meta.content.trim().length > 0
+}
+
+// detect a table (probably pasted from desktop Excel)
+const isOnlyTable = (documentElement: HTMLElement) => {
+  const body = documentElement.querySelector<HTMLBodyElement>('body')
+
+  return (
+    body &&
+    body.childElementCount === 1 &&
+    body.firstElementChild!.nodeName === 'TABLE'
+  )
 }
 
 const htmlToLaTeX = (bodyElement: HTMLElement) => {
@@ -472,6 +487,7 @@ const tabular = (element: HTMLTableElement) => {
     alignment: string
     borderLeft: boolean
     borderRight: boolean
+    inferred?: boolean
   }> = []
 
   const rows = element.querySelectorAll('tr')
@@ -485,16 +501,29 @@ const tabular = (element: HTMLTableElement) => {
 
     for (const cell of cells) {
       // NOTE: reading the alignment and borders from the first cell definition in each column
-      if (definitions[index] === undefined) {
-        const { textAlign, borderLeftStyle, borderRightStyle } = cell.style
+      const colspan = Number(cell.getAttribute('colspan') ?? 1)
+      const { textAlign, borderLeftStyle, borderRightStyle } = cell.style
 
-        definitions[index] = {
-          alignment: textAlign,
-          borderLeft: visibleBorderStyle(borderLeftStyle),
-          borderRight: visibleBorderStyle(borderRightStyle),
+      for (let i = 0; i < colspan; i++) {
+        if (
+          // There's no definition for this column
+          definitions[index + i] === undefined ||
+          // There's an inferred definition of the column, and we're a cell that
+          // can accurately represent the whole column, since we're not a
+          // multicolumn cell ourselves.
+          (colspan === 1 && definitions[index + i].inferred)
+        ) {
+          definitions[index + i] = {
+            alignment: textAlign,
+            borderLeft: visibleBorderStyle(borderLeftStyle),
+            borderRight: visibleBorderStyle(borderRightStyle),
+            // We can't trust the details from a multicolumn cell to represent the
+            // whole column, so we mark it as inferred.
+            inferred: colspan > 1,
+          }
         }
       }
-      index += Number(cell.getAttribute('colspan') ?? 1)
+      index += colspan
     }
   }
 
@@ -599,9 +628,12 @@ const nextRowHasBorderStyle = (
 }
 
 const startMulticolumn = (element: HTMLTableCellElement): string => {
+  const { textAlign, borderLeftStyle, borderRightStyle } = element.style
   const colspan = Number(element.getAttribute('colspan') || 1)
-  const alignment = cellAlignment.get(element.style.textAlign) ?? 'l'
-  return `\\multicolumn{${colspan}}{${alignment}}{`
+  const alignment = cellAlignment.get(textAlign) ?? 'l'
+  const borderLeft = visibleBorderStyle(borderLeftStyle)
+  const borderRight = visibleBorderStyle(borderRightStyle)
+  return `\\multicolumn{${colspan}}{${borderLeft ? '|' : ''}${alignment}${borderRight ? '|' : ''}}{`
 }
 
 const startMultirow = (element: HTMLTableCellElement): string => {

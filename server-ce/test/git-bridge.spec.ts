@@ -4,6 +4,8 @@ import { ensureUserExists, login } from './helpers/login'
 import {
   createProject,
   enableLinkSharing,
+  openProjectByName,
+  openProjectViaLinkSharingAsUser,
   shareProjectByEmailAndAcceptInviteViaDash,
 } from './helpers/project'
 
@@ -20,8 +22,12 @@ describe('git-bridge', function () {
     V1_HISTORY_URL: 'http://sharelatex:3100/api',
   }
 
-  const gitBridgePublicHost =
-    Cypress.env('GIT_BRIDGE_PUBLIC_HOST') || 'sharelatex'
+  function gitURL(projectId: string) {
+    const url = new URL(Cypress.config().baseUrl!)
+    url.username = 'git'
+    url.pathname = `/git/${projectId}`
+    return url
+  }
 
   describe('enabled in Server Pro', function () {
     if (isExcludedBySharding('PRO_CUSTOM_1')) return
@@ -40,7 +46,7 @@ describe('git-bridge', function () {
 
     function maybeClearAllTokens() {
       cy.visit('/user/settings')
-      cy.findByText('Git Integration')
+      cy.findByText('Git integration')
       cy.get('button')
         .contains(/Generate token|Add another token/)
         .then(btn => {
@@ -57,7 +63,7 @@ describe('git-bridge', function () {
     it('should render the git-bridge UI in the settings', () => {
       maybeClearAllTokens()
       cy.visit('/user/settings')
-      cy.findByText('Git Integration')
+      cy.findByText('Git integration')
       cy.get('button').contains('Generate token').click()
       cy.get('code')
         .contains(/olp_[a-zA-Z0-9]{16}/)
@@ -78,19 +84,16 @@ describe('git-bridge', function () {
 
     it('should render the git-bridge UI in the editor', function () {
       maybeClearAllTokens()
-      cy.visit('/project')
       createProject('git').as('projectId')
       cy.get('header').findByText('Menu').click()
       cy.findByText('Sync')
       cy.findByText('Git').click()
-      cy.findByRole('dialog').within(() => {
+      cy.findByTestId('git-bridge-modal').within(() => {
         cy.get('@projectId').then(id => {
-          cy.get('code').contains(
-            `git clone http://git@${gitBridgePublicHost}/git/${id}`
-          )
+          cy.get('code').contains(`git clone ${gitURL(id.toString())}`)
         })
         cy.findByRole('button', {
-          name: 'Generate token',
+          name: /generate token/i,
         }).click()
         cy.get('code').contains(/olp_[a-zA-Z0-9]{16}/)
       })
@@ -99,14 +102,12 @@ describe('git-bridge', function () {
       cy.url().then(url => cy.visit(url))
       cy.get('header').findByText('Menu').click()
       cy.findByText('Git').click()
-      cy.findByRole('dialog').within(() => {
+      cy.findByTestId('git-bridge-modal').within(() => {
         cy.get('@projectId').then(id => {
-          cy.get('code').contains(
-            `git clone http://git@${gitBridgePublicHost}/git/${id}`
-          )
+          cy.get('code').contains(`git clone ${gitURL(id.toString())}`)
         })
         cy.findByText('Generate token').should('not.exist')
-        cy.findByText(/generate a new one in Account Settings/)
+        cy.findByText(/generate a new one in Account settings/)
         cy.findByText('Go to settings')
           .should('have.attr', 'target', '_blank')
           .and('have.attr', 'href', '/user/settings')
@@ -121,15 +122,13 @@ describe('git-bridge', function () {
 
       let projectName: string
       beforeEach(() => {
-        cy.visit('/project')
         projectName = uuid()
-        createProject(projectName).as('projectId')
+        createProject(projectName, { open: false }).as('projectId')
       })
 
       it('should expose r/w interface to owner', () => {
         maybeClearAllTokens()
-        cy.visit('/project')
-        cy.findByText(projectName).click()
+        openProjectByName(projectName)
         checkGitAccess('readAndWrite')
       })
 
@@ -137,11 +136,10 @@ describe('git-bridge', function () {
         shareProjectByEmailAndAcceptInviteViaDash(
           projectName,
           'collaborator-rw@example.com',
-          'Can edit'
+          'Editor'
         )
         maybeClearAllTokens()
-        cy.visit('/project')
-        cy.findByText(projectName).click()
+        openProjectByName(projectName)
         checkGitAccess('readAndWrite')
       })
 
@@ -149,32 +147,39 @@ describe('git-bridge', function () {
         shareProjectByEmailAndAcceptInviteViaDash(
           projectName,
           'collaborator-ro@example.com',
-          'Read only'
+          'Viewer'
         )
         maybeClearAllTokens()
-        cy.visit('/project')
-        cy.findByText(projectName).click()
+        openProjectByName(projectName)
         checkGitAccess('readOnly')
       })
 
       it('should expose r/w interface to link-sharing r/w collaborator', () => {
+        openProjectByName(projectName)
         enableLinkSharing().then(({ linkSharingReadAndWrite }) => {
-          login('collaborator-link-rw@example.com')
+          const email = 'collaborator-link-rw@example.com'
+          login(email)
           maybeClearAllTokens()
-          cy.visit(linkSharingReadAndWrite)
-          cy.findByText(projectName) // wait for lazy loading
-          cy.findByText('Join Project').click()
+          openProjectViaLinkSharingAsUser(
+            linkSharingReadAndWrite,
+            projectName,
+            email
+          )
           checkGitAccess('readAndWrite')
         })
       })
 
       it('should expose r/o interface to link-sharing r/o collaborator', () => {
+        openProjectByName(projectName)
         enableLinkSharing().then(({ linkSharingReadOnly }) => {
-          login('collaborator-link-ro@example.com')
+          const email = 'collaborator-link-ro@example.com'
+          login(email)
           maybeClearAllTokens()
-          cy.visit(linkSharingReadOnly)
-          cy.findByText(projectName) // wait for lazy loading
-          cy.findByText('Join Project').click()
+          openProjectViaLinkSharingAsUser(
+            linkSharingReadOnly,
+            projectName,
+            email
+          )
           checkGitAccess('readOnly')
         })
       })
@@ -187,13 +192,11 @@ describe('git-bridge', function () {
       cy.findByText('Sync')
       cy.findByText('Git').click()
       cy.get('@projectId').then(projectId => {
-        cy.findByRole('dialog').within(() => {
-          cy.get('code').contains(
-            `git clone http://git@${gitBridgePublicHost}/git/${projectId}`
-          )
+        cy.findByTestId('git-bridge-modal').within(() => {
+          cy.get('code').contains(`git clone ${gitURL(projectId.toString())}`)
         })
         cy.findByRole('button', {
-          name: 'Generate token',
+          name: /generate token/i,
         }).click()
         cy.get('code')
           .contains(/olp_[a-zA-Z0-9]{16}/)
@@ -203,7 +206,7 @@ describe('git-bridge', function () {
             // close Git modal
             cy.findAllByText('Close').last().click()
             // close editor menu
-            cy.get('#left-menu-modal').click()
+            cy.get('.left-menu-modal-backdrop').click()
 
             const fs = new LightningFS('fs')
             const dir = `/${projectId}`
@@ -230,9 +233,11 @@ describe('git-bridge', function () {
               dir,
               fs,
             }
+            const url = gitURL(projectId.toString())
+            url.username = '' // basic auth is specified separately.
             const httpOptions = {
               http,
-              url: `http://sharelatex/git/${projectId}`,
+              url: url.toString(),
               headers: {
                 Authorization: `Basic ${Buffer.from(`git:${token}`).toString('base64')}`,
               },
@@ -360,11 +365,10 @@ Hello world
     it('should not render the git-bridge UI in the settings', () => {
       login('user@example.com')
       cy.visit('/user/settings')
-      cy.findByText('Git Integration').should('not.exist')
+      cy.findByText('Git integration').should('not.exist')
     })
     it('should not render the git-bridge UI in the editor', function () {
       login('user@example.com')
-      cy.visit('/project')
       createProject('maybe git')
       cy.get('header').findByText('Menu').click()
       cy.findByText('Word Count') // wait for lazy loading

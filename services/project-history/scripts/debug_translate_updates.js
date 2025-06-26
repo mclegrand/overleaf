@@ -5,7 +5,7 @@
  * endpoint and feeds it to the update translator to how updates are transfomed
  * into changes sent to v1 history.
  */
-import fs from 'fs'
+import fs from 'node:fs'
 import * as UpdateTranslator from '../app/js/UpdateTranslator.js'
 import * as SyncManager from '../app/js/SyncManager.js'
 import * as HistoryStoreManager from '../app/js/HistoryStoreManager.js'
@@ -25,6 +25,7 @@ function expandResyncProjectStructure(chunk, update) {
   SyncManager.expandSyncUpdates(
     projectId,
     99999, // dummy history id
+    chunk,
     [update],
     cb => cb(), // extend lock
     (err, result) => {

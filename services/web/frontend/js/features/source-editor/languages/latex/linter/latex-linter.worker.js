@@ -1820,7 +1820,9 @@ const EnvHandler = function (TokeniseResult, ErrorReporter) {
     // flag any verbatim environments for special handling
     if (
       name &&
-      name.match(/^(verbatim|boxedverbatim|lstlisting|minted|Verbatim)$/)
+      name.match(
+        /^(verbatim|boxedverbatim|lstlisting|minted|Verbatim|tcblisting)$/
+      )
     ) {
       delimiter.verbatim = true
     }
@@ -2085,7 +2087,10 @@ if (typeof onmessage !== 'undefined') {
 }
 // export dummy class for testing
 export default class LintWorker {
+  // unused vars kept to document the interface
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   postMessage(message) {}
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   addEventListener(eventName, listener) {}
   Parse(text) {
     return Parse(text)

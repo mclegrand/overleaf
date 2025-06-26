@@ -1,12 +1,23 @@
 import { Trans } from 'react-i18next'
-import { RecurlySubscription } from '../../../../../../../../types/subscription/dashboard/subscription'
+import { PaidSubscription } from '../../../../../../../../types/subscription/dashboard/subscription'
+import {
+  hasPendingAiAddonCancellation,
+  ADD_ON_NAME,
+} from '../../../../data/add-on-codes'
 
 export function PendingPlanChange({
   subscription,
 }: {
-  subscription: RecurlySubscription
+  subscription: PaidSubscription
 }) {
   if (!subscription.pendingPlan) return null
+
+  const pendingAiAddonCancellation = hasPendingAiAddonCancellation(subscription)
+
+  const pendingAdditionalLicenses =
+    (subscription.payment.pendingAdditionalLicenses &&
+      subscription.payment.pendingAdditionalLicenses > 0) ||
+    subscription.payment.additionalLicenses > 0
 
   return (
     <>
@@ -25,17 +36,15 @@ export function PendingPlanChange({
         />
       )}
 
-      {((subscription.recurly.pendingAdditionalLicenses &&
-        subscription.recurly.pendingAdditionalLicenses > 0) ||
-        subscription.recurly.additionalLicenses > 0) && (
+      {pendingAdditionalLicenses && (
         <>
           {' '}
           <Trans
             i18nKey="pending_additional_licenses"
             values={{
               pendingAdditionalLicenses:
-                subscription.recurly.pendingAdditionalLicenses,
-              pendingTotalLicenses: subscription.recurly.pendingTotalLicenses,
+                subscription.payment.pendingAdditionalLicenses,
+              pendingTotalLicenses: subscription.payment.pendingTotalLicenses,
             }}
             shouldUnescape
             tOptions={{ interpolation: { escapeValue: true } }}
@@ -45,6 +54,21 @@ export function PendingPlanChange({
               // eslint-disable-next-line react/jsx-key
               <strong />,
             ]}
+          />
+        </>
+      )}
+
+      {pendingAiAddonCancellation && (
+        <>
+          {' '}
+          <Trans
+            i18nKey="pending_addon_cancellation"
+            values={{
+              addOnName: ADD_ON_NAME,
+            }}
+            shouldUnescape
+            tOptions={{ interpolation: { escapeValue: true } }}
+            components={{ strong: <strong /> }}
           />
         </>
       )}

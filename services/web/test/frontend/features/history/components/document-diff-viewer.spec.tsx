@@ -1,4 +1,3 @@
-import '../../../helpers/bootstrap-3'
 import DocumentDiffViewer from '../../../../../frontend/js/features/history/components/diff-view/document-diff-viewer'
 import { Highlight } from '../../../../../frontend/js/features/history/services/types/doc'
 import { FC } from 'react'
@@ -60,7 +59,7 @@ const highlights: Highlight[] = [
   },
 ]
 
-const Container: FC = ({ children }) => (
+const Container: FC<React.PropsWithChildren> = ({ children }) => (
   <div style={{ width: 600, height: 400 }}>{children}</div>
 )
 

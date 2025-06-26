@@ -7,7 +7,7 @@ const keys = Settings.redis.documentupdater.key_schema
 const ProjectFlusher = require('../app/js/ProjectFlusher')
 const RedisManager = require('../app/js/RedisManager')
 const { mongoClient, db, ObjectId } = require('../app/js/mongodb')
-const util = require('util')
+const util = require('node:util')
 const getDoc = util.promisify((projectId, docId, cb) =>
   RedisManager.getDoc(projectId, docId, (err, ...args) => cb(err, args))
 )
@@ -153,6 +153,7 @@ findAndProcessDocs({ limit: 1000, dryRun: process.env.DRY_RUN !== 'false' })
     rclient.quit()
     mongoClient.close()
     console.log('DONE')
+    process.exit(0)
   })
   .catch(function (error) {
     console.error(error)

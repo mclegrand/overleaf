@@ -1,5 +1,16 @@
+// @ts-check
+
 const Settings = require('@overleaf/settings')
 const logger = require('@overleaf/logger')
+
+/**
+ * @typedef {import('../../../../types/subscription/plan').RecurlyPlanCode} RecurlyPlanCode
+ * @typedef {import('../../../../types/subscription/plan').StripeLookupKey} StripeLookupKey
+ * @typedef {import('../../../../types/subscription/plan').StripeBaseLookupKey} StripeBaseLookupKey
+ * @typedef {import('../../../../types/subscription/plan').Plan} Plan
+ * @typedef {import('../../../../types/subscription/currency').StripeCurrencyCode} StripeCurrencyCode
+ * @typedef {import('stripe').Stripe.Price.Recurring.Interval} BillingCycleInterval
+ */
 
 function ensurePlansAreSetupCorrectly() {
   Settings.plans.forEach(plan => {
@@ -18,6 +29,105 @@ function ensurePlansAreSetupCorrectly() {
   })
 }
 
+/**
+ * @type {Record<RecurlyPlanCode, StripeBaseLookupKey>}
+ */
+const recurlyCodeToStripeBaseLookupKey = {
+  collaborator: 'standard_monthly',
+  'collaborator-annual': 'standard_annual',
+  collaborator_free_trial_7_days: 'standard_monthly',
+
+  professional: 'professional_monthly',
+  'professional-annual': 'professional_annual',
+  professional_free_trial_7_days: 'professional_monthly',
+
+  student: 'student_monthly',
+  'student-annual': 'student_annual',
+  student_free_trial_7_days: 'student_monthly',
+
+  // TODO: change all group plans' lookup_keys to match the UK account after they have been added
+  group_collaborator: 'group_standard_enterprise',
+  group_collaborator_educational: 'group_standard_educational',
+  group_professional: 'group_professional_enterprise',
+  group_professional_educational: 'group_professional_educational',
+
+  assistant: 'assistant_monthly',
+  'assistant-annual': 'assistant_annual',
+}
+
+const LATEST_STRIPE_LOOKUP_KEY_VERSION = 'jun2025'
+
+/**
+ * Build the Stripe lookup key, will be in this format:
+ * `${productCode}_${billingInterval}_${latestVersion}_${currency}`
+ * (for example: 'assistant_annual_jun2025_clp')
+ *
+ * @param {RecurlyPlanCode} recurlyCode
+ * @param {StripeCurrencyCode} currency
+ * @param {BillingCycleInterval} [billingCycleInterval] -- needed for handling 'assistant' add-on
+ * @returns {StripeLookupKey|null}
+ */
+function buildStripeLookupKey(recurlyCode, currency, billingCycleInterval) {
+  let stripeBaseLookupKey = recurlyCodeToStripeBaseLookupKey[recurlyCode]
+
+  // Recurly always uses 'assistant' as the code regardless of the subscription duration
+  if (recurlyCode === 'assistant' && billingCycleInterval) {
+    if (billingCycleInterval === 'month') {
+      stripeBaseLookupKey = 'assistant_monthly'
+    }
+    if (billingCycleInterval === 'year') {
+      stripeBaseLookupKey = 'assistant_annual'
+    }
+  }
+
+  if (stripeBaseLookupKey == null) {
+    return null
+  }
+
+  return `${stripeBaseLookupKey}_${LATEST_STRIPE_LOOKUP_KEY_VERSION}_${currency}`
+}
+
+/**
+ * @typedef {{ planType: 'individual' | 'group' | 'student' | null, period: 'annual' | 'monthly' }} PlanTypeAndPeriod
+ * @type {Record<RecurlyPlanCode, PlanTypeAndPeriod>}
+ */
+const recurlyPlanCodeToPlanTypeAndPeriod = {
+  collaborator: { planType: 'individual', period: 'monthly' },
+  'collaborator-annual': { planType: 'individual', period: 'annual' },
+  collaborator_free_trial_7_days: { planType: 'individual', period: 'monthly' },
+
+  professional: { planType: 'individual', period: 'monthly' },
+  'professional-annual': { planType: 'individual', period: 'annual' },
+  professional_free_trial_7_days: {
+    planType: 'individual',
+    period: 'monthly',
+  },
+
+  student: { planType: 'student', period: 'monthly' },
+  'student-annual': { planType: 'student', period: 'annual' },
+  student_free_trial_7_days: { planType: 'student', period: 'monthly' },
+
+  group_collaborator: { planType: 'group', period: 'annual' },
+  group_collaborator_educational: { planType: 'group', period: 'annual' },
+  group_professional: { planType: 'group', period: 'annual' },
+  group_professional_educational: { planType: 'group', period: 'annual' },
+
+  assistant: { planType: null, period: 'monthly' },
+  'assistant-annual': { planType: null, period: 'annual' },
+}
+
+/**
+ * @param {RecurlyPlanCode} recurlyPlanCode
+ * @returns {PlanTypeAndPeriod}
+ */
+function getPlanTypeAndPeriodFromRecurlyPlanCode(recurlyPlanCode) {
+  return recurlyPlanCodeToPlanTypeAndPeriod[recurlyPlanCode]
+}
+
+/**
+ * @param {string|null} [planCode]
+ * @returns {Plan|null}
+ */
 function findLocalPlanInSettings(planCode) {
   for (const plan of Settings.plans) {
     if (plan.planCode === planCode) {
@@ -30,4 +140,6 @@ function findLocalPlanInSettings(planCode) {
 module.exports = {
   ensurePlansAreSetupCorrectly,
   findLocalPlanInSettings,
+  buildStripeLookupKey,
+  getPlanTypeAndPeriodFromRecurlyPlanCode,
 }

@@ -9,6 +9,16 @@ import { useProjectContext } from '@/shared/context/project-context'
 import { useUserContext } from '../../../shared/context/user-context'
 import { useEditorContext } from '../../../shared/context/editor-context'
 import { useFileTreeActionable } from '../contexts/file-tree-actionable'
+import { useFileTreeData } from '@/shared/context/file-tree-data-context'
+import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
+import MaterialIcon from '@/shared/components/material-icon'
+import OLButtonToolbar from '@/features/ui/components/ol/ol-button-toolbar'
+import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
+import React, { ElementType } from 'react'
+
+const fileTreeToolbarComponents = importOverleafModules(
+  'fileTreeToolbarComponents'
+) as { import: { default: ElementType }; path: string }[]
 
 
 import useAsync from '../../../shared/hooks/use-async'
@@ -29,15 +39,19 @@ type NewProjectData = {
 }
 
 function FileTreeToolbar() {
-  const { permissionsLevel } = useEditorContext()
+  const { fileTreeReadOnly } = useFileTreeData()
+  const { t } = useTranslation()
 
-  if (permissionsLevel === 'readOnly') return null
+  if (fileTreeReadOnly) return null
 
   return (
-    <div className="toolbar toolbar-filetree">
+    <OLButtonToolbar
+      className="toolbar toolbar-filetree"
+      aria-label={t('project_files')}
+    >
       <FileTreeToolbarLeft />
       <FileTreeToolbarRight />
-    </div>
+    </OLButtonToolbar>
   )
 }
 
@@ -68,57 +82,57 @@ function FileTreeToolbarLeft() {
 
   return (
     <div className="toolbar-left">
-      <Tooltip
+      <OLTooltip
         id="new-file"
         description={t('new_file')}
         overlayProps={{ placement: 'bottom' }}
       >
-        <Button onClick={createWithAnalytics} bsStyle={null}>
-          <Icon type="file" fw accessibilityLabel={t('new_file')} />
-        </Button>
-      </Tooltip>
-      <Tooltip
+        <button className="btn" onClick={createWithAnalytics}>
+          <MaterialIcon type="description" accessibilityLabel={t('new_file')} />
+        </button>
+      </OLTooltip>
+      <OLTooltip
         id="new-folder"
         description={t('new_folder')}
         overlayProps={{ placement: 'bottom' }}
       >
-        <Button onClick={startCreatingFolder} bsStyle={null}>
-          <Icon type="folder" fw accessibilityLabel={t('new_folder')} />
-        </Button>
-      </Tooltip>
-      <Tooltip
+        <button className="btn" onClick={startCreatingFolder} tabIndex={-1}>
+          <MaterialIcon type="folder" accessibilityLabel={t('new_folder')} />
+        </button>
+      </OLTooltip>
+      <OLTooltip
         id="upload"
         description={t('upload')}
         overlayProps={{ placement: 'bottom' }}
       >
-        <Button onClick={uploadWithAnalytics}>
-          <Icon type="upload" fw accessibilityLabel={t('upload')} />
-        </Button>
-      </Tooltip>
-      <Tooltip
-        id="pull"
-        description='Pull'
-        overlayProps={{ placement: 'bottom' }}
-      >
-      <Button onClick={() => {
-        runAsync(
-            postJSON('/git-pull', {
-              body:{
-                projectId: projectId,
-                userId: userId
-              }
-            })
-            .then(response => {
-                alert("Pull successful");
-            })
-            .catch( error => {
-                alert(error.data.errorReason);
-            })
-        );
-      }}>
-        <Icon type="repeat" fw accessibilityLabel={t('pull')} />
-      </Button>
-    </Tooltip>
+        <button className="btn" onClick={uploadWithAnalytics} tabIndex={-1}>
+          <MaterialIcon type="upload" accessibilityLabel={t('upload')} />
+        </button>
+      </OLTooltip>
+        <OLTooltip
+            id="pull"
+            description='Pull'
+            overlayProps={{ placement: 'bottom' }}
+        >
+            <Button onClick={() => {
+                runAsync(
+                    postJSON('/git-pull', {
+                        body:{
+                            projectId: projectId,
+                            userId: userId
+                        }
+                    })
+                    .then(response => {
+                        alert("Pull successful");
+                    })
+                    .catch( error => {
+                        alert(error.data.errorReason);
+                    })
+                );
+            }}>
+                <Icon type="repeat" fw accessibilityLabel={t('pull')} />
+            </Button>
+        </OLTooltip>
     </div>
   )
 }
@@ -128,33 +142,36 @@ function FileTreeToolbarRight() {
   const { canRename, canDelete, startRenaming, startDeleting } =
     useFileTreeActionable()
 
-  if (!canRename && !canDelete) {
-    return null
-  }
-
   return (
     <div className="toolbar-right">
+      {fileTreeToolbarComponents.map(
+        ({ import: { default: Component }, path }) => (
+          <Component key={path} />
+        )
+      )}
+
       {canRename ? (
-        <Tooltip
+        <OLTooltip
           id="rename"
           description={t('rename')}
           overlayProps={{ placement: 'bottom' }}
         >
-          <Button onClick={startRenaming}>
-            <Icon type="pencil" fw accessibilityLabel={t('rename')} />
-          </Button>
-        </Tooltip>
+          <button className="btn" onClick={startRenaming} tabIndex={-1}>
+            <MaterialIcon type="edit" accessibilityLabel={t('rename')} />
+          </button>
+        </OLTooltip>
       ) : null}
+
       {canDelete ? (
-        <Tooltip
+        <OLTooltip
           id="delete"
           description={t('delete')}
           overlayProps={{ placement: 'bottom' }}
         >
-          <Button onClick={startDeleting}>
-            <Icon type="trash-o" fw accessibilityLabel={t('delete')} />
-          </Button>
-        </Tooltip>
+          <button className="btn" onClick={startDeleting} tabIndex={-1}>
+            <MaterialIcon type="delete" accessibilityLabel={t('delete')} />
+          </button>
+        </OLTooltip>
       ) : null}
     </div>
   )

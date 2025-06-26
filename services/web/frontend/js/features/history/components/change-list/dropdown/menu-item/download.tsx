@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { MenuItem } from 'react-bootstrap'
-import Icon from '../../../../../../shared/components/icon'
+import OLDropdownMenuItem from '@/features/ui/components/ol/ol-dropdown-menu-item'
+import MaterialIcon from '@/shared/components/material-icon'
 
 type DownloadProps = {
   projectId: string
@@ -17,15 +17,16 @@ function Download({
   const { t } = useTranslation()
 
   return (
-    <MenuItem
+    <OLDropdownMenuItem
       href={`/project/${projectId}/version/${version}/zip`}
       download={`${projectId}_v${version}.zip`}
       rel="noreferrer"
       onClick={closeDropdown}
+      leadingIcon={<MaterialIcon type="download" />}
       {...props}
     >
-      <Icon type="cloud-download" fw /> {t('history_download_this_version')}
-    </MenuItem>
+      {t('history_download_this_version')}
+    </OLDropdownMenuItem>
   )
 }
 

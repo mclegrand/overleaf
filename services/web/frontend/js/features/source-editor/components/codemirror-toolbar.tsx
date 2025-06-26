@@ -3,12 +3,9 @@ import { createPortal } from 'react-dom'
 import {
   useCodeMirrorStateContext,
   useCodeMirrorViewContext,
-} from './codemirror-editor'
-import { searchPanelOpen } from '@codemirror/search'
-import { useResizeObserver } from '../../../shared/hooks/use-resize-observer'
-import { ToolbarButton } from './toolbar/toolbar-button'
+} from './codemirror-context'
+import { useResizeObserver } from '@/shared/hooks/use-resize-observer'
 import { ToolbarItems } from './toolbar/toolbar-items'
-import * as commands from '../extensions/toolbar/commands'
 import { ToolbarOverflow } from './toolbar/overflow'
 import useDropdown from '../../../shared/hooks/use-dropdown'
 import { getPanel } from '@codemirror/view'
@@ -21,6 +18,14 @@ import { isVisual } from '../extensions/visual/visual'
 import { language } from '@codemirror/language'
 import { minimumListDepthForSelection } from '../utils/tree-operations/ancestors'
 import { debugConsole } from '@/utils/debugging'
+import { useTranslation } from 'react-i18next'
+import { ToggleSearchButton } from '@/features/source-editor/components/toolbar/toggle-search-button'
+import ReviewPanelHeader from '@/features/review-panel-new/components/review-panel-header'
+import useReviewPanelLayout from '@/features/review-panel-new/hooks/use-review-panel-layout'
+import { useIsNewEditorEnabled } from '@/features/ide-redesign/utils/new-editor-utils'
+import Breadcrumbs from '@/features/ide-redesign/components/breadcrumbs'
+import classNames from 'classnames'
+import { useUserSettingsContext } from '@/shared/context/user-settings-context'
 
 export const CodeMirrorToolbar = () => {
   const view = useCodeMirrorViewContext()
@@ -34,11 +39,14 @@ export const CodeMirrorToolbar = () => {
 }
 
 const Toolbar = memo(function Toolbar() {
+  const { t } = useTranslation()
   const state = useCodeMirrorStateContext()
   const view = useCodeMirrorViewContext()
+  const {
+    userSettings: { breadcrumbs },
+  } = useUserSettingsContext()
 
   const [overflowed, setOverflowed] = useState(false)
-  const [collapsed, setCollapsed] = useState(false)
 
   const overflowedItemsRef = useRef<Set<string>>(new Set())
 
@@ -46,6 +54,9 @@ const Toolbar = memo(function Toolbar() {
   const visual = isVisual(view)
 
   const listDepth = minimumListDepthForSelection(state)
+
+  const newEditor = useIsNewEditorEnabled()
+  const { showHeader: showReviewPanelHeader } = useReviewPanelLayout()
 
   const {
     open: overflowOpen,
@@ -99,7 +110,7 @@ const Toolbar = memo(function Toolbar() {
   // calculate overflow when buttons change
   const observerRef = useRef<MutationObserver | null>(null)
   const handleButtons = useCallback(
-    node => {
+    (node: HTMLDivElement) => {
       if (!('MutationObserver' in window)) {
         return
       }
@@ -129,72 +140,64 @@ const Toolbar = memo(function Toolbar() {
     }
   }, [buildOverflow, insideTable, resizeRef])
 
-  const toggleToolbar = useCallback(() => {
-    setCollapsed(value => !value)
-  }, [])
-
-  if (collapsed) {
-    return null
-  }
-
   const showActions = !state.readOnly && !insideTable
 
   return (
-    <div className="ol-cm-toolbar toolbar-editor" ref={elementRef}>
-      <EditorSwitch />
-      {showActions && (
-        <ToolbarItems
-          state={state}
-          languageName={languageName}
-          visual={visual}
-          listDepth={listDepth}
-        />
-      )}
-
-      <div className="ol-cm-toolbar-button-group ol-cm-toolbar-stretch">
-        {showActions && (
-          <ToolbarOverflow
-            overflowed={overflowed}
-            overflowOpen={overflowOpen}
-            setOverflowOpen={setOverflowOpen}
-            overflowRef={overflowRef}
-          >
+    <>
+      {newEditor && showReviewPanelHeader && <ReviewPanelHeader />}
+      <div
+        id="ol-cm-toolbar-wrapper"
+        className={classNames('ol-cm-toolbar-wrapper', {
+          'ol-cm-toolbar-wrapper-indented': newEditor && showReviewPanelHeader,
+        })}
+      >
+        <div
+          role="toolbar"
+          aria-label={t('toolbar_editor')}
+          className="ol-cm-toolbar toolbar-editor"
+          ref={elementRef}
+        >
+          <EditorSwitch />
+          {showActions && (
             <ToolbarItems
               state={state}
-              overflowed={overflowedItemsRef.current}
               languageName={languageName}
               visual={visual}
               listDepth={listDepth}
             />
-          </ToolbarOverflow>
-        )}
-      </div>
+          )}
 
-      <div
-        className="ol-cm-toolbar-button-group ol-cm-toolbar-end"
-        ref={handleButtons}
-      >
-        <ToolbarButton
-          id="toolbar-toggle-search"
-          label="Toggle Search"
-          command={commands.toggleSearch}
-          active={searchPanelOpen(state)}
-          icon="search"
-        />
+          <div className="ol-cm-toolbar-button-group ol-cm-toolbar-stretch">
+            {showActions && (
+              <ToolbarOverflow
+                overflowed={overflowed}
+                overflowOpen={overflowOpen}
+                setOverflowOpen={setOverflowOpen}
+                overflowRef={overflowRef}
+              >
+                <ToolbarItems
+                  state={state}
+                  overflowed={overflowedItemsRef.current}
+                  languageName={languageName}
+                  visual={visual}
+                  listDepth={listDepth}
+                />
+              </ToolbarOverflow>
+            )}
+          </div>
 
-        <SwitchToPDFButton />
-        <DetacherSynctexControl />
-        <DetachCompileButtonWrapper />
+          <div
+            className="ol-cm-toolbar-button-group ol-cm-toolbar-end"
+            ref={handleButtons}
+          >
+            <ToggleSearchButton state={state} />
+            <SwitchToPDFButton />
+            <DetacherSynctexControl />
+            <DetachCompileButtonWrapper />
+          </div>
+        </div>
+        {newEditor && breadcrumbs && <Breadcrumbs />}
       </div>
-      <div className="ol-cm-toolbar-button-group hidden">
-        <ToolbarButton
-          id="toolbar-expand-less"
-          label="Hide Toolbar"
-          command={toggleToolbar}
-          icon="caret-up"
-          hidden // enable this once there's a way to show the toolbar again
-        />
-      </div>
-    </div>
+    </>
   )
 })

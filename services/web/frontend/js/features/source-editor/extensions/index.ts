@@ -23,7 +23,6 @@ import { autoPair } from './auto-pair'
 import { phrases } from './phrases'
 import { spelling } from './spelling'
 import { symbolPalette } from './symbol-palette'
-import { trackChanges } from './track-changes'
 import { search } from './search'
 import { filterCharacters } from './filter-characters'
 import { keybindings } from './keybindings'
@@ -45,14 +44,20 @@ import { shortcuts } from './shortcuts'
 import { effectListeners } from './effect-listeners'
 import { highlightSpecialChars } from './highlight-special-chars'
 import { toolbarPanel } from './toolbar/toolbar-panel'
+import { breadcrumbPanel } from './breadcrumbs-panel'
 import { geometryChangeEvent } from './geometry-change-event'
 import { docName } from './doc-name'
 import { fileTreeItemDrop } from './file-tree-item-drop'
 import { mathPreview } from './math-preview'
+import { ranges } from './ranges'
+import { historyOT } from './history-ot'
+import { trackDetachedComments } from './track-detached-comments'
+import { reviewTooltip } from './review-tooltip'
 
-const moduleExtensions: Array<() => Extension> = importOverleafModules(
-  'sourceEditorExtensions'
-).map((item: { import: { extension: Extension } }) => item.import.extension)
+const moduleExtensions: Array<(options: Record<string, any>) => Extension> =
+  importOverleafModules('sourceEditorExtensions').map(
+    (item: { import: { extension: Extension } }) => item.import.extension
+  )
 
 export const createExtensions = (options: Record<string, any>): Extension[] => [
   lineNumbers(),
@@ -90,6 +95,16 @@ export const createExtensions = (options: Record<string, any>): Extension[] => [
   // to avoid cutting off tooltips which overflow the editor.
   tooltips({
     parent: document.body,
+    tooltipSpace(view) {
+      const { top, bottom } = view.scrollDOM.getBoundingClientRect()
+
+      return {
+        top,
+        left: 0,
+        bottom,
+        right: window.innerWidth,
+      }
+    },
   }),
   keymaps,
   goToLinePanel(),
@@ -97,7 +112,11 @@ export const createExtensions = (options: Record<string, any>): Extension[] => [
 
   // NOTE: `autoComplete` needs to be before `keybindings` so that arrow key handling
   // in the autocomplete pop-up takes precedence over Vim/Emacs key bindings
-  autoComplete(options.settings),
+  autoComplete({
+    enabled: options.settings.autoComplete,
+    projectFeatures: options.projectFeatures,
+    referencesSearchMode: options.settings.referencesSearchMode,
+  }),
 
   // NOTE: `keybindings` needs to be before `language` so that Vim/Emacs bindings take
   // precedence over language-specific keyboard shortcuts
@@ -124,10 +143,15 @@ export const createExtensions = (options: Record<string, any>): Extension[] => [
   // NOTE: `emptyLineFiller` needs to be before `trackChanges`,
   // so the decorations are added in the correct order.
   emptyLineFiller(),
-  trackChanges(options.currentDoc, options.changeManager),
+  options.currentDoc.currentDocument.getType() === 'history-ot'
+    ? historyOT(options.currentDoc.currentDocument)
+    : ranges(),
+  trackDetachedComments(options.currentDoc),
   visual(options.visual),
   mathPreview(options.settings.mathPreview),
+  reviewTooltip(),
   toolbarPanel(),
+  breadcrumbPanel(),
   verticalOverflow(),
   highlightActiveLine(options.visual.visual),
   // The built-in extension that highlights the active line in the gutter.
@@ -137,7 +161,7 @@ export const createExtensions = (options: Record<string, any>): Extension[] => [
   // Send exceptions to Sentry
   EditorView.exceptionSink.of(options.handleException),
   // CodeMirror extensions provided by modules
-  moduleExtensions.map(extension => extension()),
+  moduleExtensions.map(extension => extension(options)),
   thirdPartyExtensions(),
   effectListeners(),
   geometryChangeEvent(),

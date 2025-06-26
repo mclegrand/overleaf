@@ -1,4 +1,4 @@
-const fsPromises = require('fs/promises')
+const fsPromises = require('node:fs/promises')
 const { ObjectId } = require('mongodb')
 const BPromise = require('bluebird')
 const logger = require('@overleaf/logger')
@@ -8,7 +8,7 @@ const rclient = require('@overleaf/redis-wrapper').createClient(
 )
 const mongodb = require('../lib/mongodb')
 const { chunkStore } = require('..')
-const Events = require('events')
+const Events = require('node:events')
 
 // Silence warning.
 Events.setMaxListeners(20)
@@ -279,7 +279,7 @@ async function processProject(project, summary) {
 
 async function getHistoryDocVersions(project) {
   const historyId = project.overleaf.history.id
-  const chunk = await chunkStore.loadLatest(historyId)
+  const chunk = await chunkStore.loadLatest(historyId, { persistedOnly: true })
   if (chunk == null) {
     return []
   }

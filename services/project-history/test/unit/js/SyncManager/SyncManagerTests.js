@@ -114,7 +114,7 @@ describe('SyncManager', function () {
 
     this.SnapshotManager = {
       promises: {
-        getLatestSnapshot: sinon.stub(),
+        getLatestSnapshotFilesForChunk: sinon.stub(),
       },
     }
 
@@ -411,6 +411,39 @@ describe('SyncManager', function () {
         })
       })
 
+      it('records docs to resync when resyncProjectStructureOnly=true is not set', async function () {
+        const updates = [this.projectStructureSyncUpdate]
+        const { updates: filteredUpdates, syncState } =
+          await this.SyncManager.promises.skipUpdatesDuringSync(
+            this.projectId,
+            updates
+          )
+
+        expect(filteredUpdates).to.deep.equal([this.projectStructureSyncUpdate])
+        expect(syncState.toRaw()).to.deep.equal({
+          resyncProjectStructure: false,
+          resyncDocContents: ['new.tex'],
+          origin: { kind: 'history-resync' },
+        })
+      })
+
+      it('records no docs to resync with resyncProjectStructureOnly=true', async function () {
+        this.projectStructureSyncUpdate.resyncProjectStructureOnly = true
+        const updates = [this.projectStructureSyncUpdate]
+        const { updates: filteredUpdates, syncState } =
+          await this.SyncManager.promises.skipUpdatesDuringSync(
+            this.projectId,
+            updates
+          )
+
+        expect(filteredUpdates).to.deep.equal([this.projectStructureSyncUpdate])
+        expect(syncState.toRaw()).to.deep.equal({
+          resyncProjectStructure: false,
+          resyncDocContents: [],
+          origin: { kind: 'history-resync' },
+        })
+      })
+
       it('allow project structure updates after project structure sync update', async function () {
         const updates = [this.projectStructureSyncUpdate, this.renameUpdate]
         const { updates: filteredUpdates, syncState } =
@@ -492,6 +525,7 @@ describe('SyncManager', function () {
         _hash: 'abcde',
       }
       this.loadedSnapshotDoc = File.fromString(this.persistedDocContent)
+      this.mostRecentChunk = 'fake chunk'
       this.fileMap = {
         'main.tex': {
           isEditable: sinon.stub().returns(true),
@@ -517,7 +551,9 @@ describe('SyncManager', function () {
         .returns('another.tex')
       this.UpdateTranslator._convertPathname.withArgs('1.png').returns('1.png')
       this.UpdateTranslator._convertPathname.withArgs('2.png').returns('2.png')
-      this.SnapshotManager.promises.getLatestSnapshot.resolves(this.fileMap)
+      this.SnapshotManager.promises.getLatestSnapshotFilesForChunk.resolves(
+        this.fileMap
+      )
     })
 
     it('returns updates if no sync updates are queued', async function () {
@@ -525,13 +561,14 @@ describe('SyncManager', function () {
       const expandedUpdates = await this.SyncManager.promises.expandSyncUpdates(
         this.projectId,
         this.historyId,
+        this.mostRecentChunk,
         updates,
         this.extendLock
       )
 
       expect(expandedUpdates).to.equal(updates)
-      expect(this.SnapshotManager.promises.getLatestSnapshot).to.not.have.been
-        .called
+      expect(this.SnapshotManager.promises.getLatestSnapshotFilesForChunk).to
+        .not.have.been.called
       expect(this.extendLock).to.not.have.been.called
     })
 
@@ -547,6 +584,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -560,6 +598,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -584,6 +623,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -619,6 +659,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -629,7 +670,44 @@ describe('SyncManager', function () {
             file: newFile.file,
             url: newFile.url,
             hash: 'hash-42',
-            metadata: undefined,
+            meta: {
+              resync: true,
+              ts: TIMESTAMP,
+              origin: { kind: 'history-resync' },
+            },
+          },
+        ])
+        expect(this.extendLock).to.have.been.called
+      })
+
+      it('queues file additions for missing regular files w/o url', async function () {
+        const newFile = {
+          path: '2.png',
+          file: {},
+          _hash: 'hash-42',
+          createdBlob: true,
+        }
+        const updates = [
+          resyncProjectStructureUpdate(
+            [this.persistedDoc],
+            [this.persistedFile, newFile]
+          ),
+        ]
+        const expandedUpdates =
+          await this.SyncManager.promises.expandSyncUpdates(
+            this.projectId,
+            this.historyId,
+            this.mostRecentChunk,
+            updates,
+            this.extendLock
+          )
+
+        expect(expandedUpdates).to.deep.equal([
+          {
+            pathname: newFile.path,
+            file: newFile.file,
+            hash: 'hash-42',
+            createdBlob: true,
             meta: {
               resync: true,
               ts: TIMESTAMP,
@@ -661,6 +739,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -700,6 +779,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -736,6 +816,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -755,7 +836,6 @@ describe('SyncManager', function () {
             file: fileWichWasADoc.file,
             url: fileWichWasADoc.url,
             hash: 'other-hash',
-            metadata: undefined,
             meta: {
               resync: true,
               ts: TIMESTAMP,
@@ -787,6 +867,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -838,6 +919,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -884,6 +966,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -927,6 +1010,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -961,6 +1045,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -989,6 +1074,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1014,6 +1100,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1033,7 +1120,53 @@ describe('SyncManager', function () {
             file: persistedFileWithNewContent.file,
             url: persistedFileWithNewContent.url,
             hash: 'anotherhashvalue',
-            metadata: undefined,
+            meta: {
+              resync: true,
+              ts: TIMESTAMP,
+              origin: { kind: 'history-resync' },
+            },
+          },
+        ])
+        expect(this.extendLock).to.have.been.called
+      })
+
+      it('removes and re-adds binary files w/o url if they do not have same hash', async function () {
+        const persistedFileWithNewContent = {
+          _hash: 'anotherhashvalue',
+          hello: 'world',
+          path: '1.png',
+          createdBlob: true,
+        }
+        const updates = [
+          resyncProjectStructureUpdate(
+            [this.persistedDoc],
+            [persistedFileWithNewContent]
+          ),
+        ]
+        const expandedUpdates =
+          await this.SyncManager.promises.expandSyncUpdates(
+            this.projectId,
+            this.historyId,
+            this.mostRecentChunk,
+            updates,
+            this.extendLock
+          )
+
+        expect(expandedUpdates).to.deep.equal([
+          {
+            pathname: persistedFileWithNewContent.path,
+            new_pathname: '',
+            meta: {
+              resync: true,
+              ts: TIMESTAMP,
+              origin: { kind: 'history-resync' },
+            },
+          },
+          {
+            pathname: persistedFileWithNewContent.path,
+            file: persistedFileWithNewContent.file,
+            hash: 'anotherhashvalue',
+            createdBlob: true,
             meta: {
               resync: true,
               ts: TIMESTAMP,
@@ -1057,6 +1190,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1081,6 +1215,7 @@ describe('SyncManager', function () {
           this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1094,6 +1229,7 @@ describe('SyncManager', function () {
           this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1113,6 +1249,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1139,6 +1276,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1177,6 +1315,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1221,6 +1360,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1246,6 +1386,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1282,6 +1423,7 @@ describe('SyncManager', function () {
             await this.SyncManager.promises.expandSyncUpdates(
               this.projectId,
               this.historyId,
+              this.mostRecentChunk,
               updates,
               this.extendLock
             )
@@ -1336,6 +1478,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1358,6 +1501,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1401,6 +1545,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1435,6 +1580,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1478,6 +1624,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1532,6 +1679,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1561,6 +1709,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1651,6 +1800,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1672,6 +1822,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1713,6 +1864,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1754,6 +1906,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )
@@ -1829,6 +1982,7 @@ describe('SyncManager', function () {
           await this.SyncManager.promises.expandSyncUpdates(
             this.projectId,
             this.historyId,
+            this.mostRecentChunk,
             updates,
             this.extendLock
           )

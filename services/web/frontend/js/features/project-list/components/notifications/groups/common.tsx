@@ -1,6 +1,5 @@
 import { useTranslation, Trans } from 'react-i18next'
 import Notification from '../notification'
-import Icon from '../../../../../shared/components/icon'
 import getMeta from '../../../../../utils/meta'
 import useAsyncDismiss from '../hooks/useAsyncDismiss'
 import useAsync from '../../../../../shared/hooks/use-async'
@@ -96,14 +95,8 @@ function CommonNotification({ notification }: CommonNotificationProps) {
             ) : (
               <OLButton
                 variant="secondary"
-                bs3Props={{
-                  loading: isLoading ? (
-                    <>
-                      <Icon type="spinner" spin /> {t('joining')}&hellip;
-                    </>
-                  ) : null,
-                }}
                 isLoading={isLoading}
+                loadingLabel={t('joining')}
                 disabled={isLoading}
                 onClick={() => handleAcceptInvite(notification)}
               >
@@ -201,19 +194,23 @@ function CommonNotification({ notification }: CommonNotificationProps) {
         <Notification
           type="error"
           onDismiss={() => id && handleDismiss(id)}
+          title={`${notification?.messageOpts?.projectName || 'A project'} exceeds the 2000 file limit`}
           content={
             <>
-              Error: Your project {notification.messageOpts.projectName} has
-              gone over the 2000 file limit using an integration (e.g. Dropbox
-              or GitHub) <br />
-              Please decrease the size of your project to prevent further
-              errors.
+              You can't add more files to the project or sync it with any
+              integrations until you reduce the number of files.
             </>
           }
           action={
-            <OLButton variant="secondary" href="/user/settings">
-              Account Settings
-            </OLButton>
+            notification.messageOpts.projectId ? (
+              <OLButton
+                variant="secondary"
+                onClick={() => id && handleDismiss(id)}
+                href={`/project/${notification.messageOpts.projectId}`}
+              >
+                Open project
+              </OLButton>
+            ) : undefined
           }
         />
       ) : templateKey === 'notification_dropbox_duplicate_project_names' ? (

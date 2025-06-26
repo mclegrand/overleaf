@@ -1,4 +1,4 @@
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 const SandboxedModule = require('sandboxed-module')
 const path = require('path')
 const sinon = require('sinon')
@@ -18,6 +18,7 @@ const projectName = 'project_name_here'
 const thirdPartyDataStoreApiUrl = 'http://third-party-json-store.herokuapp.com'
 const siteUrl = 'http://127.0.0.1:3000'
 const filestoreUrl = 'filestore.overleaf.com'
+const projectHistoryUrl = 'http://project-history:3054'
 
 describe('TpdsUpdateSender', function () {
   beforeEach(function () {
@@ -52,7 +53,11 @@ describe('TpdsUpdateSender', function () {
         docstore: {
           pubUrl: this.docstoreUrl,
         },
+        project_history: {
+          url: projectHistoryUrl,
+        },
       },
+      enableProjectHistoryBlobs: true,
     }
     const getUsers = sinon.stub()
     getUsers
@@ -72,7 +77,7 @@ describe('TpdsUpdateSender', function () {
     }
     this.TpdsUpdateSender = SandboxedModule.require(modulePath, {
       requires: {
-        mongodb: { ObjectId },
+        'mongodb-legacy': { ObjectId },
         '@overleaf/settings': this.settings,
         '@overleaf/fetch-utils': this.FetchUtils,
         '../Collaborators/CollaboratorsGetter': this.CollaboratorsGetter,
@@ -113,11 +118,15 @@ describe('TpdsUpdateSender', function () {
 
     it('queues a post the file with user and file id', async function () {
       const fileId = '4545345'
+      const hash = undefined
+      const historyId = 91525
       const path = '/some/path/here.jpg'
 
       await this.TpdsUpdateSender.promises.addFile({
         projectId,
+        historyId,
         fileId,
+        hash,
         path,
         projectName,
       })
@@ -130,7 +139,61 @@ describe('TpdsUpdateSender', function () {
             method: 'pipeStreamFrom',
             job: {
               method: 'post',
-              streamOrigin: `${filestoreUrl}/project/${projectId}/file/${fileId}`,
+              streamOrigin: `${filestoreUrl}/project/${projectId}/file/${fileId}?from=tpdsAddFile`,
+              uri: `${thirdPartyDataStoreApiUrl}/user/${userId}/entity/${encodeURIComponent(
+                projectName
+              )}${encodeURIComponent(path)}`,
+              headers: {},
+            },
+          },
+        }
+      )
+
+      expect(this.FetchUtils.fetchNothing).to.have.been.calledWithMatch(
+        this.enqueueUrl,
+        {
+          json: {
+            group: collaberatorRef,
+          },
+        }
+      )
+
+      expect(this.FetchUtils.fetchNothing).to.have.been.calledWithMatch(
+        this.enqueueUrl,
+        {
+          json: {
+            group: readOnlyRef,
+            job: {},
+          },
+        }
+      )
+    })
+
+    it('queues a post the file with user and file id and hash', async function () {
+      const fileId = '4545345'
+      const hash = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      const historyId = 91525
+      const path = '/some/path/here.jpg'
+
+      await this.TpdsUpdateSender.promises.addFile({
+        projectId,
+        historyId,
+        fileId,
+        hash,
+        path,
+        projectName,
+      })
+
+      expect(this.FetchUtils.fetchNothing).to.have.been.calledWithMatch(
+        this.enqueueUrl,
+        {
+          json: {
+            group: userId,
+            method: 'pipeStreamFrom',
+            job: {
+              method: 'post',
+              streamOrigin: `${projectHistoryUrl}/project/${historyId}/blob/${hash}`,
+              streamFallback: `${filestoreUrl}/project/${projectId}/file/${fileId}?from=tpdsAddFile`,
               uri: `${thirdPartyDataStoreApiUrl}/user/${userId}/entity/${encodeURIComponent(
                 projectName
               )}${encodeURIComponent(path)}`,
@@ -412,18 +475,22 @@ describe('TpdsUpdateSender', function () {
         })
         .resolves([])
     })
-  })
 
-  it('does not make request to tpds', async function () {
-    const fileId = '4545345'
-    const path = '/some/path/here.jpg'
+    it('does not make request to tpds', async function () {
+      const fileId = '4545345'
+      const hash = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      const historyId = 91525
+      const path = '/some/path/here.jpg'
 
-    await this.TpdsUpdateSender.promises.addFile({
-      projectId,
-      fileId,
-      path,
-      projectName,
+      await this.TpdsUpdateSender.promises.addFile({
+        projectId,
+        historyId,
+        hash,
+        fileId,
+        path,
+        projectName,
+      })
+      this.FetchUtils.fetchNothing.should.not.have.been.called
     })
-    this.FetchUtils.fetchNothing.should.not.have.been.called
   })
 })

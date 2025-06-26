@@ -1,11 +1,12 @@
 import '@testing-library/cypress/add-commands'
 import {
   interceptCompile,
+  interceptCompileFromCacheRequest,
   waitForCompile,
   interceptDeferredCompile,
+  interceptCompileRequest,
 } from './compile'
 import { interceptEvents } from './events'
-import { interceptSpelling } from './spelling'
 import { interceptAsync } from './intercept-async'
 import { interceptFileUpload } from './upload'
 import { interceptProjectListing } from './project-list'
@@ -22,9 +23,10 @@ declare global {
     interface Chainable {
       interceptAsync: typeof interceptAsync
       interceptCompile: typeof interceptCompile
+      interceptCompileRequest: typeof interceptCompileRequest
+      interceptCompileFromCacheRequest: typeof interceptCompileFromCacheRequest
       interceptEvents: typeof interceptEvents
       interceptMetadata: typeof interceptMetadata
-      interceptSpelling: typeof interceptSpelling
       waitForCompile: typeof waitForCompile
       interceptDeferredCompile: typeof interceptDeferredCompile
       interceptFileUpload: typeof interceptFileUpload
@@ -38,9 +40,13 @@ declare global {
 
 Cypress.Commands.add('interceptAsync', interceptAsync)
 Cypress.Commands.add('interceptCompile', interceptCompile)
+Cypress.Commands.add('interceptCompileRequest', interceptCompileRequest)
+Cypress.Commands.add(
+  'interceptCompileFromCacheRequest',
+  interceptCompileFromCacheRequest
+)
 Cypress.Commands.add('interceptEvents', interceptEvents)
 Cypress.Commands.add('interceptMetadata', interceptMetadata)
-Cypress.Commands.add('interceptSpelling', interceptSpelling)
 Cypress.Commands.add('waitForCompile', waitForCompile)
 Cypress.Commands.add('interceptDeferredCompile', interceptDeferredCompile)
 Cypress.Commands.add('interceptFileUpload', interceptFileUpload)

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/dom'
+import { screen, waitFor } from '@testing-library/react'
 import { expect } from 'chai'
 import fetchMock from 'fetch-mock'
 import DownloadMenu from '../../../../../frontend/js/features/editor-left-menu/components/download-menu'
@@ -6,7 +6,7 @@ import { renderWithEditorContext } from '../../../helpers/render-with-context'
 
 describe('<DownloadMenu />', function () {
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   it('shows download links with correct url', async function () {

@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next'
 import {
   useCodeMirrorStateContext,
   useCodeMirrorViewContext,
-} from '../codemirror-editor'
-import { Button } from 'react-bootstrap'
+} from '../codemirror-context'
 import { resolveCommandNode } from '../../extensions/command-tooltip'
 import {
   LabelArgument,
@@ -20,7 +19,8 @@ import {
   TransactionSpec,
 } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import Icon from '../../../../shared/components/icon'
+import OLButton from '@/features/ui/components/ol/ol-button'
+import MaterialIcon from '@/shared/components/material-icon'
 
 export const RefTooltipContent: FC = () => {
   const { t } = useTranslation()
@@ -29,9 +29,9 @@ export const RefTooltipContent: FC = () => {
 
   return (
     <div className="ol-cm-command-tooltip-content">
-      <Button
+      <OLButton
+        variant="link"
         type="button"
-        bsStyle="link"
         className="ol-cm-command-tooltip-link"
         onClick={() => {
           const target = readTarget(state)
@@ -40,13 +40,14 @@ export const RefTooltipContent: FC = () => {
             // TODO: handle label not found
             if (labelNode) {
               view.dispatch(selectNode(labelNode))
+              view.focus()
             }
           }
         }}
       >
-        <Icon type="link" fw />
+        <MaterialIcon type="link" />
         {t('open_target')}
-      </Button>
+      </OLButton>
     </div>
   )
 }

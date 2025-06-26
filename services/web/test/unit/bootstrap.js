@@ -1,6 +1,7 @@
 const Path = require('path')
-const chai = require('chai')
 const sinon = require('sinon')
+require('./common_bootstrap')
+const chai = require('chai')
 
 /*
  * Chai configuration
@@ -18,13 +19,6 @@ chai.use(require('chai-as-promised'))
 
 // Do not truncate assertion errors
 chai.config.truncateThreshold = 0
-
-// add support for mongoose in sinon
-require('sinon-mongoose')
-
-// ensure every ObjectId has the id string as a property for correct comparisons
-require('mongodb').ObjectId.cacheHexString = true
-
 /*
  * Global stubs
  */
@@ -60,6 +54,11 @@ SandboxedModule.configure({
     TextEncoder,
     TextDecoder,
   },
+  sourceTransformers: {
+    removeNodePrefix: function (source) {
+      return source.replace(/require\(['"]node:/g, "require('")
+    },
+  },
 })
 
 function getSandboxedModuleRequires() {
@@ -83,6 +82,7 @@ function getSandboxedModuleRequires() {
     'sshpk',
     'xml2js',
     'mongodb',
+    'mongodb-legacy',
   ]
   for (const modulePath of internalModules) {
     requires[Path.resolve(__dirname, modulePath)] = require(modulePath)

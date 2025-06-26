@@ -1,130 +1,37 @@
-import { Modal as BS5Modal } from 'react-bootstrap-5'
 import {
-  Modal as BS3Modal,
-  ModalProps as BS3ModalProps,
-  ModalHeaderProps as BS3ModalHeaderProps,
-  ModalTitleProps as BS3ModalTitleProps,
-  ModalBodyProps as BS3ModalBodyProps,
-  ModalFooterProps as BS3ModalFooterProps,
+  Modal,
+  ModalProps,
+  ModalHeaderProps,
+  ModalTitleProps,
+  ModalFooterProps,
 } from 'react-bootstrap'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
-import AccessibleModal from '@/shared/components/accessible-modal'
+import { ModalBodyProps } from 'react-bootstrap/ModalBody'
 
-type OLModalProps = React.ComponentProps<typeof BS5Modal> & {
-  bs3Props?: Record<string, unknown>
+type OLModalProps = ModalProps & {
   size?: 'sm' | 'lg'
   onHide: () => void
 }
 
-type OLModalHeaderProps = React.ComponentProps<typeof BS5Modal> & {
-  bs3Props?: Record<string, unknown>
-}
-
-type OLModalTitleProps = React.ComponentProps<typeof BS5Modal> & {
-  bs3Props?: Record<string, unknown>
-}
-
-type OLModalBodyProps = React.ComponentProps<typeof BS5Modal> & {
-  bs3Props?: Record<string, unknown>
-}
-
-type OLModalFooterProps = React.ComponentProps<typeof BS5Modal> & {
-  bs3Props?: Record<string, unknown>
-}
-
 export default function OLModal({ children, ...props }: OLModalProps) {
-  const { bs3Props, ...bs5Props } = props
+  return <Modal {...props}>{children}</Modal>
+}
 
-  const bs3ModalProps: BS3ModalProps = {
-    bsClass: bs5Props.bsPrefix,
-    bsSize: bs5Props.size,
-    show: bs5Props.show,
-    onHide: bs5Props.onHide,
-    backdrop: bs5Props.backdrop,
-    animation: bs5Props.animation,
-    id: bs5Props.id,
-    ...bs3Props,
-  }
+export function OLModalHeader({ children, ...props }: ModalHeaderProps) {
+  return <Modal.Header {...props}>{children}</Modal.Header>
+}
 
+export function OLModalTitle({ children, ...props }: ModalTitleProps) {
   return (
-    <BootstrapVersionSwitcher
-      bs3={<AccessibleModal {...bs3ModalProps}>{children}</AccessibleModal>}
-      bs5={<BS5Modal {...bs5Props}>{children}</BS5Modal>}
-    />
+    <Modal.Title as="h2" {...props}>
+      {children}
+    </Modal.Title>
   )
 }
 
-export function OLModalHeader({
-  children,
-  closeButton,
-  ...props
-}: OLModalHeaderProps) {
-  const { bs3Props, ...bs5Props } = props
-
-  const bs3ModalProps: BS3ModalHeaderProps = {
-    bsClass: bs5Props.bsPrefix,
-    onHide: bs5Props.onHide,
-    closeButton: bs5Props.closeButton,
-    closeLabel: bs5Props.closeLabel,
-  }
-  return (
-    <BootstrapVersionSwitcher
-      bs3={
-        <BS3Modal.Header {...bs3ModalProps} closeButton={closeButton}>
-          {children}
-        </BS3Modal.Header>
-      }
-      bs5={
-        <BS5Modal.Header {...bs5Props} closeButton={closeButton}>
-          {children}
-        </BS5Modal.Header>
-      }
-    />
-  )
+export function OLModalBody({ children, ...props }: ModalBodyProps) {
+  return <Modal.Body {...props}>{children}</Modal.Body>
 }
 
-export function OLModalTitle({ children, ...props }: OLModalTitleProps) {
-  const { bs3Props, ...bs5Props } = props
-
-  const bs3ModalProps: BS3ModalTitleProps = {
-    componentClass: bs5Props.as,
-  }
-  return (
-    <BootstrapVersionSwitcher
-      bs3={<BS3Modal.Title {...bs3ModalProps}>{children}</BS3Modal.Title>}
-      bs5={<BS5Modal.Title {...bs5Props}>{children}</BS5Modal.Title>}
-    />
-  )
-}
-
-export function OLModalBody({ children, ...props }: OLModalBodyProps) {
-  const { bs3Props, ...bs5Props } = props
-
-  const bs3ModalProps: BS3ModalBodyProps = {
-    componentClass: bs5Props.as,
-    bsClass: bs5Props.className,
-  }
-
-  return (
-    <BootstrapVersionSwitcher
-      bs3={<BS3Modal.Body {...bs3ModalProps}>{children}</BS3Modal.Body>}
-      bs5={<BS5Modal.Body {...bs5Props}>{children}</BS5Modal.Body>}
-    />
-  )
-}
-
-export function OLModalFooter({ children, ...props }: OLModalFooterProps) {
-  const { bs3Props, ...bs5Props } = props
-
-  const bs3ModalProps: BS3ModalFooterProps = {
-    componentClass: bs5Props.as,
-    bsClass: bs5Props.className,
-  }
-
-  return (
-    <BootstrapVersionSwitcher
-      bs3={<BS3Modal.Footer {...bs3ModalProps}>{children}</BS3Modal.Footer>}
-      bs5={<BS5Modal.Footer {...bs5Props}>{children}</BS5Modal.Footer>}
-    />
-  )
+export function OLModalFooter({ children, ...props }: ModalFooterProps) {
+  return <Modal.Footer {...props}>{children}</Modal.Footer>
 }

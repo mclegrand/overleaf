@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useGroupMembersContext } from '../../context/group-members-context'
+import OLFormCheckbox from '@/features/ui/components/ol/ol-form-checkbox'
 
 export default function SelectAllCheckbox() {
   const { t } = useTranslation()
@@ -28,18 +29,14 @@ export default function SelectAllCheckbox() {
   }
 
   return (
-    <td className="cell-checkbox">
-      <label htmlFor="select-all" className="sr-only">
-        {t('select_all')}
-      </label>
-      <input
-        className="select-all"
-        id="select-all"
-        type="checkbox"
+    <th className="cell-checkbox">
+      <OLFormCheckbox
         autoComplete="off"
         onChange={handleSelectAllNonManagedClick}
         checked={selectedUsers.length === nonManagedUsers.length}
+        aria-label={t('select_all')}
+        data-testid="select-all-checkbox"
       />
-    </td>
+    </th>
   )
 }

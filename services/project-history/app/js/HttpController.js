@@ -15,18 +15,25 @@ import * as LabelsManager from './LabelsManager.js'
 import * as HistoryApiManager from './HistoryApiManager.js'
 import * as RetryManager from './RetryManager.js'
 import * as FlushManager from './FlushManager.js'
-import { pipeline } from 'stream'
+import { pipeline } from 'node:stream'
+import { RequestFailedError } from '@overleaf/fetch-utils'
+
+const ONE_DAY_IN_SECONDS = 24 * 60 * 60
 
 export function getProjectBlob(req, res, next) {
-  const projectId = req.params.project_id
+  const historyId = req.params.history_id
   const blobHash = req.params.hash
   HistoryStoreManager.getProjectBlobStream(
-    projectId,
+    historyId,
     blobHash,
     (err, stream) => {
       if (err != null) {
+        if (err instanceof RequestFailedError && err.response.status === 404) {
+          return res.status(404).end()
+        }
         return next(OError.tag(err))
       }
+      res.setHeader('Cache-Control', `private, max-age=${ONE_DAY_IN_SECONDS}`)
       pipeline(stream, res, err => {
         if (err) next(err)
         // res.end() is already called via 'end' event by pipeline.
@@ -216,6 +223,62 @@ export function getRangesSnapshot(req, res, next) {
   )
 }
 
+export function getFileMetadataSnapshot(req, res, next) {
+  const { project_id: projectId, version, pathname } = req.params
+  SnapshotManager.getFileMetadataSnapshot(
+    projectId,
+    version,
+    pathname,
+    (err, data) => {
+      if (err) {
+        return next(OError.tag(err))
+      }
+      res.json(data)
+    }
+  )
+}
+
+export function getLatestSnapshot(req, res, next) {
+  const { project_id: projectId } = req.params
+  WebApiManager.getHistoryId(projectId, (error, historyId) => {
+    if (error) return next(OError.tag(error))
+    SnapshotManager.getLatestSnapshot(
+      projectId,
+      historyId,
+      (error, details) => {
+        if (error != null) {
+          return next(error)
+        }
+        const { snapshot, version } = details
+        res.json({ snapshot: snapshot.toRaw(), version })
+      }
+    )
+  })
+}
+
+export function getChangesInChunkSince(req, res, next) {
+  const { project_id: projectId } = req.params
+  const { since } = req.query
+  WebApiManager.getHistoryId(projectId, (error, historyId) => {
+    if (error) return next(OError.tag(error))
+    SnapshotManager.getChangesInChunkSince(
+      projectId,
+      historyId,
+      since,
+      (error, details) => {
+        if (error != null) {
+          return next(error)
+        }
+        const { latestStartVersion, changes } = details
+        res.json({
+          latestStartVersion,
+          changes: changes.map(c => c.toRaw()),
+        })
+      }
+    )
+  })
+}
+
 export function getProjectSnapshot(req, res, next) {
   const { project_id: projectId, version } = req.params
   SnapshotManager.getProjectSnapshot(
@@ -228,6 +291,16 @@ export function getProjectSnapshot(req, res, next) {
       res.json(snapshotData)
     }
   )
+}
+
+export function getPathsAtVersion(req, res, next) {
+  const { project_id: projectId, version } = req.params
+  SnapshotManager.getPathsAtVersion(projectId, version, (error, result) => {
+    if (error != null) {
+      return next(error)
+    }
+    res.json(result)
+  })
 }
 
 export function healthCheck(req, res) {
@@ -351,13 +424,19 @@ export function getLabels(req, res, next) {
 }
 
 export function createLabel(req, res, next) {
-  const { project_id: projectId, user_id: userId } = req.params
+  const { project_id: projectId, user_id: userIdParam } = req.params
   const {
     version,
     comment,
+    user_id: userIdBody,
     created_at: createdAt,
     validate_exists: validateExists,
   } = req.body
+
+  // Temporarily looking up both params and body while rolling out changes
+  // in the router path - https://github.com/overleaf/internal/pull/20200
+  const userId = userIdParam || userIdBody
+
   HistoryApiManager.shouldUseProjectHistory(
     projectId,
     (error, shouldUseProjectHistory) => {
@@ -490,9 +569,7 @@ export function deleteProject(req, res, next) {
           if (err) {
             return next(err)
           }
-          // The third parameter to the following call is the error. Calling it
-          // with null will remove any failure record for this project.
-          ErrorRecorder.record(projectId, 0, null, err => {
+          ErrorRecorder.clearError(projectId, err => {
             if (err) {
               return next(err)
             }

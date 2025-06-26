@@ -1,4 +1,4 @@
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 const sinon = require('sinon')
 const { expect } = require('chai')
 const SandboxedModule = require('sandboxed-module')
@@ -43,6 +43,7 @@ describe('SAMLIdentityManager', function () {
     }
     this.SAMLIdentityManager = SandboxedModule.require(modulePath, {
       requires: {
+        'mongodb-legacy': { ObjectId },
         '../Email/EmailHandler': (this.EmailHandler = {
           sendEmail: sinon.stub().yields(),
         }),
@@ -447,6 +448,7 @@ describe('SAMLIdentityManager', function () {
             providerId: '1',
             providerName: 'Overleaf University',
             userIdAttribute: 'uniqueId',
+            externalUserId: 'externalUserId',
           }
         )
       })

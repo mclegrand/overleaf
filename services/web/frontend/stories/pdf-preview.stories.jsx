@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import useFetchMock from './hooks/use-fetch-mock'
-import { Button } from 'react-bootstrap'
+import OLButton from '@/features/ui/components/ol/ol-button'
 import PdfPreviewPane from '../js/features/pdf-preview/components/pdf-preview-pane'
 import PdfPreview from '../js/features/pdf-preview/components/pdf-preview'
 import PdfFileList from '../js/features/pdf-preview/components/pdf-file-list'
@@ -22,6 +22,10 @@ import {
 import { cloneDeep } from 'lodash'
 import { ScopeDecorator } from './decorators/scope'
 import { PdfPreviewProvider } from '@/features/pdf-preview/components/pdf-preview-provider'
+import {
+  Dropdown,
+  DropdownMenu,
+} from '@/features/ui/components/bootstrap-5/dropdown-menu'
 
 export default {
   title: 'Editor / PDF Preview',
@@ -119,10 +123,12 @@ export const Interactive = () => {
                   margin: '10px 0',
                 }}
               >
-                <Button onClick={dispatchDocChanged}>trigger doc change</Button>
-                <Button onClick={toggleLintingError}>
+                <OLButton onClick={dispatchDocChanged}>
+                  trigger doc change
+                </OLButton>
+                <OLButton onClick={toggleLintingError}>
                   toggle linting error
-                </Button>
+                </OLButton>
               </div>
             </div>
           </div>
@@ -235,6 +241,7 @@ export const CompileError = () => {
           left: 10,
           background: 'white',
           padding: 10,
+          zIndex: 100,
         }}
       >
         <label>
@@ -282,7 +289,7 @@ export const DisplayError = () => {
   })
 
   return (
-    <>
+    <div className="logs-pane">
       {compileErrors.map(error => (
         <div
           key={error}
@@ -292,7 +299,7 @@ export const DisplayError = () => {
           <PdfPreviewError error={error} />
         </div>
       ))}
-    </>
+    </div>
   )
 }
 
@@ -312,15 +319,15 @@ export const HybridToolbar = () => {
 
 export const FileList = () => {
   const fileList = useMemo(() => {
-    return buildFileList(cloneDeep(outputFiles))
+    return buildFileList(cloneDeep(outputFiles), {})
   }, [])
 
   return (
-    <div className="dropdown open">
-      <div className="dropdown-menu">
+    <Dropdown>
+      <DropdownMenu id="dropdown-files-logs-pane-list" show>
         <PdfFileList fileList={fileList} />
-      </div>
-    </div>
+      </DropdownMenu>
+    </Dropdown>
   )
 }
 

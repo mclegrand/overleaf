@@ -20,8 +20,8 @@ const pubsubClient = require('@overleaf/redis-wrapper').createClient(
 )
 const Keys = Settings.redis.documentupdater.key_schema
 const logger = require('@overleaf/logger')
-const os = require('os')
-const crypto = require('crypto')
+const os = require('node:os')
+const crypto = require('node:crypto')
 const metrics = require('./Metrics')
 
 const HOST = os.hostname()
@@ -49,7 +49,7 @@ const RealTimeRedisManager = {
       MAX_OPS_PER_ITERATION,
       -1
     )
-    return multi.exec(function (error, replys) {
+    multi.exec(function (error, replys) {
       if (error != null) {
         return callback(error)
       }
@@ -80,7 +80,7 @@ const RealTimeRedisManager = {
   },
 
   getUpdatesLength(docId, callback) {
-    return rclient.llen(Keys.pendingUpdates({ doc_id: docId }), callback)
+    rclient.llen(Keys.pendingUpdates({ doc_id: docId }), callback)
   },
 
   sendCanaryAppliedOp({ projectId, docId, op }) {
@@ -132,5 +132,5 @@ const RealTimeRedisManager = {
 
 module.exports = RealTimeRedisManager
 module.exports.promises = promisifyAll(RealTimeRedisManager, {
-  without: ['sendData'],
+  without: ['sendCanaryAppliedOp', 'sendData'],
 })

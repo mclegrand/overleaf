@@ -1,4 +1,3 @@
-import '../../../helpers/bootstrap-3'
 import FileTreeToolbar from '../../../../../frontend/js/features/file-tree/components/file-tree-toolbar'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import { FileTreeProvider } from '../helpers/file-tree-provider'
@@ -6,7 +5,7 @@ import { FileTreeProvider } from '../helpers/file-tree-provider'
 describe('<FileTreeToolbar/>', function () {
   it('without selected files', function () {
     cy.mount(
-      <EditorProviders>
+      <EditorProviders rootDocId="">
         <FileTreeProvider>
           <FileTreeToolbar />
         </FileTreeProvider>

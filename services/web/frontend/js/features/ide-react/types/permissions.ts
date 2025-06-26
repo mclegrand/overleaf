@@ -1,8 +1,12 @@
 export type Permissions = {
   read: boolean
+  comment: boolean
+  resolveOwnComments: boolean
+  resolveAllComments: boolean
+  trackedWrite: boolean
   write: boolean
   admin: boolean
-  comment: boolean
+  labelVersion: boolean
 }
 
-export type PermissionsLevel = 'owner' | 'readAndWrite' | 'readOnly'
+export type PermissionsLevel = 'owner' | 'readAndWrite' | 'review' | 'readOnly'

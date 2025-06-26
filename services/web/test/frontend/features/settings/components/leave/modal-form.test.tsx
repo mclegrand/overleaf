@@ -1,10 +1,10 @@
 import { expect } from 'chai'
 import sinon from 'sinon'
 import { fireEvent, screen, render, waitFor } from '@testing-library/react'
-import fetchMock, { FetchMockStatic } from 'fetch-mock'
+import fetchMock, { type FetchMock } from 'fetch-mock'
 
 import LeaveModalForm from '../../../../../../frontend/js/features/settings/components/leave/modal-form'
-import * as useLocationModule from '../../../../../../frontend/js/shared/hooks/use-location'
+import { location } from '@/shared/components/location'
 import getMeta from '@/utils/meta'
 
 describe('<LeaveModalForm />', function () {
@@ -14,7 +14,7 @@ describe('<LeaveModalForm />', function () {
   })
 
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   it('validates form', async function () {
@@ -50,25 +50,20 @@ describe('<LeaveModalForm />', function () {
   describe('submits', async function () {
     let setInFlight: sinon.SinonStub
     let setIsFormValid: sinon.SinonStub
-    let deleteMock: FetchMockStatic
-    let assignStub: sinon.SinonStub
+    let deleteMock: FetchMock
 
     beforeEach(function () {
       setInFlight = sinon.stub()
       setIsFormValid = sinon.stub()
       deleteMock = fetchMock.post('/user/delete', 200)
-      assignStub = sinon.stub()
-      this.locationStub = sinon.stub(useLocationModule, 'useLocation').returns({
-        assign: assignStub,
-        replace: sinon.stub(),
-        reload: sinon.stub(),
-      })
+      this.locationWrapperSandbox = sinon.createSandbox()
+      this.locationWrapperStub = this.locationWrapperSandbox.stub(location)
       Object.assign(getMeta('ol-ExposedSettings'), { isOverleaf: true })
     })
 
     afterEach(function () {
-      fetchMock.reset()
-      this.locationStub.restore()
+      fetchMock.removeRoutes().clearHistory()
+      this.locationWrapperSandbox.restore()
     })
 
     it('with valid form', async function () {
@@ -84,7 +79,8 @@ describe('<LeaveModalForm />', function () {
 
       sinon.assert.calledOnce(setInFlight)
       sinon.assert.calledWithMatch(setInFlight, true)
-      expect(deleteMock.called()).to.be.true
+      expect(deleteMock.callHistory.called()).to.be.true
+      const assignStub = this.locationWrapperStub.assign
       await waitFor(() => {
         sinon.assert.calledTwice(setInFlight)
         sinon.assert.calledWithMatch(setInFlight, false)
@@ -104,7 +100,7 @@ describe('<LeaveModalForm />', function () {
 
       fireEvent.submit(screen.getByLabelText('Email'))
 
-      expect(deleteMock.called()).to.be.false
+      expect(deleteMock.callHistory.called()).to.be.false
       sinon.assert.notCalled(setInFlight)
     })
   })

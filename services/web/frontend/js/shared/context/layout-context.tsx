@@ -7,8 +7,8 @@ import {
   Dispatch,
   SetStateAction,
   FC,
+  useState,
 } from 'react'
-import useScopeValue from '../hooks/use-scope-value'
 import useDetachLayout from '../hooks/use-detach-layout'
 import localStorage from '../../infrastructure/local-storage'
 import getMeta from '../../utils/meta'
@@ -16,11 +16,16 @@ import { DetachRole } from './detach-context'
 import { debugConsole } from '@/utils/debugging'
 import { BinaryFile } from '@/features/file-view/types/binary-file'
 import useScopeEventEmitter from '@/shared/hooks/use-scope-event-emitter'
+import useEventListener from '@/shared/hooks/use-event-listener'
+import { isMac } from '@/shared/utils/os'
+import { sendSearchEvent } from '@/features/event-tracking/search-events'
+import { useRailContext } from '@/features/ide-redesign/contexts/rail-context'
+import usePersistedState from '@/shared/hooks/use-persisted-state'
 
 export type IdeLayout = 'sideBySide' | 'flat'
 export type IdeView = 'editor' | 'file' | 'pdf' | 'history'
 
-type LayoutContextValue = {
+export type LayoutContextValue = {
   reattach: () => void
   detach: () => void
   detachIsLinked: boolean
@@ -48,6 +53,10 @@ type LayoutContextValue = {
   >
   pdfLayout: IdeLayout
   pdfPreviewOpen: boolean
+  projectSearchIsOpen: boolean
+  setProjectSearchIsOpen: Dispatch<SetStateAction<boolean>>
+  openFile: BinaryFile | null
+  setOpenFile: Dispatch<SetStateAction<BinaryFile | null>>
 }
 
 const debugPdfDetach = getMeta('ol-debugPdfDetach')
@@ -63,11 +72,15 @@ function setLayoutInLocalStorage(pdfLayout: IdeLayout) {
   )
 }
 
-export const LayoutProvider: FC = ({ children }) => {
+const reviewPanelStorageKey = `ui.reviewPanelOpen.${getMeta('ol-project_id')}`
+
+export const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
   // what to show in the "flat" view (editor or pdf)
-  const [view, _setView] = useScopeValue<IdeView | null>('ui.view')
-  const [openFile] = useScopeValue<BinaryFile | null>('openFile')
+  const [view, _setView] = useState<IdeView | null>('editor')
+  const [openFile, setOpenFile] = useState<BinaryFile | null>(null)
   const historyToggleEmitter = useScopeEventEmitter('history:toggle', true)
+  const { isOpen: railIsOpen, setIsOpen: setRailIsOpen } = useRailContext()
+  const [prevRailIsOpen, setPrevRailIsOpen] = useState(railIsOpen)
 
   const setView = useCallback(
     (value: IdeView | null) => {
@@ -75,6 +88,15 @@ export const LayoutProvider: FC = ({ children }) => {
         // ensure that the "history:toggle" event is broadcast when switching in or out of history view
         if (value === 'history' || oldValue === 'history') {
           historyToggleEmitter()
+        }
+
+        if (value === 'history') {
+          setPrevRailIsOpen(railIsOpen)
+          setRailIsOpen(true)
+        }
+
+        if (oldValue === 'history') {
+          setRailIsOpen(prevRailIsOpen)
         }
 
         if (value === 'editor' && openFile) {
@@ -88,31 +110,81 @@ export const LayoutProvider: FC = ({ children }) => {
         return value
       })
     },
-    [_setView, openFile, historyToggleEmitter]
+    [
+      _setView,
+      setRailIsOpen,
+      openFile,
+      historyToggleEmitter,
+      prevRailIsOpen,
+      setPrevRailIsOpen,
+      railIsOpen,
+    ]
   )
 
   // whether the chat pane is open
-  const [chatIsOpen, setChatIsOpen] = useScopeValue<boolean>('ui.chatOpen')
+  const [chatIsOpen, setChatIsOpen] = usePersistedState<boolean>(
+    'ui.chatOpen',
+    false
+  )
 
   // whether the review pane is open
-  const [reviewPanelOpen, setReviewPanelOpen] =
-    useScopeValue('ui.reviewPanelOpen')
+  const [reviewPanelOpen, setReviewPanelOpen] = usePersistedState<boolean>(
+    reviewPanelStorageKey,
+    false
+  )
 
   // whether the review pane is collapsed
   const [miniReviewPanelVisible, setMiniReviewPanelVisible] =
-    useScopeValue<boolean>('ui.miniReviewPanelVisible')
+    useState<boolean>(false)
 
   // whether the menu pane is open
-  const [leftMenuShown, setLeftMenuShown] =
-    useScopeValue<boolean>('ui.leftMenuShown')
+  const [leftMenuShown, setLeftMenuShown] = useState<boolean>(false)
+
+  // whether the project search is open
+  const [projectSearchIsOpen, setProjectSearchIsOpen] = useState(false)
+
+  useEventListener(
+    'ui.toggle-left-menu',
+    useCallback(
+      (event: CustomEvent<boolean>) => {
+        setLeftMenuShown(event.detail)
+      },
+      [setLeftMenuShown]
+    )
+  )
+
+  // TODO ide-redesign-cleanup: remove this listener as we have an equivalent in rail-context
+  useEventListener(
+    'ui.toggle-review-panel',
+    useCallback(() => {
+      setReviewPanelOpen(open => !open)
+    }, [setReviewPanelOpen])
+  )
+
+  // TODO ide-redesign-cleanup: remove this listener as we have an equivalent in rail-context
+  useEventListener(
+    'keydown',
+    useCallback((event: KeyboardEvent) => {
+      if (
+        (isMac ? event.metaKey : event.ctrlKey) &&
+        event.shiftKey &&
+        event.code === 'KeyF'
+      ) {
+        event.preventDefault()
+        sendSearchEvent('search-open', {
+          searchType: 'full-project',
+          method: 'keyboard',
+        })
+        setProjectSearchIsOpen(true)
+      }
+    }, [])
+  )
 
   // whether to display the editor and preview side-by-side or full-width ("flat")
-  const [pdfLayout, setPdfLayout] = useScopeValue<IdeLayout>('ui.pdfLayout')
+  const [pdfLayout, setPdfLayout] = useState<IdeLayout>('sideBySide')
 
   // whether stylesheet on theme is loading
-  const [loadingStyleSheet, setLoadingStyleSheet] = useScopeValue<boolean>(
-    'ui.loadingStyleSheet'
-  )
+  const [loadingStyleSheet, setLoadingStyleSheet] = useState(false)
 
   const changeLayout = useCallback(
     (newLayout: IdeLayout, newView: IdeView = 'editor') => {
@@ -174,13 +246,17 @@ export const LayoutProvider: FC = ({ children }) => {
       changeLayout,
       chatIsOpen,
       leftMenuShown,
+      openFile,
       pdfLayout,
       pdfPreviewOpen,
+      projectSearchIsOpen,
+      setProjectSearchIsOpen,
       reviewPanelOpen,
       miniReviewPanelVisible,
       loadingStyleSheet,
       setChatIsOpen,
       setLeftMenuShown,
+      setOpenFile,
       setPdfLayout,
       setReviewPanelOpen,
       setMiniReviewPanelVisible,
@@ -196,13 +272,17 @@ export const LayoutProvider: FC = ({ children }) => {
       changeLayout,
       chatIsOpen,
       leftMenuShown,
+      openFile,
       pdfLayout,
       pdfPreviewOpen,
+      projectSearchIsOpen,
+      setProjectSearchIsOpen,
       reviewPanelOpen,
       miniReviewPanelVisible,
       loadingStyleSheet,
       setChatIsOpen,
       setLeftMenuShown,
+      setOpenFile,
       setPdfLayout,
       setReviewPanelOpen,
       setMiniReviewPanelVisible,

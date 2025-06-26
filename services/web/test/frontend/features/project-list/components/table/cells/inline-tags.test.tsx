@@ -57,12 +57,15 @@ describe('<InlineTags />', function () {
     const removeButton = screen.getByRole('button', {
       name: 'Remove tag My Test Tag',
     })
-    await fireEvent.click(removeButton)
+    fireEvent.click(removeButton)
     await waitFor(() =>
       expect(
-        fetchMock.called(`/tag/789fff789fff/project/${copyableProject.id}`, {
-          method: 'DELETE',
-        })
+        fetchMock.callHistory.called(
+          `/tag/789fff789fff/project/${copyableProject.id}`,
+          {
+            method: 'DELETE',
+          }
+        )
       )
     )
     expect(screen.queryByText('My Test Tag')).to.not.exist

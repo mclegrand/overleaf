@@ -16,10 +16,6 @@
   background-color: var(--bg-light-secondary);
 }
 
-.affiliations-table-inline-action {
-  text-transform: capitalize;
-}
-
 .affiliation-change-container {
   margin-top: var(--spacing-04);
 }
@@ -98,6 +94,12 @@
 
   .description-container {
     flex-grow: 1;
+  }
+
+  .dual-logo {
+    display: flex;
+    justify-content: space-evenly;
+    height: 100%;
   }
 
   .title-row {
@@ -194,6 +196,52 @@
     &.status-label-ready {
       background-color: var(--bg-light-tertiary);
       color: var(--content-primary);
+    }
+  }
+}
+
+#settings-page-root {
+  .recaptcha-branding {
+    font-size: var(--font-size-01);
+    text-align: left;
+    padding: 0 0 var(--spacing-04);
+  }
+}
+
+#settings-page-root,
+#action-project-modal {
+  &#settings-page-root .confirm-email-form {
+    background: var(--bg-light-secondary);
+  }
+
+  .confirm-email-form-inner {
+    margin: auto;
+    padding: var(--spacing-08);
+    max-width: 480px;
+
+    label {
+      overflow-wrap: anywhere;
+    }
+
+    .text-danger {
+      display: flex;
+      gap: var(--spacing-03);
+      padding: var(--spacing-02);
+    }
+
+    .form-actions {
+      margin-top: var(--spacing-05);
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-05);
+
+      button {
+        white-space: normal;
+      }
+
+      .btn-danger-ghost:not(:hover) {
+        background: transparent;
+      }
     }
   }
 }

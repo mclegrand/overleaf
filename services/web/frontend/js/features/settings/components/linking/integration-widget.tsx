@@ -20,6 +20,7 @@ function trackLinkingClick(integration: string) {
 }
 
 type IntegrationLinkingWidgetProps = {
+  id: string
   logo: ReactNode
   title: string
   description: string
@@ -35,6 +36,7 @@ type IntegrationLinkingWidgetProps = {
 }
 
 export function IntegrationLinkingWidget({
+  id,
   logo,
   title,
   description,
@@ -65,19 +67,20 @@ export function IntegrationLinkingWidget({
       <div>{logo}</div>
       <div className="description-container">
         <div className="title-row">
-          <h4>{title}</h4>
+          <h4 id={id}>{title}</h4>
           {!hasFeature && <OLBadge bg="info">{t('premium_feature')}</OLBadge>}
         </div>
         <p className="small">
           {description}{' '}
           <a href={helpPath} target="_blank" rel="noreferrer">
-            {t('learn_more')}
+            {t('learn_more_about', { appName: title })}
           </a>
         </p>
         {hasFeature && statusIndicator}
       </div>
       <div>
         <ActionButton
+          titleId={id}
           integration={title}
           hasFeature={hasFeature}
           linked={linked}
@@ -105,6 +108,7 @@ type ActionButtonProps = {
   handleUnlinkClick: () => void
   linkPath: string
   disabled?: boolean
+  titleId: string
 }
 
 function ActionButton({
@@ -114,16 +118,20 @@ function ActionButton({
   linkPath,
   disabled,
   integration,
+  titleId,
 }: ActionButtonProps) {
   const { t } = useTranslation()
+  const linkTextId = `${titleId}-link`
+
   if (!hasFeature) {
     return (
       <OLButton
         variant="primary"
         href="/user/subscription/plans"
         onClick={() => trackUpgradeClick(integration)}
+        aria-labelledby={`${titleId} ${linkTextId}`}
       >
-        <span className="text-capitalize">{t('upgrade')}</span>
+        <span id={linkTextId}>{t('upgrade')}</span>
       </OLButton>
     )
   } else if (linked) {
@@ -140,14 +148,13 @@ function ActionButton({
     return (
       <>
         {disabled ? (
-          <OLButton disabled variant="secondary" className="text-capitalize">
+          <OLButton disabled variant="secondary">
             {t('link')}
           </OLButton>
         ) : (
           <OLButton
             variant="secondary"
             href={linkPath}
-            className="text-capitalize"
             onClick={() => trackLinkingClick(integration)}
           >
             {t('link')}

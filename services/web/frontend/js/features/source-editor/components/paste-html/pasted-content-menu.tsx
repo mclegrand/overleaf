@@ -8,15 +8,16 @@ import {
   useState,
 } from 'react'
 import Icon from '../../../../shared/components/icon'
-import { Overlay, Popover } from 'react-bootstrap'
 import { useTranslation } from 'react-i18next'
 import { EditorView } from '@codemirror/view'
 import { PastedContent } from '../../extensions/visual/pasted-content'
 import useEventListener from '../../../../shared/hooks/use-event-listener'
 import { FeedbackBadge } from '@/shared/components/feedback-badge'
 import { sendMB } from '@/infrastructure/event-tracking'
-
-const isMac = /Mac/.test(window.navigator?.platform)
+import MaterialIcon from '@/shared/components/material-icon'
+import OLOverlay from '@/features/ui/components/ol/ol-overlay'
+import OLPopover from '@/features/ui/components/ol/ol-popover'
+import { isMac } from '@/shared/utils/os'
 
 export const PastedContentMenu: FC<{
   insertPastedContent: (
@@ -34,9 +35,12 @@ export const PastedContentMenu: FC<{
 
   // record whether the Shift key is currently down, for use in the `paste` event handler
   const shiftRef = useRef(false)
-  useEventListener('keydown', (event: KeyboardEvent) => {
-    shiftRef.current = event.shiftKey
-  })
+  useEventListener(
+    'keydown',
+    useCallback((event: KeyboardEvent) => {
+      shiftRef.current = event.shiftKey
+    }, [])
+  )
 
   // track interaction events
   const trackedEventsRef = useRef<Record<string, boolean>>({
@@ -96,22 +100,22 @@ export const PastedContentMenu: FC<{
         onClick={() => setMenuOpen(isOpen => !isOpen)}
         style={{ userSelect: 'none' }}
       >
-        <Icon type="clipboard" fw />
-        <Icon type="caret-down" fw />
+        <MaterialIcon type="content_copy" />
+        <MaterialIcon type="expand_more" />
       </button>
 
       {menuOpen && (
-        <Overlay
+        <OLOverlay
           show
           onHide={() => setMenuOpen(false)}
-          animation={false}
+          transition={false}
           container={view.scrollDOM}
           containerPadding={0}
           placement="bottom"
           rootClose
-          target={toggleButtonRef.current ?? undefined}
+          target={toggleButtonRef?.current}
         >
-          <Popover
+          <OLPopover
             id="popover-pasted-content-menu"
             className="ol-cm-pasted-content-menu-popover"
           >
@@ -183,8 +187,8 @@ export const PastedContentMenu: FC<{
                 </span>
               </MenuItem>
             </div>
-          </Popover>
-        </Overlay>
+          </OLPopover>
+        </OLOverlay>
       )}
     </>
   )

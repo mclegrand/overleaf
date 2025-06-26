@@ -1,4 +1,3 @@
-import '../../../helpers/bootstrap-3'
 import CodeMirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import { mockScope } from '../helpers/mock-scope'
@@ -7,12 +6,15 @@ import { docId } from '../helpers/mock-doc'
 import { activeEditorLine } from '../helpers/active-editor-line'
 import { TestContainer } from '../helpers/test-container'
 import customLocalStorage from '@/infrastructure/local-storage'
+import { OnlineUsersContext } from '@/features/ide-react/context/online-users-context'
+import { FC } from 'react'
 
 describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
   beforeEach(function () {
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
     cy.interceptEvents()
-    cy.interceptSpelling()
+    cy.intercept('GET', '/project/*/changes/users', [])
+    cy.intercept('GET', '/project/*/threads', {})
   })
 
   it('deletes selected text on Backspace', function () {
@@ -191,29 +193,42 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
   it('renders cursor highlights', function () {
     const scope = mockScope()
 
-    scope.onlineUserCursorHighlights = {
-      [docId]: [
-        {
-          label: 'Test User',
-          cursor: { row: 10, column: 5 },
-          hue: 150,
-        },
-        {
-          label: 'Another User',
-          cursor: { row: 7, column: 2 },
-          hue: 50,
-        },
-        {
-          label: 'Starter User',
-          cursor: { row: 0, column: 0 },
-          hue: 0,
-        },
-      ],
+    const value = {
+      onlineUsers: {},
+      onlineUserCursorHighlights: {
+        [docId]: [
+          {
+            label: 'Test User',
+            cursor: { row: 10, column: 5 },
+            hue: 150,
+          },
+          {
+            label: 'Another User',
+            cursor: { row: 7, column: 2 },
+            hue: 50,
+          },
+          {
+            label: 'Starter User',
+            cursor: { row: 0, column: 0 },
+            hue: 0,
+          },
+        ],
+      },
+      onlineUsersArray: [],
+      onlineUsersCount: 3,
+    }
+
+    const OnlineUsersProvider: FC<React.PropsWithChildren> = ({ children }) => {
+      return (
+        <OnlineUsersContext.Provider value={value}>
+          {children}
+        </OnlineUsersContext.Provider>
+      )
     }
 
     cy.mount(
       <TestContainer>
-        <EditorProviders scope={scope}>
+        <EditorProviders scope={scope} providers={{ OnlineUsersProvider }}>
           <CodeMirrorEditor />
         </EditorProviders>
       </TestContainer>
@@ -506,6 +521,9 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
       cy.findByLabelText('Within selection').as('within-selection-label')
       cy.findByRole('button', { name: 'Replace' }).as('replace')
       cy.findByRole('button', { name: 'Replace All' }).as('replace-all')
+      cy.findByRole('button', { name: 'Search all project files' }).as(
+        'search-project'
+      )
       cy.findByRole('button', { name: 'previous' }).as('find-previous')
       cy.findByRole('button', { name: 'next' }).as('find-next')
       cy.findByRole('button', { name: 'Close' }).as('close')
@@ -519,6 +537,7 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
       cy.get('@within-selection').should('be.focused').tab()
       cy.get('@find-previous').should('be.focused').tab()
       cy.get('@find-next').should('be.focused').tab()
+      cy.get('@search-project').should('be.focused').tab()
       cy.get('@replace').should('be.focused').tab()
       cy.get('@replace-all').should('be.focused').tab()
 
@@ -526,6 +545,7 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
       cy.get('@close').should('be.focused').tab({ shift: true })
       cy.get('@replace-all').should('be.focused').tab({ shift: true })
       cy.get('@replace').should('be.focused').tab({ shift: true })
+      cy.get('@search-project').should('be.focused').tab({ shift: true })
       cy.get('@find-next').should('be.focused').tab({ shift: true })
       cy.get('@find-previous').should('be.focused').tab({ shift: true })
       cy.get('@within-selection').should('be.focused').tab({ shift: true })

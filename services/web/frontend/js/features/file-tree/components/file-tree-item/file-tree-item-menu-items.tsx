@@ -2,8 +2,12 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as eventTracking from '../../../../infrastructure/event-tracking'
 import { useProjectContext } from '@/shared/context/project-context'
+import {
+  DropdownDivider,
+  DropdownItem,
+} from '@/features/ui/components/bootstrap-5/dropdown-menu'
 import { useUserContext } from '../../../../shared/context/user-context'
-import { MenuItem } from 'react-bootstrap'
+// import { MenuItem } from 'react-bootstrap'
 import { useFileTreeActionable } from '../../contexts/file-tree-actionable'
 import { copyDirectory } from '../../../../shared/utils/storage-handler'
 
@@ -68,26 +72,48 @@ function FileTreeItemMenuItems() {
   return(
     <>
       {canRename ? (
-        <MenuItem onClick={startRenaming}>{t('rename')}</MenuItem>
+        <li role="none">
+          <DropdownItem onClick={startRenaming}>{t('rename')}</DropdownItem>
+        </li>
       ) : null}
       {downloadPath ? (
-        <MenuItem href={downloadPath} onClick={downloadWithAnalytics} download>
-          {t('download')}
-        </MenuItem>
+        <li role="none">
+          <DropdownItem
+            href={downloadPath}
+            onClick={downloadWithAnalytics}
+            download={selectedFileName ?? undefined}
+          >
+            {t('download')}
+          </DropdownItem>
+        </li>
       ) : null}
       {canDelete ? (
-        <MenuItem onClick={startDeleting}>{t('delete')}</MenuItem>
+        <li role="none">
+          <DropdownItem onClick={startDeleting}>{t('delete')}</DropdownItem>
+        </li>
       ) : null}
       {canCreate ? (
         <>
-          <MenuItem divider />
-          <MenuItem onClick={createWithAnalytics}>{t('new_file')}</MenuItem>
-          <MenuItem onClick={startCreatingFolder}>{t('new_folder')}</MenuItem>
-          <MenuItem onClick={uploadWithAnalytics}>{t('upload')}</MenuItem>
+          <DropdownDivider />
+          <li role="none">
+            <DropdownItem onClick={createWithAnalytics}>
+              {t('new_file')}
+            </DropdownItem>
+          </li>
+          <li role="none">
+            <DropdownItem onClick={startCreatingFolder}>
+              {t('new_folder')}
+            </DropdownItem>
+          </li>
+          <li role="none">
+            <DropdownItem onClick={uploadWithAnalytics}>
+              {t('upload')}
+            </DropdownItem>
+          </li>
         </>
       ) : null}
       {canDelete ? (
-        <MenuItem onClick={() => {
+        <DropdownItem onClick={() => {
             runAsync(
                postJSON('/git-add', {
                  body:{
@@ -96,11 +122,11 @@ function FileTreeItemMenuItems() {
                     filePath: selectedFilePath
                  }
               })
-               .catch( error => {
-                 alert(error.data.errorReason);
-               })
+           .catch( error => {
+               alert(error.data.errorReason);
+           })
             )
-      }}>Add</MenuItem>
+      }}>Add</DropdownItem>
       ) : null}
     </>
   )

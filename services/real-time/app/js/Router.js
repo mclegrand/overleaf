@@ -10,7 +10,9 @@ const base64id = require('base64id')
 const { UnexpectedArgumentsError } = require('./Errors')
 const Joi = require('joi')
 
-const HOSTNAME = require('os').hostname()
+const HOSTNAME = require('node:os').hostname()
+const SERVER_PING_INTERVAL = 15000
+const SERVER_PING_LATENCY_THRESHOLD = 5000
 
 const JOI_OBJECT_ID = Joi.string()
   .required()
@@ -111,6 +113,10 @@ module.exports = Router = {
       bodyParser.json({ limit: '5mb' }),
       HttpApiController.sendMessage
     )
+    app.get(
+      '/project/:projectId/count-connected-clients',
+      HttpApiController.countConnectedClients
+    )
 
     app.post('/drain', HttpApiController.startDrain)
     app.post(
@@ -127,7 +133,10 @@ module.exports = Router = {
 
       if (client) {
         client.on('error', function (err) {
-          logger.err({ clientErr: err }, 'socket.io client error')
+          logger.err(
+            { clientErr: err, publicId: client.publicId, clientId: client.id },
+            'socket.io client error'
+          )
           if (client.connected) {
             client.emit('reconnectGracefully')
             client.disconnect()
@@ -169,20 +178,33 @@ module.exports = Router = {
         }
         return
       }
-
+      const useServerPing =
+        !!client.handshake?.query?.esh &&
+        !!client.handshake?.query?.ssp &&
+        // No server ping with long-polling transports.
+        client.transport === 'websocket'
+      const isDebugging = !!client.handshake?.query?.debugging
       const projectId = client.handshake?.query?.projectId
-      try {
-        Joi.assert(projectId, JOI_OBJECT_ID)
-      } catch (error) {
-        metrics.inc('socket-io.connection', 1, {
-          status: client.transport,
-          method: projectId ? 'bad-project-id' : 'missing-project-id',
-        })
-        client.emit('connectionRejected', {
-          message: 'missing/bad ?projectId=... query flag on handshake',
-        })
-        client.disconnect()
-        return
+
+      if (isDebugging) {
+        client.connectedAt = Date.now()
+        client.isDebugging = true
+      }
+
+      if (!isDebugging) {
+        try {
+          Joi.assert(projectId, JOI_OBJECT_ID)
+        } catch (error) {
+          metrics.inc('socket-io.connection', 1, {
+            status: client.transport,
+            method: projectId ? 'bad-project-id' : 'missing-project-id',
+          })
+          client.emit('connectionRejected', {
+            message: 'missing/bad ?projectId=... query flag on handshake',
+          })
+          client.disconnect()
+          return
+        }
       }
 
       // The client.id is security sensitive. Generate a publicId for sending to other clients.
@@ -198,8 +220,6 @@ module.exports = Router = {
       })
       metrics.gauge('socket-io.clients', io.sockets.clients().length)
 
-      logger.debug({ session, clientId: client.id }, 'client connected')
-
       let user
       if (session && session.passport && session.passport.user) {
         ;({ user } = session.passport)
@@ -209,6 +229,106 @@ module.exports = Router = {
         const anonymousAccessToken = session?.anonTokenAccess?.[projectId]
         user = { _id: 'anonymous-user', anonymousAccessToken }
       }
+
+      const info = {
+        userId: user._id,
+        projectId,
+        transport: client.transport,
+        publicId: client.publicId,
+        clientId: client.id,
+        isDebugging,
+      }
+      if (isDebugging) {
+        logger.info(info, 'client connected')
+      } else {
+        logger.debug(info, 'client connected')
+      }
+
+      const connectionDetails = {
+        userId: user._id,
+        projectId,
+        remoteIp: client.remoteIp,
+        publicId: client.publicId,
+        clientId: client.id,
+      }
+
+      let pingTimestamp
+      let pingId = -1
+      let pongId = -1
+      const pingTimer = useServerPing
+        ? setInterval(function () {
+            if (pongId !== pingId) {
+              logger.warn(
+                {
+                  ...connectionDetails,
+                  pingId,
+                  pongId,
+                  lastPingTimestamp: pingTimestamp,
+                },
+                'no client response to last ping'
+              )
+            }
+            pingTimestamp = Date.now()
+            client.emit(
+              'serverPing',
+              ++pingId,
+              pingTimestamp,
+              client.transport,
+              client.id
+            )
+          }, SERVER_PING_INTERVAL)
+        : null
+      client.on(
+        'clientPong',
+        function (
+          receivedPingId,
+          sentTimestamp,
+          serverTransport,
+          serverSessionId,
+          clientTransport,
+          clientSessionId
+        ) {
+          pongId = receivedPingId
+          const receivedTimestamp = Date.now()
+          if (
+            receivedPingId !== pingId ||
+            (serverSessionId && serverSessionId !== clientSessionId)
+          ) {
+            logger.warn(
+              {
+                ...connectionDetails,
+                receivedPingId,
+                pingId,
+                sentTimestamp,
+                receivedTimestamp,
+                latency: receivedTimestamp - sentTimestamp,
+                lastPingTimestamp: pingTimestamp,
+                serverTransport,
+                serverSessionId,
+                clientTransport,
+                clientSessionId,
+              },
+              'received pong with wrong counter'
+            )
+          } else if (
+            receivedTimestamp - sentTimestamp >
+            SERVER_PING_LATENCY_THRESHOLD
+          ) {
+            logger.warn(
+              {
+                ...connectionDetails,
+                receivedPingId,
+                pingId,
+                sentTimestamp,
+                receivedTimestamp,
+                latency: receivedTimestamp - sentTimestamp,
+                lastPingTimestamp: pingTimestamp,
+              },
+              'received pong with high latency'
+            )
+          }
+        }
+      )
 
       if (settings.exposeHostname) {
         client.on('debug.getHostname', function (callback) {
@@ -222,7 +342,33 @@ module.exports = Router = {
           callback(HOSTNAME)
         })
       }
+      client.on('debug', (data, callback) => {
+        if (typeof callback !== 'function') {
+          return Router._handleInvalidArguments(client, 'debug', arguments)
+        }
 
+        logger.info(
+          { publicId: client.publicId, clientId: client.id },
+          'received debug message'
+        )
+
+        const response = {
+          serverTime: Date.now(),
+          data,
+          client: {
+            publicId: client.publicId,
+            remoteIp: client.remoteIp,
+            userAgent: client.userAgent,
+            connected: !client.disconnected,
+            connectedAt: client.connectedAt,
+          },
+          server: {
+            hostname: settings.exposeHostname ? HOSTNAME : undefined,
+          },
+        }
+
+        callback(response)
+      })
       const joinProject = function (callback) {
         WebsocketController.joinProject(
           client,
@@ -244,6 +390,17 @@ module.exports = Router = {
       client.on('disconnect', function () {
         metrics.inc('socket-io.disconnect', 1, { status: client.transport })
         metrics.gauge('socket-io.clients', io.sockets.clients().length)
+
+        if (client.isDebugging) {
+          const duration = Date.now() - client.connectedAt
+          metrics.timing('socket-io.debugging.duration', duration)
+          logger.info(
+            { duration, publicId: client.publicId, clientId: client.id },
+            'debug client disconnected'
+          )
+        } else {
+          clearInterval(pingTimer)
+        }
 
         WebsocketController.leaveProject(io, client, function (err) {
           if (err) {
@@ -426,7 +583,6 @@ module.exports = Router = {
             if (err) {
               Router._handleError(callback, err, client, 'applyOtUpdate', {
                 doc_id: docId,
-                update,
               })
             } else {
               callback()
@@ -435,19 +591,21 @@ module.exports = Router = {
         )
       })
 
-      joinProject((err, project, permissionsLevel, protocolVersion) => {
-        if (err) {
-          client.emit('connectionRejected', err)
-          client.disconnect()
-          return
-        }
-        client.emit('joinProjectResponse', {
-          publicId: client.publicId,
-          project,
-          permissionsLevel,
-          protocolVersion,
+      if (!isDebugging) {
+        joinProject((err, project, permissionsLevel, protocolVersion) => {
+          if (err) {
+            client.emit('connectionRejected', err)
+            client.disconnect()
+            return
+          }
+          client.emit('joinProjectResponse', {
+            publicId: client.publicId,
+            project,
+            permissionsLevel,
+            protocolVersion,
+          })
         })
-      })
+      }
     })
   },
 }

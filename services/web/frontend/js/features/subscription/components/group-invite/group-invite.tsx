@@ -7,6 +7,9 @@ import ManagedUserCannotJoin from './managed-user-cannot-join'
 import Notification from '@/shared/components/notification'
 import JoinGroup from './join-group'
 import AcceptedInvite from './accepted-invite'
+import OLRow from '@/features/ui/components/ol/ol-row'
+import OLCol from '@/features/ui/components/ol/ol-col'
+import OLPageContentCard from '@/features/ui/components/ol/ol-page-content-card'
 
 export type InviteViewTypes =
   | 'invite'
@@ -16,20 +19,20 @@ export type InviteViewTypes =
   | undefined
 
 function GroupInviteViews() {
-  const hasIndividualRecurlySubscription = getMeta(
-    'ol-hasIndividualRecurlySubscription'
+  const hasIndividualPaidSubscription = getMeta(
+    'ol-hasIndividualPaidSubscription'
   )
   const cannotJoinSubscription = getMeta('ol-cannot-join-subscription')
 
   useEffect(() => {
     if (cannotJoinSubscription) {
       setView('managed-user-cannot-join')
-    } else if (hasIndividualRecurlySubscription) {
+    } else if (hasIndividualPaidSubscription) {
       setView('cancel-personal-subscription')
     } else {
       setView('invite')
     }
-  }, [cannotJoinSubscription, hasIndividualRecurlySubscription])
+  }, [cannotJoinSubscription, hasIndividualPaidSubscription])
   const [view, setView] = useState<InviteViewTypes>(undefined)
 
   if (!view) {
@@ -62,16 +65,16 @@ export default function GroupInvite() {
   return (
     <div className="container" id="main-content">
       {expired && (
-        <div className="row">
-          <div className="col-md-8 col-md-offset-2">
+        <OLRow>
+          <OLCol lg={{ span: 8, offset: 2 }}>
             <Notification type="error" content={t('email_link_expired')} />
-          </div>
-        </div>
+          </OLCol>
+        </OLRow>
       )}
 
-      <div className="row row-spaced">
-        <div className="col-md-8 col-md-offset-2">
-          <div className="card">
+      <OLRow className="row row-spaced">
+        <OLCol lg={{ span: 8, offset: 2 }}>
+          <OLPageContentCard>
             <div className="page-header">
               <h1 className="text-center">
                 <Trans
@@ -87,9 +90,9 @@ export default function GroupInvite() {
               </h1>
             </div>
             <GroupInviteViews />
-          </div>
-        </div>
-      </div>
+          </OLPageContentCard>
+        </OLCol>
+      </OLRow>
     </div>
   )
 }

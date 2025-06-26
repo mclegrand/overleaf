@@ -1,3 +1,5 @@
+// to be kept in sync with app/views/_mixins/notification.pug
+
 import classNames from 'classnames'
 import React, { ReactElement, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +18,7 @@ export type NotificationProps = {
   className?: string
   content: React.ReactNode
   customIcon?: React.ReactElement | null
+  iconPlacement?: 'top' | 'center'
   disclaimer?: React.ReactElement | string
   isDismissible?: boolean
   isActionBelowContent?: boolean
@@ -25,12 +28,14 @@ export type NotificationProps = {
   id?: string
 }
 
-function NotificationIcon({
+export function NotificationIcon({
   notificationType,
   customIcon,
+  iconPlacement,
 }: {
   notificationType: NotificationType
   customIcon?: ReactElement
+  iconPlacement?: 'top' | 'center'
 }) {
   let icon = <MaterialIcon type="info" />
 
@@ -45,7 +50,16 @@ function NotificationIcon({
   } else if (notificationType === 'offer') {
     icon = <MaterialIcon type="campaign" />
   }
-  return <div className="notification-icon">{icon}</div>
+  return (
+    <div
+      className={classNames(
+        'notification-icon',
+        iconPlacement ? `notification-icon-${iconPlacement}` : ''
+      )}
+    >
+      {icon}
+    </div>
+  )
 }
 
 function Notification({
@@ -54,6 +68,7 @@ function Notification({
   className = '',
   content,
   customIcon,
+  iconPlacement = 'top',
   disclaimer,
   isActionBelowContent,
   isDismissible,
@@ -92,7 +107,11 @@ function Notification({
       id={id}
     >
       {customIcon !== null && (
-        <NotificationIcon notificationType={type} customIcon={customIcon} />
+        <NotificationIcon
+          notificationType={type}
+          customIcon={customIcon}
+          iconPlacement={iconPlacement}
+        />
       )}
 
       <div className="notification-content-and-cta">

@@ -1,5 +1,6 @@
 {
   "databaseUrl": "HISTORY_CONNECTION_STRING",
+  "databaseUrlReadOnly": "HISTORY_FOLLOWER_CONNECTION_STRING",
   "herokuDatabaseUrl": "DATABASE_URL",
   "databasePoolMin": "DATABASE_POOL_MIN",
   "databasePoolMax": "DATABASE_POOL_MAX",
@@ -44,5 +45,17 @@
   "clusterWorkers": "CLUSTER_WORKERS",
   "maxFileUploadSize": "MAX_FILE_UPLOAD_SIZE",
   "httpsOnly": "HTTPS_ONLY",
-  "httpRequestTimeout": "OVERLEAF_HISTORY_V1_HTTP_REQUEST_TIMEOUT"
+  "httpRequestTimeout": "OVERLEAF_HISTORY_V1_HTTP_REQUEST_TIMEOUT",
+  "redis": {
+    "history": {
+      "host": "OVERLEAF_REDIS_HOST",
+      "password": "OVERLEAF_REDIS_PASS",
+      "port": "OVERLEAF_REDIS_PORT"
+    },
+    "lock": {
+      "host": "OVERLEAF_REDIS_HOST",
+      "password": "OVERLEAF_REDIS_PASS",
+      "port": "OVERLEAF_REDIS_PORT"
+    }
+  }
 }

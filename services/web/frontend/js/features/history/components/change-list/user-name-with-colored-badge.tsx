@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next'
-import { formatUserName, getUserColor } from '../../utils/history-details'
+import { formatUserName } from '../../utils/history-details'
 import { User } from '../../services/types/shared'
 import { Nullable } from '../../../../../../types/utils'
+import { getBackgroundColorForUserId } from '@/shared/utils/colors'
 
 type UserNameWithColoredBadgeProps = {
   currentUserId: string
@@ -13,6 +14,7 @@ function UserNameWithColoredBadge({
   currentUserId,
 }: UserNameWithColoredBadgeProps) {
   const { t } = useTranslation()
+  let allowBrowserTranslate = true
 
   let userName: string
   if (!user) {
@@ -21,17 +23,24 @@ function UserNameWithColoredBadge({
     userName = t('you')
   } else if ('displayName' in user) {
     userName = user.displayName
+    allowBrowserTranslate = false
   } else {
     userName = formatUserName(user)
+    allowBrowserTranslate = false
   }
 
   return (
     <>
       <span
         className="history-version-user-badge-color"
-        style={{ backgroundColor: getUserColor(user) }}
+        style={{ backgroundColor: getBackgroundColorForUserId(user?.id) }}
       />
-      <span className="history-version-user-badge-text">{userName}</span>
+      <span
+        className="history-version-user-badge-text"
+        translate={allowBrowserTranslate ? 'yes' : 'no'}
+      >
+        {userName}
+      </span>
     </>
   )
 }

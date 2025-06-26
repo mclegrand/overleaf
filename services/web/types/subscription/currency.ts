@@ -20,4 +20,4 @@ export const currencies = <const>{
 
 type Currency = typeof currencies
 export type CurrencyCode = keyof Currency
-export type CurrencySymbol = Currency[CurrencyCode]
+export type StripeCurrencyCode = Lowercase<CurrencyCode>

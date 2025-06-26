@@ -1,6 +1,7 @@
 import { generateSHA1Hash } from '../../shared/utils/sha1'
 import { debugging, debugConsole } from '@/utils/debugging'
 import getMeta from '@/utils/meta'
+import { postJSON } from '@/infrastructure/fetch-json'
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
@@ -679,6 +680,7 @@ export const { Doc } = (() => {
   // Text document API for text
 
   text.api = {
+    otType: "sharejs-text-ot",
     provides: { text: true },
 
     // The number of characters in the string
@@ -958,7 +960,7 @@ export const { Doc } = (() => {
         // Its important that these event handlers are called with oldSnapshot.
         // The reason is that the OT type APIs might need to access the snapshots to
         // determine information about the received op.
-        this.emit('change', docOp, oldSnapshot, msg);
+        this.emit('change', docOp, oldSnapshot, msg, isRemote);
         if (isRemote) {
           return this.emit('remoteop', docOp, oldSnapshot, msg);
         }
@@ -1083,11 +1085,35 @@ export const { Doc } = (() => {
           }
           return this._closeCallback = null;
         } else if (msg.op === null && error === 'Op already submitted') {
+          // Overleaf: note that this branch is never reached, as `error` is always undefined
+
           // We've tried to resend an op to the server, which has already been received successfully. Do nothing.
           // The op will be confirmed normally when we get the op itself was echoed back from the server
           // (handled below).
 
         } else if (msg.op === undefined && msg.v !== undefined || msg.op && Array.from(this.inflightSubmittedIds).includes(msg.meta.source)) {
+          // Overleaf: avoid clearing inflightOp on repeated acknowledgement of operations on the same version
+          if (!msg.error) {
+            if (msg.op === undefined && msg.v !== undefined) {
+              if (msg.v < this.version) {
+                debugConsole.warn('Received an ack for an op with an outdated version.')
+                return
+              }
+            } else {
+              if (msg.v < this.version) {
+                postJSON('/error/client', {
+                  body: {
+                    error: {
+                      message: 'out-of-order-self-op-ignored'
+                    },
+                    meta: { msg: { v: msg.v }, version: this.version }
+                  }
+                })
+                // return // TODO: enable this?
+              }
+            }
+          }
+
           // Our inflight op has been acknowledged.
           var callback = void 0;
           var oldInflightOp = this.inflightOp;
@@ -1290,7 +1316,8 @@ export const { Doc } = (() => {
           var needToRecomputeHash = !this.__lastSubmitTimestamp || (age > RECOMPUTE_HASH_INTERVAL) || (age < 0)
           if (needToRecomputeHash || debugging) {
             // send git hash of current snapshot
-            var sha1 = generateSHA1Hash("blob " + this.snapshot.length + "\x00" + this.snapshot)
+            const str = this.getText()
+            var sha1 = generateSHA1Hash("blob " + str.length + "\x00" + str)
             this.__lastSubmitTimestamp = now;
           }
         }

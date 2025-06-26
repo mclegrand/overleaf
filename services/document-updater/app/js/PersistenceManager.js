@@ -1,4 +1,4 @@
-const { promisify } = require('util')
+const { promisify } = require('node:util')
 const { promisifyMultiResult } = require('@overleaf/promise-utils')
 const Settings = require('@overleaf/settings')
 const Errors = require('./Errors')
@@ -95,6 +95,13 @@ function getDoc(projectId, docId, options = {}, _callback) {
           status: body.pathname === '' ? 'zero-length' : 'undefined',
         })
       }
+
+      if (body.otMigrationStage > 0) {
+        // Use history-ot
+        body.lines = { content: body.lines.join('\n') }
+        body.ranges = {}
+      }
+
       callback(
         null,
         body.lines,

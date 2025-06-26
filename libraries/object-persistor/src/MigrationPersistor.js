@@ -1,7 +1,8 @@
 const AbstractPersistor = require('./AbstractPersistor')
 const Logger = require('@overleaf/logger')
-const Stream = require('stream')
-const { pipeline } = require('stream/promises')
+const Metrics = require('@overleaf/metrics')
+const Stream = require('node:stream')
+const { pipeline } = require('node:stream/promises')
 const { NotFoundError, WriteError } = require('./Errors')
 
 // Persistor that wraps two other persistors. Talks to the 'primary' by default,
@@ -194,9 +195,7 @@ module.exports = class MigrationPersistor extends AbstractPersistor {
         },
         err
       )
-      if (this.settings.Metrics) {
-        this.settings.Metrics.inc('fallback.copy.failure')
-      }
+      Metrics.inc('fallback.copy.failure')
 
       try {
         await this.primaryPersistor.deleteObject(destBucket, destKey)

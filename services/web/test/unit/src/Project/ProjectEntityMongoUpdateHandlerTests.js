@@ -2,9 +2,8 @@ const { expect } = require('chai')
 const sinon = require('sinon')
 const tk = require('timekeeper')
 const Errors = require('../../../../app/src/Features/Errors/Errors')
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 const SandboxedModule = require('sandboxed-module')
-const { DeletedFile } = require('../helpers/models/DeletedFile')
 const { Project } = require('../helpers/models/Project')
 
 const MODULE_PATH =
@@ -12,6 +11,7 @@ const MODULE_PATH =
 
 describe('ProjectEntityMongoUpdateHandler', function () {
   beforeEach(function () {
+    tk.freeze(new Date())
     this.doc = {
       _id: new ObjectId(),
       name: 'test-doc.txt',
@@ -76,7 +76,6 @@ describe('ProjectEntityMongoUpdateHandler', function () {
     }
 
     this.FolderModel = sinon.stub()
-    this.DeletedFileMock = sinon.mock(DeletedFile)
     this.ProjectMock = sinon.mock(Project)
     this.ProjectEntityHandler = {
       getAllEntitiesFromProject: sinon.stub(),
@@ -191,12 +190,11 @@ describe('ProjectEntityMongoUpdateHandler', function () {
 
     this.subject = SandboxedModule.require(MODULE_PATH, {
       requires: {
-        mongodb: { ObjectId },
+        'mongodb-legacy': { ObjectId },
         '@overleaf/settings': this.Settings,
         '../Cooldown/CooldownManager': this.CooldownManager,
         '../../models/Folder': { Folder: this.FolderModel },
         '../../infrastructure/LockManager': this.LockManager,
-        '../../models/DeletedFile': { DeletedFile },
         '../../models/Project': { Project },
         './ProjectEntityHandler': this.ProjectEntityHandler,
         './ProjectLocator': this.ProjectLocator,
@@ -207,21 +205,14 @@ describe('ProjectEntityMongoUpdateHandler', function () {
   })
 
   afterEach(function () {
-    this.DeletedFileMock.restore()
     this.ProjectMock.restore()
-  })
-
-  beforeEach(function () {
-    tk.freeze(Date.now())
-  })
-
-  afterEach(function () {
     tk.reset()
   })
 
   describe('addDoc', function () {
     beforeEach(async function () {
       const doc = { _id: new ObjectId(), name: 'other.txt' }
+      const userId = new ObjectId().toString()
       this.ProjectMock.expects('findOneAndUpdate')
         .withArgs(
           {
@@ -231,6 +222,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
           {
             $push: { 'rootFolder.0.folders.0.docs': doc },
             $inc: { version: 1 },
+            $set: { lastUpdated: new Date(), lastUpdatedBy: userId },
           }
         )
         .chain('exec')
@@ -238,7 +230,8 @@ describe('ProjectEntityMongoUpdateHandler', function () {
       this.result = await this.subject.promises.addDoc(
         this.project._id,
         this.folder._id,
-        doc
+        doc,
+        userId
       )
     })
 
@@ -260,7 +253,9 @@ describe('ProjectEntityMongoUpdateHandler', function () {
   })
 
   describe('addFile', function () {
+    let userId
     beforeEach(function () {
+      userId = new ObjectId().toString()
       this.newFile = { _id: new ObjectId(), name: 'picture.jpg' }
       this.ProjectMock.expects('findOneAndUpdate')
         .withArgs(
@@ -271,6 +266,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
           {
             $push: { 'rootFolder.0.folders.0.fileRefs': this.newFile },
             $inc: { version: 1 },
+            $set: { lastUpdated: new Date(), lastUpdatedBy: userId },
           }
         )
         .chain('exec')
@@ -282,7 +278,8 @@ describe('ProjectEntityMongoUpdateHandler', function () {
         this.result = await this.subject.promises.addFile(
           this.project._id,
           this.folder._id,
-          this.newFile
+          this.newFile,
+          userId
         )
       })
 
@@ -318,7 +315,8 @@ describe('ProjectEntityMongoUpdateHandler', function () {
           this.subject.promises.addFile(
             this.project._id,
             this.folder._id,
-            this.newFile
+            this.newFile,
+            userId
           )
         ).to.be.rejected
       })
@@ -327,6 +325,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
 
   describe('addFolder', function () {
     beforeEach(async function () {
+      const userId = new ObjectId().toString()
       const folderName = 'New folder'
       this.FolderModel.withArgs({ name: folderName }).returns({
         _id: new ObjectId(),
@@ -345,6 +344,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
               }),
             },
             $inc: { version: 1 },
+            $set: { lastUpdated: new Date(), lastUpdatedBy: userId },
           }
         )
         .chain('exec')
@@ -352,7 +352,8 @@ describe('ProjectEntityMongoUpdateHandler', function () {
       await this.subject.promises.addFolder(
         this.project._id,
         this.folder._id,
-        folderName
+        folderName,
+        userId
       )
     })
 
@@ -369,17 +370,6 @@ describe('ProjectEntityMongoUpdateHandler', function () {
         linkedFileData: { some: 'data' },
         hash: 'some-hash',
       }
-      // Add a deleted file record
-      this.DeletedFileMock.expects('create')
-        .withArgs({
-          projectId: this.project._id,
-          _id: this.file._id,
-          name: this.file.name,
-          linkedFileData: this.file.linkedFileData,
-          hash: this.file.hash,
-          deletedAt: sinon.match.date,
-        })
-        .resolves()
       // Update the file in place
       this.ProjectMock.expects('findOneAndUpdate')
         .withArgs(
@@ -393,6 +383,8 @@ describe('ProjectEntityMongoUpdateHandler', function () {
               'rootFolder.0.fileRefs.0.created': sinon.match.date,
               'rootFolder.0.fileRefs.0.linkedFileData': newFile.linkedFileData,
               'rootFolder.0.fileRefs.0.hash': newFile.hash,
+              lastUpdated: new Date(),
+              lastUpdatedBy: 'userId',
             },
             $inc: {
               version: 1,
@@ -408,12 +400,12 @@ describe('ProjectEntityMongoUpdateHandler', function () {
       await this.subject.promises.replaceFileWithNew(
         this.project._id,
         this.file._id,
-        newFile
+        newFile,
+        'userId'
       )
     })
 
     it('updates the database', function () {
-      this.DeletedFileMock.verify()
       this.ProjectMock.verify()
     })
   })
@@ -460,6 +452,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
 
     describe('when the path is a new folder at the top level', function () {
       beforeEach(async function () {
+        const userId = new ObjectId().toString()
         this.newFolder = { _id: new ObjectId(), name: 'new-folder' }
         this.FolderModel.returns(this.newFolder)
         this.exactCaseMatch = false
@@ -469,6 +462,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
             {
               $push: { 'rootFolder.0.folders': this.newFolder },
               $inc: { version: 1 },
+              $set: { lastUpdated: new Date(), lastUpdatedBy: userId },
             }
           )
           .chain('exec')
@@ -476,6 +470,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
         this.result = await this.subject.promises.mkdirp(
           this.project._id,
           '/new-folder/',
+          userId,
           { exactCaseMatch: this.exactCaseMatch }
         )
       })
@@ -504,6 +499,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
 
     describe('adding a subfolder', function () {
       beforeEach(async function () {
+        const userId = new ObjectId().toString()
         this.newFolder = { _id: new ObjectId(), name: 'new-folder' }
         this.FolderModel.returns(this.newFolder)
         this.ProjectMock.expects('findOneAndUpdate')
@@ -519,13 +515,15 @@ describe('ProjectEntityMongoUpdateHandler', function () {
                 }),
               },
               $inc: { version: 1 },
+              $set: { lastUpdated: new Date(), lastUpdatedBy: userId },
             }
           )
           .chain('exec')
           .resolves(this.project)
         this.result = await this.subject.promises.mkdirp(
           this.project._id,
-          '/test-folder/new-folder'
+          '/test-folder/new-folder',
+          userId
         )
       })
 
@@ -547,7 +545,9 @@ describe('ProjectEntityMongoUpdateHandler', function () {
     })
 
     describe('when mutliple folders are missing', async function () {
+      let userId
       beforeEach(function () {
+        userId = new ObjectId().toString()
         this.folder1 = { _id: new ObjectId(), name: 'folder1' }
         this.folder1Path = {
           fileSystem: '/test-folder/folder1',
@@ -593,6 +593,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
                 }),
               },
               $inc: { version: 1 },
+              $set: { lastUpdated: new Date(), lastUpdatedBy: userId },
             }
           )
           .chain('exec')
@@ -610,6 +611,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
                 }),
               },
               $inc: { version: 1 },
+              $set: { lastUpdated: new Date(), lastUpdatedBy: userId },
             }
           )
           .chain('exec')
@@ -629,7 +631,8 @@ describe('ProjectEntityMongoUpdateHandler', function () {
           beforeEach(async function () {
             this.result = await this.subject.promises.mkdirp(
               this.project._id,
-              path
+              path,
+              userId
             )
           })
 
@@ -661,6 +664,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
   describe('moveEntity', function () {
     describe('moving a doc into a different folder', function () {
       beforeEach(async function () {
+        const userId = new ObjectId().toString()
         this.pathAfterMove = {
           fileSystem: '/somewhere/else.txt',
         }
@@ -685,6 +689,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
             {
               $push: { 'rootFolder.0.folders.0.docs': this.doc },
               $inc: { version: 1 },
+              $set: { lastUpdated: new Date(), lastUpdatedBy: userId },
             }
           )
           .chain('exec')
@@ -695,6 +700,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
             {
               $pull: { 'rootFolder.0.docs': { _id: this.doc._id } },
               $inc: { version: 1 },
+              $set: { lastUpdated: new Date(), lastUpdatedBy: userId },
             }
           )
           .chain('exec')
@@ -703,7 +709,8 @@ describe('ProjectEntityMongoUpdateHandler', function () {
           this.project._id,
           this.doc._id,
           this.folder._id,
-          'doc'
+          'doc',
+          userId
         )
       })
 
@@ -770,12 +777,14 @@ describe('ProjectEntityMongoUpdateHandler', function () {
 
   describe('deleteEntity', function () {
     beforeEach(async function () {
+      const userId = new ObjectId().toString()
       this.ProjectMock.expects('findOneAndUpdate')
         .withArgs(
           { _id: this.project._id },
           {
             $pull: { 'rootFolder.0.docs': { _id: this.doc._id } },
             $inc: { version: 1 },
+            $set: { lastUpdated: new Date(), lastUpdatedBy: userId },
           }
         )
         .chain('exec')
@@ -783,7 +792,8 @@ describe('ProjectEntityMongoUpdateHandler', function () {
       await this.subject.promises.deleteEntity(
         this.project._id,
         this.doc._id,
-        'doc'
+        'doc',
+        userId
       )
     })
 
@@ -795,6 +805,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
   describe('renameEntity', function () {
     describe('happy path', function () {
       beforeEach(async function () {
+        const userId = new ObjectId().toString()
         this.newName = 'new.tex'
         this.oldDocs = ['old-doc']
         this.oldFiles = ['old-file']
@@ -812,7 +823,11 @@ describe('ProjectEntityMongoUpdateHandler', function () {
           .withArgs(
             { _id: this.project._id, 'rootFolder.0.docs.0': { $exists: true } },
             {
-              $set: { 'rootFolder.0.docs.0.name': this.newName },
+              $set: {
+                'rootFolder.0.docs.0.name': this.newName,
+                lastUpdated: new Date(),
+                lastUpdatedBy: userId,
+              },
               $inc: { version: 1 },
             }
           )
@@ -822,7 +837,8 @@ describe('ProjectEntityMongoUpdateHandler', function () {
           this.project._id,
           this.doc._id,
           'doc',
-          this.newName
+          this.newName,
+          userId
         )
       })
 
@@ -864,7 +880,9 @@ describe('ProjectEntityMongoUpdateHandler', function () {
   describe('_putElement', function () {
     describe('updating the project', function () {
       describe('when the parent folder is given', function () {
+        let userId
         beforeEach(function () {
+          userId = new ObjectId().toString()
           this.newFile = { _id: new ObjectId(), name: 'new file.png' }
           this.ProjectMock.expects('findOneAndUpdate')
             .withArgs(
@@ -875,6 +893,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
               {
                 $push: { 'rootFolder.0.folders.0.fileRefs': this.newFile },
                 $inc: { version: 1 },
+                $set: { lastUpdated: new Date(), lastUpdatedBy: userId },
               }
             )
             .chain('exec')
@@ -886,7 +905,8 @@ describe('ProjectEntityMongoUpdateHandler', function () {
             this.project,
             this.folder._id,
             this.newFile,
-            'files'
+            'files',
+            userId
           )
           this.ProjectMock.verify()
         })
@@ -896,7 +916,8 @@ describe('ProjectEntityMongoUpdateHandler', function () {
             this.project,
             this.folder._id,
             this.newFile,
-            'file'
+            'file',
+            userId
           )
           this.ProjectMock.verify()
         })
@@ -998,6 +1019,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
 
     describe('when the parent folder is not given', function () {
       it('should default to root folder insert', async function () {
+        const userId = new ObjectId().toString()
         this.newFile = { _id: new ObjectId(), name: 'new file.png' }
         this.ProjectMock.expects('findOneAndUpdate')
           .withArgs(
@@ -1005,6 +1027,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
             {
               $push: { 'rootFolder.0.fileRefs': this.newFile },
               $inc: { version: 1 },
+              $set: { lastUpdated: new Date(), lastUpdatedBy: userId },
             }
           )
           .chain('exec')
@@ -1013,32 +1036,10 @@ describe('ProjectEntityMongoUpdateHandler', function () {
           this.project,
           this.rootFolder._id,
           this.newFile,
-          'file'
+          'file',
+          userId
         )
       })
-    })
-  })
-
-  describe('_insertDeletedFileReference', function () {
-    beforeEach(async function () {
-      this.DeletedFileMock.expects('create')
-        .withArgs({
-          projectId: this.project._id,
-          _id: this.file._id,
-          name: this.file.name,
-          linkedFileData: this.file.linkedFileData,
-          hash: this.file.hash,
-          deletedAt: sinon.match.date,
-        })
-        .resolves()
-      await this.subject.promises._insertDeletedFileReference(
-        this.project._id,
-        this.file
-      )
-    })
-
-    it('should update the database', function () {
-      this.DeletedFileMock.verify()
     })
   })
 
@@ -1098,6 +1099,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
 
   describe('replaceDocWithFile', function () {
     it('should simultaneously remove the doc and add the file', async function () {
+      const userId = new ObjectId().toString()
       this.ProjectMock.expects('findOneAndUpdate')
         .withArgs(
           { _id: this.project._id, 'rootFolder.0': { $exists: true } },
@@ -1105,6 +1107,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
             $pull: { 'rootFolder.0.docs': { _id: this.doc._id } },
             $push: { 'rootFolder.0.fileRefs': this.file },
             $inc: { version: 1 },
+            $set: { lastUpdated: new Date(), lastUpdatedBy: userId },
           },
           { new: true }
         )
@@ -1113,7 +1116,8 @@ describe('ProjectEntityMongoUpdateHandler', function () {
       await this.subject.promises.replaceDocWithFile(
         this.project._id,
         this.doc._id,
-        this.file
+        this.file,
+        userId
       )
       this.ProjectMock.verify()
     })
@@ -1121,6 +1125,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
 
   describe('replaceFileWithDoc', function () {
     it('should simultaneously remove the file and add the doc', async function () {
+      const userId = new ObjectId().toString()
       this.ProjectMock.expects('findOneAndUpdate')
         .withArgs(
           { _id: this.project._id, 'rootFolder.0': { $exists: true } },
@@ -1128,6 +1133,7 @@ describe('ProjectEntityMongoUpdateHandler', function () {
             $pull: { 'rootFolder.0.fileRefs': { _id: this.file._id } },
             $push: { 'rootFolder.0.docs': this.doc },
             $inc: { version: 1 },
+            $set: { lastUpdated: new Date(), lastUpdatedBy: userId },
           },
           { new: true }
         )
@@ -1136,7 +1142,8 @@ describe('ProjectEntityMongoUpdateHandler', function () {
       await this.subject.promises.replaceFileWithDoc(
         this.project._id,
         this.file._id,
-        this.doc
+        this.doc,
+        userId
       )
       this.ProjectMock.verify()
     })

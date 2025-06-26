@@ -3,23 +3,17 @@ import { expect } from 'chai'
 import fetchMock from 'fetch-mock'
 import sinon from 'sinon'
 import ModalContentNewProjectForm from '../../../../../../frontend/js/features/project-list/components/new-project-button/modal-content-new-project-form'
-import * as useLocationModule from '../../../../../../frontend/js/shared/hooks/use-location'
+import { location } from '@/shared/components/location'
 
 describe('<ModalContentNewProjectForm />', function () {
-  let assignStub: sinon.SinonStub
-
   beforeEach(function () {
-    assignStub = sinon.stub()
-    this.locationStub = sinon.stub(useLocationModule, 'useLocation').returns({
-      assign: assignStub,
-      replace: sinon.stub(),
-      reload: sinon.stub(),
-    })
+    this.locationWrapperSandbox = sinon.createSandbox()
+    this.locationWrapperStub = this.locationWrapperSandbox.stub(location)
   })
 
   afterEach(function () {
-    this.locationStub.restore()
-    fetchMock.reset()
+    this.locationWrapperSandbox.restore()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   it('submits form', async function () {
@@ -48,12 +42,13 @@ describe('<ModalContentNewProjectForm />', function () {
 
     fireEvent.click(createButton)
 
-    expect(newProjectMock.called()).to.be.true
+    expect(newProjectMock.callHistory.called()).to.be.true
 
+    const assignStub = this.locationWrapperStub.assign
     await waitFor(() => {
       sinon.assert.calledOnce(assignStub)
-      sinon.assert.calledWith(assignStub, `/project/${projectId}`)
     })
+    sinon.assert.calledWith(assignStub, `/project/${projectId}`)
   })
 
   it('shows error when project name contains "/"', async function () {
@@ -75,7 +70,7 @@ describe('<ModalContentNewProjectForm />', function () {
     })
     fireEvent.click(createButton)
 
-    expect(newProjectMock.called()).to.be.true
+    expect(newProjectMock.callHistory.called()).to.be.true
 
     await waitFor(() => {
       screen.getByText(errorMessage)
@@ -101,7 +96,7 @@ describe('<ModalContentNewProjectForm />', function () {
     })
     fireEvent.click(createButton)
 
-    expect(newProjectMock.called()).to.be.true
+    expect(newProjectMock.callHistory.called()).to.be.true
 
     await waitFor(() => {
       screen.getByText(errorMessage)
@@ -140,7 +135,7 @@ describe('<ModalContentNewProjectForm />', function () {
     })
     fireEvent.click(createButton)
 
-    expect(newProjectMock.called()).to.be.true
+    expect(newProjectMock.callHistory.called()).to.be.true
 
     await waitFor(() => {
       screen.getByText(errorMessage)

@@ -1,7 +1,7 @@
-import '../../../helpers/bootstrap-3'
 import GroupMembers from '@/features/group-management/components/group-members'
 import { GroupMembersProvider } from '@/features/group-management/context/group-members-context'
 import { User } from '../../../../../types/group-management/user'
+import { SplitTestProvider } from '@/shared/context/split-test-context'
 
 const GROUP_ID = '777fff777fff'
 const JOHN_DOE: User = {
@@ -57,9 +57,11 @@ const PATHS = {
 
 function mountGroupMembersProvider() {
   cy.mount(
-    <GroupMembersProvider>
-      <GroupMembers />
-    </GroupMembersProvider>
+    <SplitTestProvider>
+      <GroupMembersProvider>
+        <GroupMembers />
+      </GroupMembersProvider>
+    </SplitTestProvider>
   )
 }
 
@@ -83,36 +85,38 @@ describe('group members, with managed users', function () {
     cy.get('h1').contains('My Awesome Team')
     cy.get('small').contains('You have added 3 of 10 available members')
 
-    cy.get('ul.managed-users-list table > tbody').within(() => {
-      cy.get('tr:nth-child(1)').within(() => {
-        cy.contains('john.doe@test.com')
-        cy.contains('John Doe')
-        cy.contains('15th Jan 2023')
-        cy.get('.sr-only').contains('Pending invite')
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(1)').within(() => {
+          cy.contains('john.doe@test.com')
+          cy.contains('John Doe')
+          cy.contains('15th Jan 2023')
+          cy.get('.visually-hidden').contains('Pending invite')
 
-        cy.findByTestId('badge-pending-invite').should(
-          'have.text',
-          'Pending invite'
-        )
-        cy.get(`.security-state-invite-pending`).should('exist')
-      })
+          cy.findByTestId('badge-pending-invite').should(
+            'have.text',
+            'Pending invite'
+          )
+          cy.get(`.security-state-invite-pending`).should('exist')
+        })
 
-      cy.get('tr:nth-child(2)').within(() => {
-        cy.contains('bobby.lapointe@test.com')
-        cy.contains('Bobby Lapointe')
-        cy.contains('2nd Jan 2023')
-        cy.findByTestId('badge-pending-invite').should('not.exist')
-        cy.get('.sr-only').contains('Not managed')
-      })
+        cy.get('tr:nth-child(2)').within(() => {
+          cy.contains('bobby.lapointe@test.com')
+          cy.contains('Bobby Lapointe')
+          cy.contains('2nd Jan 2023')
+          cy.findByTestId('badge-pending-invite').should('not.exist')
+          cy.get('.visually-hidden').contains('Not managed')
+        })
 
-      cy.get('tr:nth-child(3)').within(() => {
-        cy.contains('claire.jennings@test.com')
-        cy.contains('Claire Jennings')
-        cy.contains('3rd Jan 2023')
-        cy.findByTestId('badge-pending-invite').should('not.exist')
-        cy.get('.sr-only').contains('Managed')
+        cy.get('tr:nth-child(3)').within(() => {
+          cy.contains('claire.jennings@test.com')
+          cy.contains('Claire Jennings')
+          cy.contains('3rd Jan 2023')
+          cy.findByTestId('badge-pending-invite').should('not.exist')
+          cy.get('.visually-hidden').contains('Managed')
+        })
       })
-    })
   })
 
   it('sends an invite', function () {
@@ -129,18 +133,20 @@ describe('group members, with managed users', function () {
     cy.get('.form-control').type('someone.else@test.com')
     cy.get('.add-more-members-form button').click()
 
-    cy.get('ul.managed-users-list table > tbody').within(() => {
-      cy.get('tr:nth-child(4)').within(() => {
-        cy.contains('someone.else@test.com')
-        cy.contains('N/A')
-        cy.get('.sr-only').contains('Pending invite')
-        cy.findByTestId('badge-pending-invite').should(
-          'have.text',
-          'Pending invite'
-        )
-        cy.get(`.security-state-invite-pending`).should('exist')
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(4)').within(() => {
+          cy.contains('someone.else@test.com')
+          cy.contains('N/A')
+          cy.get('.visually-hidden').contains('Pending invite')
+          cy.findByTestId('badge-pending-invite').should(
+            'have.text',
+            'Pending invite'
+          )
+          cy.get(`.security-state-invite-pending`).should('exist')
+        })
       })
-    })
   })
 
   it('tries to send an invite and displays the error', function () {
@@ -155,29 +161,33 @@ describe('group members, with managed users', function () {
 
     cy.get('.form-control').type('someone.else@test.com')
     cy.get('.add-more-members-form button').click()
-    cy.get('.alert').contains('Error: User already added')
+    cy.findByRole('alert').contains('Error: User already added')
   })
 
   it('checks the select all checkbox', function () {
-    cy.get('ul.managed-users-list table > tbody').within(() => {
-      cy.get('tr:nth-child(1)').within(() => {
-        cy.get('.select-item').should('not.be.checked')
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(1)').within(() => {
+          cy.findByTestId('select-single-checkbox').should('not.be.checked')
+        })
+        cy.get('tr:nth-child(2)').within(() => {
+          cy.findByTestId('select-single-checkbox').should('not.be.checked')
+        })
       })
-      cy.get('tr:nth-child(2)').within(() => {
-        cy.get('.select-item').should('not.be.checked')
-      })
-    })
 
-    cy.get('.select-all').click()
+    cy.findByTestId('select-all-checkbox').click()
 
-    cy.get('ul.managed-users-list table > tbody').within(() => {
-      cy.get('tr:nth-child(1)').within(() => {
-        cy.get('.select-item').should('be.checked')
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(1)').within(() => {
+          cy.findByTestId('select-single-checkbox').should('be.checked')
+        })
+        cy.get('tr:nth-child(2)').within(() => {
+          cy.findByTestId('select-single-checkbox').should('be.checked')
+        })
       })
-      cy.get('tr:nth-child(2)').within(() => {
-        cy.get('.select-item').should('be.checked')
-      })
-    })
 
     cy.get('button').contains('Remove from group').click()
   })
@@ -187,22 +197,26 @@ describe('group members, with managed users', function () {
       statusCode: 200,
     })
 
-    cy.get('ul.managed-users-list table > tbody').within(() => {
-      cy.get('tr:nth-child(1)').within(() => {
-        cy.get('.select-item').check()
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(1)').within(() => {
+          cy.findByTestId('select-single-checkbox').check()
+        })
       })
-    })
 
     cy.get('button').contains('Remove from group').click()
 
     cy.get('small').contains('You have added 2 of 10 available members')
-    cy.get('ul.managed-users-list table > tbody').within(() => {
-      cy.get('tr:nth-child(1)').within(() => {
-        cy.contains('bobby.lapointe@test.com')
-        cy.contains('Bobby Lapointe')
-        cy.contains('2nd Jan 2023')
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(1)').within(() => {
+          cy.contains('bobby.lapointe@test.com')
+          cy.contains('Bobby Lapointe')
+          cy.contains('2nd Jan 2023')
+        })
       })
-    })
   })
 
   it('cannot remove a managed member', function () {
@@ -210,12 +224,14 @@ describe('group members, with managed users', function () {
       statusCode: 200,
     })
 
-    cy.get('ul.managed-users-list table > tbody').within(() => {
-      // no checkbox should be shown for 'Claire Jennings', a managed user
-      cy.get('tr:nth-child(3)').within(() => {
-        cy.get('.select-item').should('not.exist')
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        // no checkbox should be shown for 'Claire Jennings', a managed user
+        cy.get('tr:nth-child(3)').within(() => {
+          cy.findByTestId('select-single-checkbox').should('not.exist')
+        })
       })
-    })
   })
 
   it('tries to remove a user and displays the error', function () {
@@ -223,16 +239,18 @@ describe('group members, with managed users', function () {
       statusCode: 500,
     })
 
-    cy.get('ul.managed-users-list table > tbody').within(() => {
-      cy.get('tr:nth-child(1)').within(() => {
-        cy.get('.select-item').check()
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(1)').within(() => {
+          cy.findByTestId('select-single-checkbox').check()
+        })
       })
-    })
     cy.get('.page-header').within(() => {
       cy.get('button').contains('Remove from group').click()
     })
 
-    cy.get('.alert').contains('Sorry, something went wrong')
+    cy.findByRole('alert').contains('Sorry, something went wrong')
   })
 })
 
@@ -256,17 +274,21 @@ describe('Group members when group SSO is enabled', function () {
       win.metaAttributesCache.set('ol-groupSSOActive', false)
     })
     mountGroupMembersProvider()
-    cy.get('ul.managed-users-list table > tbody').within(() => {
-      cy.get('tr:nth-child(2)').within(() => {
-        cy.contains('bobby.lapointe@test.com')
-        cy.get('.sr-only').contains('SSO not active').should('not.exist')
-      })
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(2)').within(() => {
+          cy.contains('bobby.lapointe@test.com')
+          cy.get('.visually-hidden')
+            .contains('SSO not active')
+            .should('not.exist')
+        })
 
-      cy.get('tr:nth-child(3)').within(() => {
-        cy.contains('claire.jennings@test.com')
-        cy.get('.sr-only').contains('SSO active').should('not.exist')
+        cy.get('tr:nth-child(3)').within(() => {
+          cy.contains('claire.jennings@test.com')
+          cy.get('.visually-hidden').contains('SSO active').should('not.exist')
+        })
       })
-    })
   })
 
   it('should display SSO Column when Group SSO is enabled', function () {
@@ -274,16 +296,18 @@ describe('Group members when group SSO is enabled', function () {
       win.metaAttributesCache.set('ol-groupSSOActive', true)
     })
     mountGroupMembersProvider()
-    cy.get('ul.managed-users-list table > tbody').within(() => {
-      cy.get('tr:nth-child(2)').within(() => {
-        cy.contains('bobby.lapointe@test.com')
-        cy.get('.sr-only').contains('SSO not active')
-      })
+    cy.findByTestId('managed-entities-table')
+      .find('tbody')
+      .within(() => {
+        cy.get('tr:nth-child(2)').within(() => {
+          cy.contains('bobby.lapointe@test.com')
+          cy.get('.visually-hidden').contains('SSO not active')
+        })
 
-      cy.get('tr:nth-child(3)').within(() => {
-        cy.contains('claire.jennings@test.com')
-        cy.get('.sr-only').contains('SSO active')
+        cy.get('tr:nth-child(3)').within(() => {
+          cy.contains('claire.jennings@test.com')
+          cy.get('.visually-hidden').contains('SSO active')
+        })
       })
-    })
   })
 })

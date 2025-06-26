@@ -1,7 +1,6 @@
 // @ts-check
 /**
- * @typedef {import("../types").TrackingPropsRawData} TrackingPropsRawData
- * @typedef {import("../types").TrackingDirective} TrackingDirective
+ * @import { TrackingPropsRawData, TrackingDirective } from "../types"
  */
 
 class TrackingProps {
@@ -62,6 +61,35 @@ class TrackingProps {
       this.userId === other.userId &&
       this.ts.getTime() === other.ts.getTime()
     )
+  }
+
+  /**
+   * Are these tracking props compatible with the other tracking props for merging
+   * ranges?
+   *
+   * @param {TrackingDirective} other
+   * @returns {other is TrackingProps}
+   */
+  canMergeWith(other) {
+    if (!(other instanceof TrackingProps)) {
+      return false
+    }
+    return this.type === other.type && this.userId === other.userId
+  }
+
+  /**
+   * Merge two tracking props
+   *
+   * Assumes that `canMerge(other)` returns true
+   *
+   * @param {TrackingDirective} other
+   */
+  mergeWith(other) {
+    if (!this.canMergeWith(other)) {
+      throw new Error('Cannot merge with incompatible tracking props')
+    }
+    const ts = this.ts <= other.ts ? this.ts : other.ts
+    return new TrackingProps(this.type, this.userId, ts)
   }
 }
 

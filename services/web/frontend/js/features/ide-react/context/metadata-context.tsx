@@ -47,7 +47,7 @@ export const MetadataContext = createContext<
   | undefined
 >(undefined)
 
-export const MetadataProvider: FC = ({ children }) => {
+export const MetadataProvider: FC<React.PropsWithChildren> = ({ children }) => {
   const { t } = useTranslation()
   const { eventEmitter, projectId } = useIdeReactContext()
   const { socket } = useConnectionContext()
@@ -185,7 +185,10 @@ export const MetadataProvider: FC = ({ children }) => {
         )
       }
       window.setTimeout(() => {
-        if (permissionsRef.current.write) {
+        if (
+          permissionsRef.current.write ||
+          permissionsRef.current.trackedWrite
+        ) {
           loadProjectMetaFromServer()
         }
       }, 200)

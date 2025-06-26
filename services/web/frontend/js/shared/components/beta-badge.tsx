@@ -1,52 +1,63 @@
-import type { FC, ReactNode } from 'react'
-import classnames from 'classnames'
-import Tooltip from './tooltip'
-import { OverlayTriggerProps } from 'react-bootstrap'
+import type { FC, MouseEventHandler, ReactNode } from 'react'
+import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
+import BetaBadgeIcon from '@/shared/components/beta-badge-icon'
 
 type TooltipProps = {
   id: string
   text: ReactNode
-  placement?: OverlayTriggerProps['placement']
   className?: string
+  placement?: NonNullable<
+    React.ComponentProps<typeof OLTooltip>['overlayProps']
+  >['placement']
 }
 
-const BetaBadge: FC<{
-  tooltip: TooltipProps
-  url?: string
-  phase?: string
-}> = ({ tooltip, url = '/beta/participate', phase = 'beta' }) => {
-  let badgeClass
-  switch (phase) {
-    case 'release':
-      badgeClass = 'info-badge'
-      break
-    case 'alpha':
-      badgeClass = 'alpha-badge'
-      break
-    case 'beta':
-    default:
-      badgeClass = 'beta-badge'
-  }
+type LinkProps = {
+  href?: string
+  ref?: React.Ref<HTMLAnchorElement>
+  className?: string
+  onMouseDown?: MouseEventHandler<HTMLAnchorElement>
+}
 
-  return (
-    <Tooltip
+const defaultHref = '/beta/participate'
+
+const BetaBadge: FC<{
+  tooltip?: TooltipProps
+  link?: LinkProps
+  description?: ReactNode
+  phase?: string
+}> = ({
+  tooltip,
+  link = { href: defaultHref },
+  description,
+  phase = 'beta',
+}) => {
+  const { href, ...linkProps } = link
+  const linkedBadge = (
+    <a
+      target="_blank"
+      rel="noopener noreferrer"
+      href={href || defaultHref}
+      {...linkProps}
+    >
+      <span className="visually-hidden">{description || tooltip?.text}</span>
+      <BetaBadgeIcon phase={phase} />
+    </a>
+  )
+
+  return tooltip ? (
+    <OLTooltip
       id={tooltip.id}
       description={tooltip.text}
       tooltipProps={{ className: tooltip.className }}
       overlayProps={{
         placement: tooltip.placement || 'bottom',
-        delayHide: 100,
+        delay: 100,
       }}
     >
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={classnames('badge', badgeClass)}
-      >
-        <span className="sr-only">{tooltip.text}</span>
-      </a>
-    </Tooltip>
+      {linkedBadge}
+    </OLTooltip>
+  ) : (
+    linkedBadge
   )
 }
 

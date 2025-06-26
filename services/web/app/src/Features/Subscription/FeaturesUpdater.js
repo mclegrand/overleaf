@@ -3,6 +3,7 @@ const { callbackify } = require('util')
 const { callbackifyMultiResult } = require('@overleaf/promise-utils')
 const PlansLocator = require('./PlansLocator')
 const SubscriptionLocator = require('./SubscriptionLocator')
+const SubscriptionHelper = require('./SubscriptionHelper')
 const UserFeaturesUpdater = require('./UserFeaturesUpdater')
 const FeaturesHelper = require('./FeaturesHelper')
 const Settings = require('@overleaf/settings')
@@ -14,6 +15,7 @@ const UserGetter = require('../User/UserGetter')
 const AnalyticsManager = require('../Analytics/AnalyticsManager')
 const Queues = require('../../infrastructure/Queues')
 const Modules = require('../../infrastructure/Modules')
+const { AI_ADD_ON_CODE } = require('./PaymentProviderEntities')
 
 /**
  * Enqueue a job for refreshing features for the given user
@@ -56,7 +58,7 @@ async function refreshFeatures(userId, reason) {
     try {
       await Modules.promises.hooks.fire('removeDropbox', userId, reason)
     } catch (err) {
-      logger.error(err)
+      logger.error({ err, userId }, 'removeDropbox hook failed')
     }
   }
 
@@ -65,7 +67,7 @@ async function refreshFeatures(userId, reason) {
     try {
       await Modules.promises.hooks.fire('removeGithub', userId, reason)
     } catch (err) {
-      logger.error(err)
+      logger.error({ err, userId }, 'removeGithub hook failed')
     }
   }
 
@@ -114,9 +116,25 @@ async function computeFeatures(userId) {
 }
 
 async function _getIndividualFeatures(userId) {
-  const sub =
-    await SubscriptionLocator.promises.getUserIndividualSubscription(userId)
-  return _subscriptionToFeatures(sub)
+  const subscription =
+    await SubscriptionLocator.promises.getUsersSubscription(userId)
+  if (
+    subscription == null ||
+    SubscriptionHelper.getPaidSubscriptionState(subscription) === 'paused'
+  ) {
+    return {}
+  }
+
+  const featureSets = []
+
+  // The plan doesn't apply to the group admin when the subscription
+  // is a group subscription
+  if (!subscription.groupPlan) {
+    featureSets.push(_subscriptionToFeatures(subscription))
+  }
+
+  featureSets.push(_aiAddOnFeatures(subscription))
+  return _.reduce(featureSets, FeaturesHelper.mergeFeatures, {})
 }
 
 async function _getGroupFeatureSets(userId) {
@@ -147,18 +165,22 @@ async function _getV1Features(user) {
 }
 
 function _subscriptionToFeatures(subscription) {
-  return _planCodeToFeatures(subscription && subscription.planCode)
-}
-
-function _planCodeToFeatures(planCode) {
-  if (!planCode) {
+  if (!subscription?.planCode) {
     return {}
   }
-  const plan = PlansLocator.findLocalPlanInSettings(planCode)
+  const plan = PlansLocator.findLocalPlanInSettings(subscription.planCode)
   if (!plan) {
     return {}
   } else {
     return plan.features
+  }
+}
+
+function _aiAddOnFeatures(subscription) {
+  if (subscription?.addOns?.some(addOn => addOn.addOnCode === AI_ADD_ON_CODE)) {
+    return { aiErrorAssistant: true }
+  } else {
+    return {}
   }
 }
 

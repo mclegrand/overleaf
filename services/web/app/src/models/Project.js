@@ -12,18 +12,6 @@ const DeletedDocSchema = new Schema({
   deletedAt: { type: Date },
 })
 
-const DeletedFileSchema = new Schema({
-  name: String,
-  created: {
-    type: Date,
-  },
-  linkedFileData: { type: Schema.Types.Mixed },
-  hash: {
-    type: String,
-  },
-  deletedAt: { type: Date },
-})
-
 const ProjectSchema = new Schema(
   {
     name: { type: String, default: 'new project' },
@@ -38,9 +26,13 @@ const ProjectSchema = new Schema(
     active: { type: Boolean, default: true },
     owner_ref: { type: ObjectId, ref: 'User' },
     collaberator_refs: [{ type: ObjectId, ref: 'User' }],
+    reviewer_refs: [{ type: ObjectId, ref: 'User' }],
     readOnly_refs: [{ type: ObjectId, ref: 'User' }],
+    pendingEditor_refs: [{ type: ObjectId, ref: 'User' }],
+    pendingReviewer_refs: [{ type: ObjectId, ref: 'User' }],
     rootDoc_id: { type: ObjectId },
     rootFolder: [FolderSchema],
+    mainBibliographyDoc_id: { type: ObjectId },
     version: { type: Number }, // incremented for every change in the project structure (folders and filenames)
     publicAccesLevel: { type: String, default: 'private' },
     compiler: { type: String, default: 'pdflatex' },
@@ -50,7 +42,6 @@ const ProjectSchema = new Schema(
     archived: { type: Schema.Types.Mixed },
     trashed: [{ type: ObjectId, ref: 'User' }],
     deletedDocs: [DeletedDocSchema],
-    deletedFiles: [DeletedFileSchema],
     imageName: { type: String },
     brandVariationId: { type: String },
     track_changes: { type: Object },
@@ -95,6 +86,7 @@ const ProjectSchema = new Schema(
         allowDowngrade: { type: Boolean },
         zipFileArchivedInProject: { type: Boolean },
         rangesSupportEnabled: { type: Boolean },
+        otMigrationStage: { type: Number },
       },
     },
     collabratecUsers: [

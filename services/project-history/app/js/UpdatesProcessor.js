@@ -1,4 +1,4 @@
-import { promisify } from 'util'
+import { promisify } from 'node:util'
 import logger from '@overleaf/logger'
 import async from 'async'
 import metrics from '@overleaf/metrics'
@@ -15,6 +15,8 @@ import * as WebApiManager from './WebApiManager.js'
 import * as SyncManager from './SyncManager.js'
 import * as Versions from './Versions.js'
 import * as Errors from './Errors.js'
+import * as Metrics from './Metrics.js'
+import * as RetryManager from './RetryManager.js'
 import { Profiler } from './Profiler.js'
 
 const keys = Settings.redis.lock.key_schema
@@ -59,8 +61,67 @@ export function getRawUpdates(projectId, batchSize, callback) {
   })
 }
 
+// Trigger resync and start processing under lock to avoid other operations to
+// flush the resync updates.
+export function startResyncAndProcessUpdatesUnderLock(
+  projectId,
+  opts,
+  callback
+) {
+  const startTimeMs = Date.now()
+  LockManager.runWithLock(
+    keys.projectHistoryLock({ project_id: projectId }),
+    (extendLock, releaseLock) => {
+      SyncManager.startResyncWithoutLock(projectId, opts, err => {
+        if (err) return callback(OError.tag(err))
+        extendLock(err => {
+          if (err) return callback(OError.tag(err))
+          _countAndProcessUpdates(
+            projectId,
+            extendLock,
+            REDIS_READ_BATCH_SIZE,
+            releaseLock
+          )
+        })
+      })
+    },
+    (flushError, { queueSize } = {}) => {
+      if (flushError) {
+        OError.tag(flushError)
+        ErrorRecorder.record(projectId, queueSize, flushError, recordError => {
+          if (recordError) {
+            logger.error(
+              { err: recordError, projectId },
+              'failed to record error'
+            )
+          }
+          callback(flushError)
+        })
+      } else {
+        ErrorRecorder.clearError(projectId, clearError => {
+          if (clearError) {
+            logger.error(
+              { err: clearError, projectId },
+              'failed to clear error'
+            )
+          }
+          callback()
+        })
+      }
+      if (queueSize > 0) {
+        const duration = (Date.now() - startTimeMs) / 1000
+        Metrics.historyFlushDurationSeconds.observe(duration)
+        Metrics.historyFlushQueueSize.observe(queueSize)
+      }
+      // clear the timestamp in the background if the queue is now empty
+      RedisManager.clearDanglingFirstOpTimestamp(projectId, () => {})
+    }
+  )
+}
+
 // Process all updates for a project, only check project-level information once
 export function processUpdatesForProject(projectId, callback) {
+  const startTimeMs = Date.now()
   LockManager.runWithLock(
     keys.projectHistoryLock({ project_id: projectId }),
     (extendLock, releaseLock) => {
@@ -71,15 +132,112 @@ export function processUpdatesForProject(projectId, callback) {
         releaseLock
       )
     },
-    (error, queueSize) => {
-      if (error) {
-        OError.tag(error)
+    (flushError, { queueSize, resyncNeeded } = {}) => {
+      if (flushError) {
+        OError.tag(flushError)
+        ErrorRecorder.record(
+          projectId,
+          queueSize,
+          flushError,
+          (recordError, failure) => {
+            if (recordError) {
+              logger.error(
+                { err: recordError, projectId },
+                'failed to record error'
+              )
+              callback(recordError)
+            } else if (
+              RetryManager.isFirstFailure(failure) &&
+              RetryManager.isHardFailure(failure)
+            ) {
+              // This is the first failed flush since the last successful flush.
+              // Immediately attempt a resync.
+              logger.warn({ projectId }, 'Flush failed, attempting resync')
+              resyncProject(projectId, callback)
+            } else {
+              callback(flushError)
+            }
+          }
+        )
+      } else {
+        ErrorRecorder.clearError(projectId, clearError => {
+          if (clearError) {
+            logger.error(
+              { err: clearError, projectId },
+              'failed to clear error'
+            )
+          }
+          if (resyncNeeded) {
+            logger.warn(
+              { projectId },
+              'Resyncing project as requested by full project history'
+            )
+            resyncProject(projectId, callback)
+          } else {
+            callback()
+          }
+        })
       }
-      ErrorRecorder.record(projectId, queueSize, error, callback)
+      if (queueSize > 0) {
+        const duration = (Date.now() - startTimeMs) / 1000
+        Metrics.historyFlushDurationSeconds.observe(duration)
+        Metrics.historyFlushQueueSize.observe(queueSize)
+      }
       // clear the timestamp in the background if the queue is now empty
       RedisManager.clearDanglingFirstOpTimestamp(projectId, () => {})
     }
   )
+}
+
+export function resyncProject(projectId, callback) {
+  SyncManager.startHardResync(projectId, {}, error => {
+    if (error != null) {
+      return callback(OError.tag(error))
+    }
+    // Flush the sync operations; this will not loop indefinitely
+    // because any failure won't be the first failure anymore.
+    LockManager.runWithLock(
+      keys.projectHistoryLock({ project_id: projectId }),
+      (extendLock, releaseLock) => {
+        _countAndProcessUpdates(
+          projectId,
+          extendLock,
+          REDIS_READ_BATCH_SIZE,
+          releaseLock
+        )
+      },
+      (flushError, { queueSize } = {}) => {
+        if (flushError) {
+          ErrorRecorder.record(
+            projectId,
+            queueSize,
+            flushError,
+            (recordError, failure) => {
+              if (recordError) {
+                logger.error(
+                  { err: recordError, projectId },
+                  'failed to record error'
+                )
+                callback(OError.tag(recordError))
+              } else {
+                callback(OError.tag(flushError))
+              }
+            }
+          )
+        } else {
+          ErrorRecorder.clearError(projectId, clearError => {
+            if (clearError) {
+              logger.error(
+                { err: clearError, projectId },
+                'failed to clear error'
+              )
+            }
+            callback()
+          })
+        }
+      }
+    )
+  })
 }
 
 export function processUpdatesForProjectUsingBisect(
@@ -97,21 +255,29 @@ export function processUpdatesForProjectUsingBisect(
         releaseLock
       )
     },
-    (error, queueSize) => {
+    (flushError, { queueSize } = {}) => {
       if (amountToProcess === 0 || queueSize === 0) {
         // no further processing possible
-        if (error != null) {
+        if (flushError != null) {
           ErrorRecorder.record(
             projectId,
             queueSize,
-            OError.tag(error),
-            callback
+            OError.tag(flushError),
+            recordError => {
+              if (recordError) {
+                logger.error(
+                  { err: recordError, projectId },
+                  'failed to record error'
+                )
+              }
+              callback(flushError)
+            }
           )
         } else {
           callback()
         }
       } else {
-        if (error != null) {
+        if (flushError != null) {
           // decrease the batch size when we hit an error
           processUpdatesForProjectUsingBisect(
             projectId,
@@ -140,13 +306,31 @@ export function processSingleUpdateForProject(projectId, callback) {
     ) => {
       _countAndProcessUpdates(projectId, extendLock, 1, releaseLock)
     },
-    (
-      error,
-      queueSize // no need to clear the flush marker when single stepping
-    ) => {
+    (flushError, { queueSize } = {}) => {
+      // no need to clear the flush marker when single stepping
       // it will be cleared up on the next background flush if
       // the queue is empty
-      ErrorRecorder.record(projectId, queueSize, error, callback)
+      if (flushError) {
+        ErrorRecorder.record(projectId, queueSize, flushError, recordError => {
+          if (recordError) {
+            logger.error(
+              { err: recordError, projectId },
+              'failed to record error'
+            )
+          }
+          callback(flushError)
+        })
+      } else {
+        ErrorRecorder.clearError(projectId, clearError => {
+          if (clearError) {
+            logger.error(
+              { err: clearError, projectId },
+              'failed to clear error'
+            )
+          }
+          callback()
+        })
+      }
     }
   )
 }
@@ -163,18 +347,34 @@ _mocks._countAndProcessUpdates = (
     }
     if (queueSize > 0) {
       logger.debug({ projectId, queueSize }, 'processing uncompressed updates')
+
+      let resyncNeeded = false
       RedisManager.getUpdatesInBatches(
         projectId,
         batchSize,
         (updates, cb) => {
-          _processUpdatesBatch(projectId, updates, extendLock, cb)
+          _processUpdatesBatch(
+            projectId,
+            updates,
+            extendLock,
+            (err, flushResponse) => {
+              if (err) {
+                return cb(err)
+              }
+
+              if (flushResponse.resyncNeeded) {
+                resyncNeeded = true
+              }
+              cb()
+            }
+          )
         },
         error => {
           // Unconventional callback signature. The caller needs the queue size
           // even when an error is thrown in order to record the queue size in
           // the projectHistoryFailures collection. We'll have to find another
           // way to achieve this when we promisify.
-          callback(error, queueSize)
+          callback(error, { queueSize, resyncNeeded })
         }
       )
     } else {
@@ -200,15 +400,21 @@ function _processUpdatesBatch(projectId, updates, extendLock, callback) {
         { projectId },
         'discarding updates as project does not use history'
       )
-      return callback()
+      return callback(null, {})
     }
 
-    _processUpdates(projectId, historyId, updates, extendLock, error => {
-      if (error != null) {
-        return callback(OError.tag(error))
+    _processUpdates(
+      projectId,
+      historyId,
+      updates,
+      extendLock,
+      (error, flushResponse) => {
+        if (error != null) {
+          return callback(OError.tag(error))
+        }
+        callback(null, flushResponse)
       }
-      callback()
-    })
+    )
   })
 }
 
@@ -222,17 +428,12 @@ export function _getHistoryId(projectId, updates, callback) {
         idFromUpdates = update.projectHistoryId.toString()
       } else if (idFromUpdates !== update.projectHistoryId.toString()) {
         metrics.inc('updates.batches.project-history-id.inconsistent-update')
-        logger.warn(
-          {
+        return callback(
+          new OError('inconsistent project history id between updates', {
             projectId,
-            updates,
             idFromUpdates,
             currentId: update.projectHistoryId,
-          },
-          'inconsistent project history id between updates'
-        )
-        return callback(
-          new OError('inconsistent project history id between updates')
+          })
         )
       }
     }
@@ -293,15 +494,11 @@ function _handleOpsOutOfOrderError(projectId, projectHistoryId, err, ...rest) {
     // Bypass ops-out-of-order errors in the stored chunk when in forceDebug mode
     if (failureRecord != null && failureRecord.forceDebug === true) {
       logger.warn(
-        { projectId, projectHistoryId },
+        { err, projectId, projectHistoryId },
         'ops out of order in chunk, forced continue'
       )
       callback(null, ...results) // return results without error
     } else {
-      logger.warn(
-        { projectId, projectHistoryId },
-        'ops out of order in chunk, returning error'
-      )
       callback(err, ...results)
     }
   })
@@ -327,7 +524,7 @@ function _getMostRecentVersionWithDebug(projectId, projectHistoryId, callback) {
   )
 }
 
-function _processUpdates(
+export function _processUpdates(
   projectId,
   projectHistoryId,
   updates,
@@ -349,13 +546,22 @@ function _processUpdates(
       }
       if (filteredUpdates.length === 0) {
         // return early if there are no updates to apply
-        return SyncManager.setResyncState(projectId, newSyncState, callback)
+        return SyncManager.setResyncState(projectId, newSyncState, err => {
+          if (err) return callback(err)
+          callback(null, { resyncNeeded: false })
+        })
       }
       // only make request to history service if we have actual updates to process
       _getMostRecentVersionWithDebug(
         projectId,
         projectHistoryId,
-        (error, baseVersion, projectStructureAndDocVersions) => {
+        (
+          error,
+          baseVersion,
+          projectStructureAndDocVersions,
+          _lastChange,
+          mostRecentChunk
+        ) => {
           if (projectStructureAndDocVersions == null) {
             projectStructureAndDocVersions = { project: null, docs: {} }
           }
@@ -363,6 +569,8 @@ function _processUpdates(
           if (error != null) {
             return callback(error)
           }
+
+          let resyncNeeded = false
           async.waterfall(
             [
               cb => {
@@ -370,6 +578,7 @@ function _processUpdates(
                 SyncManager.expandSyncUpdates(
                   projectId,
                   projectHistoryId,
+                  mostRecentChunk,
                   filteredUpdates,
                   extendLock,
                   cb
@@ -387,17 +596,17 @@ function _processUpdates(
                   return cb(err)
                 }
                 profile.log('skipAlreadyAppliedUpdates')
-                const compressedUpdates =
-                  UpdateCompressor.compressRawUpdates(unappliedUpdates)
-                const timeTaken = profile
-                  .log('compressRawUpdates')
-                  .getTimeDelta()
-                if (timeTaken >= 1000) {
-                  logger.debug(
-                    { projectId, updates: unappliedUpdates, timeTaken },
-                    'slow compression of raw updates'
-                  )
-                }
+                cb(null, unappliedUpdates)
+              },
+              (unappliedUpdates, cb) => {
+                UpdateCompressor.compressRawUpdatesWithMetricsCb(
+                  unappliedUpdates,
+                  projectId,
+                  profile,
+                  cb
+                )
+              },
+              (compressedUpdates, cb) => {
                 cb = profile.wrap('createBlobs', cb)
                 BlobManager.createBlobsForUpdates(
                   projectId,
@@ -408,12 +617,20 @@ function _processUpdates(
                 )
               },
               (updatesWithBlobs, cb) => {
-                const changes = UpdateTranslator.convertToChanges(
-                  projectId,
-                  updatesWithBlobs
-                ).map(change => change.toRaw())
-                profile.log('convertToChanges')
-
+                let changes
+                try {
+                  changes = UpdateTranslator.convertToChanges(
+                    projectId,
+                    updatesWithBlobs
+                  ).map(change => change.toRaw())
+                } catch (err) {
+                  return cb(err)
+                } finally {
+                  profile.log('convertToChanges')
+                }
+                cb(null, changes)
+              },
+              (changes, cb) => {
                 let change
                 const numChanges = changes.length
                 const byteLength = Buffer.byteLength(
@@ -464,7 +681,13 @@ function _processUpdates(
                     projectHistoryId,
                     changes,
                     baseVersion,
-                    cb
+                    (err, response) => {
+                      if (err) {
+                        return cb(err)
+                      }
+                      resyncNeeded = response.resyncNeeded
+                      cb()
+                    }
                   )
                 })
               },
@@ -475,7 +698,11 @@ function _processUpdates(
             ],
             error => {
               profile.end()
-              callback(error)
+              if (error) {
+                callback(error)
+              } else {
+                callback(null, { resyncNeeded })
+              }
             }
           )
         }
@@ -609,5 +836,10 @@ function _sanitizeUpdate(update) {
 }
 
 export const promises = {
+  /** @type {(projectId: string) => Promise<number>} */
   processUpdatesForProject: promisify(processUpdatesForProject),
+  /** @type {(projectId: string, opts: any) => Promise<number>} */
+  startResyncAndProcessUpdatesUnderLock: promisify(
+    startResyncAndProcessUpdatesUnderLock
+  ),
 }

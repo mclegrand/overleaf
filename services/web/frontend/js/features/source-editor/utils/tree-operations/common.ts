@@ -61,3 +61,44 @@ export const getOptionalArgumentText = (
     return state.doc.sliceString(shortArgNode.from, shortArgNode.to)
   }
 }
+
+export const nodeHasError = (node: SyntaxNode): boolean => {
+  let hasError = false
+
+  node.cursor().iterate(({ type }) => {
+    if (hasError) return false
+
+    if (type.isError) {
+      hasError = true
+      return false
+    }
+
+    return true
+  })
+
+  return hasError
+}
+
+export const childOfNodeWithType = (
+  node: SyntaxNode,
+  ...types: (string | number)[]
+): SyntaxNode | null => {
+  let childOfType: SyntaxNode | null = null
+
+  node.cursor().iterate(child => {
+    if (childOfType !== null) {
+      return false
+    }
+
+    for (const type of types) {
+      if (child.type.is(type)) {
+        childOfType = child.node
+        return false
+      }
+    }
+
+    return true
+  })
+
+  return childOfType
+}

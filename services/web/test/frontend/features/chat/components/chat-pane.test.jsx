@@ -7,10 +7,7 @@ import {
 import fetchMock from 'fetch-mock'
 
 import ChatPane from '../../../../../frontend/js/features/chat/components/chat-pane'
-import {
-  cleanUpContext,
-  renderWithEditorContext,
-} from '../../../helpers/render-with-context'
+import { renderWithEditorContext } from '../../../helpers/render-with-context'
 import { stubMathJax, tearDownMathJaxStubs } from './stubs'
 
 describe('<ChatPane />', function () {
@@ -22,10 +19,11 @@ describe('<ChatPane />', function () {
 
   beforeEach(function () {
     window.metaAttributesCache.set('ol-user', user)
+    window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
   })
 
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   const testMessages = [
@@ -44,9 +42,7 @@ describe('<ChatPane />', function () {
   ]
 
   beforeEach(function () {
-    fetchMock.reset()
-    cleanUpContext()
-
+    fetchMock.removeRoutes().clearHistory()
     stubMathJax()
   })
 
@@ -72,7 +68,7 @@ describe('<ChatPane />', function () {
     await screen.findByText('Try again')
 
     // bring chat back up
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
     fetchMock.get(/messages/, [])
 
     const reconnectButton = screen.getByRole('button', {

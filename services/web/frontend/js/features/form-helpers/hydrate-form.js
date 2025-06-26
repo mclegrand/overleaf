@@ -3,6 +3,8 @@ import { FetchError, postJSON } from '../../infrastructure/fetch-json'
 import { canSkipCaptcha, validateCaptchaV2 } from './captcha'
 import inputValidator from './input-validator'
 import { disableElement, enableElement } from '../utils/disableElement'
+import { isBootstrap5 } from '@/features/utils/bootstrap-5'
+import createIcon from '@/features/form-helpers/create-icon'
 
 // Form helper(s) to handle:
 // - Attaching to the relevant form elements
@@ -90,7 +92,11 @@ function formSubmitHelper(formEl) {
 
 async function validateCaptcha(formEl) {
   let captchaResponse
-  if (formEl.hasAttribute('captcha')) {
+  if (
+    formEl.hasAttribute('captcha') &&
+    // Disable captcha for E2E tests in dev-env.
+    !(process.env.NODE_ENV === 'development' && window.Cypress)
+  ) {
     if (
       formEl.getAttribute('action') === '/login' &&
       (await canSkipCaptcha(new FormData(formEl).get('email')))
@@ -129,6 +135,63 @@ function hideFormElements(formEl) {
   }
 }
 
+/**
+ * Creates a notification element from a message object, with BS5 classes.
+ *
+ * @param {Object} message
+ * @param {'error' | 'success' | 'warning' | 'info'} message.type
+ * @param {string} message.key
+ * @param {string} message.text
+ * @param {string[]} message.hints
+ * @returns {HTMLDivElement}
+ */
+function createNotificationFromMessageBS5(message) {
+  const messageEl = document.createElement('div')
+  messageEl.className = classNames('mb-3 notification', {
+    'notification-type-error': message.type === 'error',
+    'notification-type-success': message.type === 'success',
+    'notification-type-warning': message.type === 'warning',
+    'notification-type-info': message.type === 'info',
+  })
+  messageEl.setAttribute('aria-live', 'assertive')
+  messageEl.setAttribute('role', message.type === 'error' ? 'alert' : 'status')
+
+  const materialIcon = {
+    info: 'info',
+    success: 'check_circle',
+    error: 'error',
+    warning: 'warning',
+  }[message.type]
+  if (materialIcon) {
+    const iconEl = document.createElement('div')
+    iconEl.className = 'notification-icon'
+    const iconSpan = createIcon(materialIcon)
+    iconEl.append(iconSpan)
+    messageEl.append(iconEl)
+  }
+
+  const contentAndCtaEl = document.createElement('div')
+  contentAndCtaEl.className = 'notification-content-and-cta'
+
+  const contentEl = document.createElement('div')
+  contentEl.className = 'notification-content'
+  contentEl.append(message.text || `Error: ${message.key}`)
+
+  if (message.hints && message.hints.length) {
+    const listEl = document.createElement('ul')
+    message.hints.forEach(hint => {
+      const listItemEl = document.createElement('li')
+      listItemEl.textContent = hint
+      listEl.append(listItemEl)
+    })
+    contentEl.append(listEl)
+  }
+  contentAndCtaEl.append(contentEl)
+  messageEl.append(contentAndCtaEl)
+
+  return messageEl
+}
+
 // TODO: remove the showMessages function after every form alerts are updated to use the new style
 // TODO: rename showMessagesNewStyle to showMessages after the above is done
 function showMessages(formEl, messageBag) {
@@ -153,6 +216,9 @@ function showMessages(formEl, messageBag) {
       customErrorElements.forEach(el => {
         el.hidden = false
       })
+    } else if (isBootstrap5()) {
+      const notification = createNotificationFromMessageBS5(message)
+      messagesEl.append(notification)
     } else {
       // No custom error element for key on page, append a new error message
       const messageEl = document.createElement('div')
@@ -247,10 +313,9 @@ function showMessagesNewStyle(formEl, messageBag) {
       }
 
       // create the left icon
-      const icon = document.createElement('span')
-      icon.className = 'material-symbols'
-      icon.setAttribute('aria-hidden', 'true')
-      icon.innerText = message.type === 'error' ? 'error' : 'check_circle'
+      const icon = createIcon(
+        message.type === 'error' ? 'error' : 'check_circle'
+      )
       const messageIcon = document.createElement('div')
       messageIcon.className = 'notification-icon'
       messageIcon.appendChild(icon)
@@ -307,7 +372,7 @@ function formSentHelper(el) {
 }
 
 function formValidationHelper(el) {
-  el.querySelectorAll('input').forEach(inputEl => {
+  el.querySelectorAll('input, textarea').forEach(inputEl => {
     if (
       inputEl.willValidate &&
       !inputEl.hasAttribute('data-ol-no-custom-form-validation-messages')

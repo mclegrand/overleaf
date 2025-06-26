@@ -1,23 +1,45 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { Loading } from '@/features/ide-react/components/loading'
+import { LoadingUI } from '@/features/ide-react/components/loading'
 import { EditorProviders } from '../../../test/frontend/helpers/editor-providers'
+import { PartialMeta } from '@/utils/meta'
 
-const meta: Meta<typeof Loading> = {
+const meta: Meta<typeof LoadingUI> = {
   title: 'Loading Page / Loading',
-  component: Loading,
+  component: LoadingUI,
   argTypes: {
-    setLoaded: { action: 'setLoaded' },
+    errorCode: {
+      control: 'select',
+      options: [
+        '',
+        'io-not-loaded',
+        'unable-to-join',
+        'i18n-error',
+        'unhandled-error-code',
+      ],
+    },
+    progress: { control: { type: 'range', min: 0, max: 100 } },
   },
 }
 
 export default meta
 
-type Story = StoryObj<typeof Loading>
+type Story = StoryObj<typeof LoadingUI>
+
+const errorMessages = {
+  translationIoNotLoaded: 'Could not connect to the WebSocket server',
+  translationLoadErrorMessage: 'Could not load translations',
+  translationUnableToJoin: 'Could not connect to collaboration server',
+}
 
 export const LoadingPage: Story = {
-  render: args => (
-    <EditorProviders>
-      <Loading {...args} />
-    </EditorProviders>
-  ),
+  render: args => {
+    for (const [key, value] of Object.entries(errorMessages)) {
+      window.metaAttributesCache.set(`ol-${key}` as keyof PartialMeta, value)
+    }
+    return (
+      <EditorProviders>
+        <LoadingUI {...args} />
+      </EditorProviders>
+    )
+  },
 }

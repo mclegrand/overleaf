@@ -6,7 +6,7 @@ import { FC } from 'react'
 import { FileTreePathContext } from '@/features/file-tree/contexts/file-tree-path'
 import RangesTracker from '@overleaf/ranges-tracker'
 
-const FileTreePathProvider: FC = ({ children }) => (
+const FileTreePathProvider: FC<React.PropsWithChildren> = ({ children }) => (
   <FileTreePathContext.Provider
     value={{
       dirname: () => null,
@@ -55,13 +55,6 @@ const settings = {
   syntaxValidation: false,
 }
 
-const reviewPanel = {
-  resolvedComments: {},
-  formattedProjectMembers: {},
-  overview: { docsCollapsedState: { 'story-doc': false } },
-  entries: {},
-}
-
 const permissions = {
   write: true,
 }
@@ -101,7 +94,6 @@ export const Latex = (args: any, { globals: { theme } }: any) => {
       overallTheme: theme === 'default-' ? '' : theme,
     },
     permissions,
-    reviewPanel,
   })
 
   useMeta({
@@ -122,7 +114,6 @@ export const Markdown = (args: any, { globals: { theme } }: any) => {
       overallTheme: theme === 'default-' ? '' : theme,
     },
     permissions,
-    reviewPanel,
   })
 
   return <SourceEditor />
@@ -140,7 +131,6 @@ export const Visual = (args: any, { globals: { theme } }: any) => {
       overallTheme: theme === 'default-' ? '' : theme,
     },
     permissions,
-    reviewPanel,
   })
   useMeta({
     'ol-showSymbolPalette': true,
@@ -162,7 +152,6 @@ export const Bibtex = (args: any, { globals: { theme } }: any) => {
       overallTheme: theme === 'default-' ? '' : theme,
     },
     permissions,
-    reviewPanel,
   })
 
   return <SourceEditor />
@@ -200,6 +189,9 @@ const mockDoc = (content: string, changes: Array<Record<string, any>> = []) => {
     detachFromCM6: () => {
       // Do nothing
     },
+    getType: () => {
+      return 'history-ot'
+    },
     on: () => {
       // Do nothing
     },
@@ -209,7 +201,7 @@ const mockDoc = (content: string, changes: Array<Record<string, any>> = []) => {
     setTrackChangesIdSeeds: () => {
       // Do nothing
     },
-    setTrackingChanges: () => {
+    setTrackChangesUserId: () => {
       // Do nothing
     },
     getTrackingChanges: () => {
@@ -222,6 +214,7 @@ const mockDoc = (content: string, changes: Array<Record<string, any>> = []) => {
       return null
     },
     ranges: new RangesTracker(changes, []),
+    hasBufferedOps: () => false,
   }
 }
 

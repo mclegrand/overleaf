@@ -4,14 +4,12 @@ import { SubscriptionDashboardProvider } from '../../../../../frontend/js/featur
 import { groupPriceByUsageTypeAndSize, plans } from '../fixtures/plans'
 import fetchMock from 'fetch-mock'
 import { SplitTestProvider } from '@/shared/context/split-test-context'
+import { MetaTag } from '@/utils/meta'
 
 export function renderWithSubscriptionDashContext(
   component: React.ReactElement,
   options?: {
-    metaTags?: {
-      name: string
-      value: string | object | Array<object> | boolean
-    }[]
+    metaTags?: MetaTag[]
     recurlyNotLoaded?: boolean
     queryingRecurly?: boolean
     currencyCode?: string
@@ -28,8 +26,9 @@ export function renderWithSubscriptionDashContext(
   )
 
   options?.metaTags?.forEach(tag =>
-    window.metaAttributesCache.set(tag.name, tag.value)
+    window.metaAttributesCache.set(tag!.name, tag!.value)
   )
+  window.metaAttributesCache.set('ol-user', {})
 
   if (!options?.recurlyNotLoaded) {
     // @ts-ignore
@@ -91,5 +90,5 @@ export function renderWithSubscriptionDashContext(
 export function cleanUpContext() {
   // @ts-ignore
   delete global.recurly
-  fetchMock.reset()
+  fetchMock.removeRoutes().clearHistory()
 }

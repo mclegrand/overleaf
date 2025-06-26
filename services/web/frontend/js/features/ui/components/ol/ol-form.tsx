@@ -1,30 +1,8 @@
-import { Form } from 'react-bootstrap-5'
-import { Form as BS3Form } from 'react-bootstrap'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
+import { Form } from 'react-bootstrap'
+import { ComponentProps } from 'react'
 
-type OLFormProps = React.ComponentProps<typeof Form> & {
-  bs3Props?: React.ComponentProps<typeof BS3Form>
-}
-
-function OLForm(props: OLFormProps) {
-  const { bs3Props, ...rest } = props
-
-  const bs3FormProps: React.ComponentProps<typeof BS3Form> = {
-    componentClass: rest.as,
-    children: rest.children,
-    id: rest.id,
-    onSubmit: rest.onSubmit as React.FormEventHandler<BS3Form> | undefined,
-    className: rest.className,
-    role: rest.role,
-    ...bs3Props,
-  }
-
-  return (
-    <BootstrapVersionSwitcher
-      bs3={<BS3Form {...bs3FormProps} />}
-      bs5={<Form {...rest} />}
-    />
-  )
+function OLForm(props: ComponentProps<typeof Form>) {
+  return <Form {...props} />
 }
 
 export default OLForm

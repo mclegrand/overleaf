@@ -1,4 +1,4 @@
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 const SandboxedModule = require('sandboxed-module')
 const assert = require('assert')
 const moment = require('moment')
@@ -19,7 +19,7 @@ describe('UserGetter', function () {
   beforeEach(function () {
     const confirmedAt = new Date()
     this.fakeUser = {
-      _id: '12390i',
+      _id: new ObjectId(),
       email: 'email2@foo.bar',
       emails: [
         {
@@ -45,6 +45,10 @@ describe('UserGetter', function () {
     }
     this.getUserAffiliations = sinon.stub().resolves([])
 
+    this.Modules = {
+      promises: { hooks: { fire: sinon.stub().resolves() } },
+    }
+
     this.UserGetter = SandboxedModule.require(modulePath, {
       requires: {
         '../Helpers/Mongo': { normalizeQuery, normalizeMultiQuery },
@@ -63,6 +67,7 @@ describe('UserGetter', function () {
         '../../models/User': {
           User: (this.User = {}),
         },
+        '../../infrastructure/Modules': this.Modules,
       },
     })
   })
@@ -110,6 +115,17 @@ describe('UserGetter', function () {
           { projection }
         )
         users.should.deep.equal([this.fakeUser])
+        done()
+      })
+    })
+
+    it('should not call mongo with empty list', function (done) {
+      const query = []
+      const projection = { email: 1 }
+      this.UserGetter.getUsers(query, projection, (error, users) => {
+        expect(error).to.not.exist
+        expect(users).to.deep.equal([])
+        expect(this.find).to.not.have.been.called
         done()
       })
     })
@@ -390,8 +406,8 @@ describe('UserGetter', function () {
             .toDate()
           const confirmed2 = moment()
             .subtract(maxConfirmationMonths, 'months')
-            .add(15, 'days')
-            .toDate() // expires in 15 days
+            .add(30, 'days')
+            .toDate() // expires in 30 days and reconfirmNotificationDays is set to 14
           const lastDayToReconfirm2 = moment(confirmed2)
             .add(maxConfirmationMonths, 'months')
             .toDate()
@@ -945,6 +961,50 @@ describe('UserGetter', function () {
         )
       })
 
+      it('should flag to show notification if v2 shows as reconfirmation upcoming but v1 does not', function (done) {
+        const email = 'abc123@test.com'
+        const { maxConfirmationMonths } = institutionNonSSO
+
+        const datePastReconfirmation = moment()
+          .subtract(maxConfirmationMonths, 'months')
+          .add(3, 'day')
+          .toDate()
+
+        const dateNotPastReconfirmation = moment().add(1, 'month').toDate()
+
+        const affiliationsData = [
+          {
+            email,
+            licence: 'free',
+            institution: institutionNonSSO,
+            last_day_to_reconfirm: dateNotPastReconfirmation,
+          },
+        ]
+        const user = {
+          _id: '12390i',
+          email,
+          emails: [
+            {
+              email,
+              confirmedAt: datePastReconfirmation,
+              default: true,
+            },
+          ],
+        }
+        this.getUserAffiliations.resolves(affiliationsData)
+        this.UserGetter.promises.getUser = sinon.stub().resolves(user)
+        this.UserGetter.getUserFullEmails(
+          this.fakeUser._id,
+          (error, fullEmails) => {
+            expect(error).to.not.exist
+            expect(
+              fullEmails[0].affiliation.inReconfirmNotificationPeriod
+            ).to.equal(true)
+            done()
+          }
+        )
+      })
+
       describe('cachedLastDayToReconfirm', function () {
         const email = 'abc123@test.com'
         const confirmedAt = new Date('2019-07-11T18:25:01.639Z')
@@ -1213,6 +1273,58 @@ describe('UserGetter', function () {
         expect(err).not.to.exist
         done()
       })
+    })
+  })
+
+  describe('getUserFeatures', function () {
+    beforeEach(function () {
+      this.Modules.promises.hooks.fire = sinon.stub().resolves()
+      this.fakeUser.features = {}
+    })
+
+    it('should return user features', function (done) {
+      this.fakeUser.features = { feature1: true, feature2: false }
+      this.UserGetter.getUserFeatures(new ObjectId(), (error, features) => {
+        expect(error).to.not.exist
+        expect(features).to.deep.equal(this.fakeUser.features)
+        done()
+      })
+    })
+
+    it('should return user features when using promises', async function () {
+      this.fakeUser.features = { feature1: true, feature2: false }
+      const features = await this.UserGetter.promises.getUserFeatures(
+        this.fakeUser._id
+      )
+      expect(features).to.deep.equal(this.fakeUser.features)
+    })
+
+    it('should take into account features overrides from modules', async function () {
+      // this case occurs when the user has bought the ai bundle on WF, which should include our error assistant
+      const bundleFeatures = { aiErrorAssistant: true }
+      this.fakeUser.features = { aiErrorAssistant: false }
+      this.Modules.promises.hooks.fire = sinon.stub().resolves([bundleFeatures])
+      const features = await this.UserGetter.promises.getUserFeatures(
+        this.fakeUser._id
+      )
+      expect(features).to.deep.equal(bundleFeatures)
+      this.Modules.promises.hooks.fire.should.have.been.calledWith(
+        'getModuleProvidedFeatures',
+        this.fakeUser._id
+      )
+    })
+
+    it('should handle modules not returning any features', async function () {
+      this.Modules.promises.hooks.fire = sinon.stub().resolves([])
+      this.fakeUser.features = { test: true }
+      const features = await this.UserGetter.promises.getUserFeatures(
+        this.fakeUser._id
+      )
+      expect(features).to.deep.equal({ test: true })
+      this.Modules.promises.hooks.fire.should.have.been.calledWith(
+        'getModuleProvidedFeatures',
+        this.fakeUser._id
+      )
     })
   })
 })

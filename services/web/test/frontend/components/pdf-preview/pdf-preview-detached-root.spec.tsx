@@ -1,4 +1,3 @@
-import '../../helpers/bootstrap-3'
 import PdfPreviewDetachedRoot from '../../../../frontend/js/features/pdf-preview/components/pdf-preview-detached-root'
 import { detachChannel, testDetachChannel } from '../../helpers/detach-channel'
 
@@ -9,6 +8,10 @@ describe('<PdfPreviewDetachedRoot/>', function () {
     window.metaAttributesCache.set('ol-detachRole', 'detached')
     window.metaAttributesCache.set('ol-projectName', 'Project Name')
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
+    window.metaAttributesCache.set('ol-compileSettings', {
+      reducedWarningThreshold: 'default',
+      compileTimeout: 240,
+    })
 
     cy.interceptEvents()
   })

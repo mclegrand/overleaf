@@ -271,7 +271,8 @@ export function ProjectListProvider({ children }: ProjectListProviderProps) {
 
   const toggleSelectedProject = useCallback(
     (projectId: string, selected?: boolean) => {
-      setSelectedProjectIds(selectedProjectIds => {
+      setSelectedProjectIds(prevSelectedProjectIds => {
+        const selectedProjectIds = new Set(prevSelectedProjectIds)
         if (selected === true) {
           selectedProjectIds.add(projectId)
         } else if (selected === false) {
@@ -281,7 +282,7 @@ export function ProjectListProvider({ children }: ProjectListProviderProps) {
         } else {
           selectedProjectIds.add(projectId)
         }
-        return new Set([...selectedProjectIds])
+        return selectedProjectIds
       })
     },
     []
@@ -292,8 +293,9 @@ export function ProjectListProvider({ children }: ProjectListProviderProps) {
   }, [selectedProjectIds, visibleProjects])
 
   const selectOrUnselectAllProjects = useCallback(
-    checked => {
-      setSelectedProjectIds(selectedProjectIds => {
+    (checked: any) => {
+      setSelectedProjectIds(prevSelectedProjectIds => {
+        const selectedProjectIds = new Set(prevSelectedProjectIds)
         for (const project of visibleProjects) {
           if (checked) {
             selectedProjectIds.add(project.id)
@@ -301,7 +303,7 @@ export function ProjectListProvider({ children }: ProjectListProviderProps) {
             selectedProjectIds.delete(project.id)
           }
         }
-        return new Set([...selectedProjectIds])
+        return selectedProjectIds
       })
     },
     [visibleProjects]

@@ -139,46 +139,24 @@ class RangesTracker {
     return change
   }
 
-  getChanges(changeIds) {
-    const changesResponse = []
-    const idsMap = {}
-
-    for (const changeId of changeIds) {
-      idsMap[changeId] = true
-    }
-
-    for (const change of this.changes) {
-      if (idsMap[change.id]) {
-        delete idsMap[change.id]
-        changesResponse.push(change)
-      }
-    }
-
-    return changesResponse
+  getChanges(ids) {
+    const idSet = new Set(ids)
+    return this.changes.filter(change => idSet.has(change.id))
   }
 
   removeChangeId(changeId) {
-    const change = this.getChange(changeId)
-    if (change == null) {
-      return
-    }
-    this._removeChange(change)
+    this.removeChangeIds([changeId])
   }
 
-  removeChangeIds(changeToRemoveIds) {
-    if (changeToRemoveIds == null || changeToRemoveIds.length === 0) {
+  removeChangeIds(ids) {
+    if (ids == null || ids.length === 0) {
       return
     }
-    const removeChangeId = {}
-    for (const changeId of changeToRemoveIds) {
-      removeChangeId[changeId] = true
-    }
 
+    const idSet = new Set(ids)
     const remainingChanges = []
-
     for (const change of this.changes) {
-      if (removeChangeId[change.id]) {
-        delete removeChangeId[change.id]
+      if (idSet.has(change.id)) {
         this._markAsDirty(change, 'change', 'removed')
       } else {
         remainingChanges.push(change)
@@ -334,7 +312,7 @@ class RangesTracker {
     const movedChanges = []
     const removeChanges = []
     const newChanges = []
-
+    const trackedDeletesAtOpPosition = []
     for (let i = 0; i < this.changes.length; i++) {
       change = this.changes[i]
       const changeStart = change.op.p
@@ -345,13 +323,15 @@ class RangesTracker {
           change.op.p += opLength
           movedChanges.push(change)
         } else if (opStart === changeStart) {
-          // If we are undoing, then we want to cancel any existing delete ranges if we can.
-          // Check if the insert matches the start of the delete, and just remove it from the delete instead if so.
           if (
+            !alreadyMerged &&
             undoing &&
             change.op.d.length >= op.i.length &&
             change.op.d.slice(0, op.i.length) === op.i
           ) {
+            // If we are undoing, then we want to reject any existing tracked delete if we can.
+            // Check if the insert matches the start of the delete, and just
+            // remove it from the delete instead if so.
             change.op.d = change.op.d.slice(op.i.length)
             change.op.p += op.i.length
             if (change.op.d === '') {
@@ -360,9 +340,25 @@ class RangesTracker {
               movedChanges.push(change)
             }
             alreadyMerged = true
+
+            // Any tracked delete that came before this tracked delete
+            // rejection was moved after the incoming insert. Move them back
+            // so that they appear before the tracked delete rejection.
+            for (const trackedDelete of trackedDeletesAtOpPosition) {
+              trackedDelete.op.p -= opLength
+            }
           } else {
+            // We're not rejecting that tracked delete. Move it after the
+            // insert.
             change.op.p += opLength
             movedChanges.push(change)
+
+            // Keep track of tracked deletes that are at the same position as the
+            // insert. If we find a tracked delete to reject, we'll want to
+            // reposition them.
+            if (!alreadyMerged) {
+              trackedDeletesAtOpPosition.push(change)
+            }
           }
         }
       } else if (change.op.i != null) {
@@ -642,9 +638,11 @@ class RangesTracker {
   }
 
   _addOp(op, metadata) {
+    // Don't take a reference to the existing op since we'll modify this in place with future changes
+    op = this._clone(op)
     const change = {
       id: this.newId(),
-      op: this._clone(op), // Don't take a reference to the existing op since we'll modify this in place with future changes
+      op,
       metadata: this._clone(metadata),
     }
     this.changes.push(change)
@@ -667,7 +665,7 @@ class RangesTracker {
   }
 
   _removeChange(change) {
-    this.changes = this.changes.filter(c => c.id !== change.id)
+    this.changes = this.changes.filter(c => c !== change)
     this._markAsDirty(change, 'change', 'removed')
   }
 
@@ -766,6 +764,16 @@ class RangesTracker {
 
   getDirtyState() {
     return this._dirtyState
+  }
+
+  getTrackedDeletesLength() {
+    let length = 0
+    for (const change of this.changes) {
+      if (change.op.d != null) {
+        length += change.op.d.length
+      }
+    }
+    return length
   }
 
   _markAsDirty(object, type, action) {

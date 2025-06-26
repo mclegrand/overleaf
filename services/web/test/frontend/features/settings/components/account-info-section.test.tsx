@@ -29,7 +29,7 @@ describe('<AccountInfoSection />', function () {
   })
 
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   it('submits all inputs', async function () {
@@ -39,25 +39,25 @@ describe('<AccountInfoSection />', function () {
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'john@watson.co.uk' },
     })
-    fireEvent.change(screen.getByLabelText('First Name'), {
+    fireEvent.change(screen.getByLabelText('First name'), {
       target: { value: 'John' },
     })
-    fireEvent.change(screen.getByLabelText('Last Name'), {
+    fireEvent.change(screen.getByLabelText('Last name'), {
       target: { value: 'Watson' },
     })
     fireEvent.click(
       screen.getByRole('button', {
-        name: 'Update',
+        name: /update/i,
       })
     )
-    expect(updateMock.called()).to.be.true
-    expect(JSON.parse(updateMock.lastCall()![1]!.body as string)).to.deep.equal(
-      {
-        email: 'john@watson.co.uk',
-        first_name: 'John',
-        last_name: 'Watson',
-      }
-    )
+    expect(updateMock.callHistory.called()).to.be.true
+    expect(
+      JSON.parse(updateMock.callHistory.calls().at(-1)?.options.body as string)
+    ).to.deep.equal({
+      email: 'john@watson.co.uk',
+      first_name: 'John',
+      last_name: 'Watson',
+    })
   })
 
   it('disables button on invalid email', async function () {
@@ -68,13 +68,13 @@ describe('<AccountInfoSection />', function () {
       target: { value: 'john' },
     })
     const button = screen.getByRole('button', {
-      name: 'Update',
+      name: /update/i,
     }) as HTMLButtonElement
 
     expect(button.disabled).to.be.true
     fireEvent.click(button)
 
-    expect(updateMock.called()).to.be.false
+    expect(updateMock.callHistory.called()).to.be.false
   })
 
   it('shows inflight state and success message', async function () {
@@ -87,14 +87,14 @@ describe('<AccountInfoSection />', function () {
 
     fireEvent.click(
       screen.getByRole('button', {
-        name: 'Update',
+        name: /update/i,
       })
     )
-    await screen.findByText('Saving…')
+    await screen.findByRole('button', { name: /saving/i })
 
     finishUpdateCall(200)
     await screen.findByRole('button', {
-      name: 'Update',
+      name: /update/i,
     })
     screen.getByText('Thanks, your settings have been updated.')
   })
@@ -105,7 +105,7 @@ describe('<AccountInfoSection />', function () {
 
     fireEvent.click(
       screen.getByRole('button', {
-        name: 'Update',
+        name: /update/i,
       })
     )
     await screen.findByText('Something went wrong. Please try again.')
@@ -117,7 +117,7 @@ describe('<AccountInfoSection />', function () {
 
     fireEvent.click(
       screen.getByRole('button', {
-        name: 'Update',
+        name: /update/i,
       })
     )
     await screen.findByText(
@@ -136,7 +136,7 @@ describe('<AccountInfoSection />', function () {
 
     fireEvent.click(
       screen.getByRole('button', {
-        name: 'Update',
+        name: /update/i,
       })
     )
     await screen.findByText('This email is already registered')
@@ -153,15 +153,15 @@ describe('<AccountInfoSection />', function () {
 
     fireEvent.click(
       screen.getByRole('button', {
-        name: 'Update',
+        name: /update/i,
       })
     )
-    expect(JSON.parse(updateMock.lastCall()![1]!.body as string)).to.deep.equal(
-      {
-        first_name: 'Sherlock',
-        last_name: 'Holmes',
-      }
-    )
+    expect(
+      JSON.parse(updateMock.callHistory.calls().at(-1)?.options.body as string)
+    ).to.deep.equal({
+      first_name: 'Sherlock',
+      last_name: 'Holmes',
+    })
   })
 
   it('disables email input', async function () {
@@ -173,26 +173,26 @@ describe('<AccountInfoSection />', function () {
 
     renderSectionWithUserProvider()
     expect(screen.getByLabelText('Email')).to.have.property('readOnly', true)
-    expect(screen.getByLabelText('First Name')).to.have.property(
+    expect(screen.getByLabelText('First name')).to.have.property(
       'readOnly',
       false
     )
-    expect(screen.getByLabelText('Last Name')).to.have.property(
+    expect(screen.getByLabelText('Last name')).to.have.property(
       'readOnly',
       false
     )
 
     fireEvent.click(
       screen.getByRole('button', {
-        name: 'Update',
+        name: /update account info/i,
       })
     )
-    expect(JSON.parse(updateMock.lastCall()![1]!.body as string)).to.deep.equal(
-      {
-        first_name: 'Sherlock',
-        last_name: 'Holmes',
-      }
-    )
+    expect(
+      JSON.parse(updateMock.callHistory.calls().at(-1)?.options.body as string)
+    ).to.deep.equal({
+      first_name: 'Sherlock',
+      last_name: 'Holmes',
+    })
   })
 
   it('disables names input', async function () {
@@ -201,24 +201,24 @@ describe('<AccountInfoSection />', function () {
 
     renderSectionWithUserProvider()
     expect(screen.getByLabelText('Email')).to.have.property('readOnly', false)
-    expect(screen.getByLabelText('First Name')).to.have.property(
+    expect(screen.getByLabelText('First name')).to.have.property(
       'readOnly',
       true
     )
-    expect(screen.getByLabelText('Last Name')).to.have.property(
+    expect(screen.getByLabelText('Last name')).to.have.property(
       'readOnly',
       true
     )
 
     fireEvent.click(
       screen.getByRole('button', {
-        name: 'Update',
+        name: /update/i,
       })
     )
-    expect(JSON.parse(updateMock.lastCall()![1]!.body as string)).to.deep.equal(
-      {
-        email: 'sherlock@holmes.co.uk',
-      }
-    )
+    expect(
+      JSON.parse(updateMock.callHistory.calls().at(-1)?.options.body as string)
+    ).to.deep.equal({
+      email: 'sherlock@holmes.co.uk',
+    })
   })
 })

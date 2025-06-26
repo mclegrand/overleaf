@@ -7,7 +7,7 @@ import {
 import { Decoration, EditorView, WidgetType } from '@codemirror/view'
 import { undo } from '@codemirror/commands'
 import { ancestorNodeOfType } from '../../utils/tree-operations/ancestors'
-import ReactDOM from 'react-dom'
+import { createRoot } from 'react-dom/client'
 import { PastedContentMenu } from '../../components/paste-html/pasted-content-menu'
 import { SplitTestProvider } from '../../../../shared/context/split-test-context'
 
@@ -49,16 +49,28 @@ const pastedContentTheme = EditorView.baseTheme({
     background: 'none',
     borderRadius: '8px',
     border: '1px solid rgb(125, 125, 125)',
+    color: 'inherit',
     margin: '0 4px',
     opacity: '0.7',
     '&:hover': {
       opacity: '1',
     },
+    '& .material-symbols': {
+      verticalAlign: 'text-bottom',
+    },
   },
   '.ol-cm-pasted-content-menu-popover': {
+    backgroundColor: '#fff',
     maxWidth: 'unset',
     '& .popover-content': {
       padding: 0,
+    },
+    '& .popover-body': {
+      color: 'inherit',
+      padding: 0,
+    },
+    '& .popover-arrow::after': {
+      borderBottomColor: '#fff',
     },
   },
   '&dark .ol-cm-pasted-content-menu-popover': {
@@ -69,9 +81,10 @@ const pastedContentTheme = EditorView.baseTheme({
     flexDirection: 'column',
     boxSizing: 'border-box',
     fontSize: '14px',
-    fontFamily: '"Lato", sans-serif',
+    fontFamily: 'var(--font-sans)',
   },
   '.ol-cm-pasted-content-menu-item': {
+    color: 'inherit',
     border: 'none',
     background: 'none',
     padding: '8px 16px',
@@ -158,7 +171,8 @@ class PastedContentMenuWidget extends WidgetType {
 
   toDOM(view: EditorView) {
     const element = document.createElement('span')
-    ReactDOM.render(
+    const root = createRoot(element)
+    root.render(
       <SplitTestProvider>
         <PastedContentMenu
           insertPastedContent={this.insertPastedContent}
@@ -166,8 +180,7 @@ class PastedContentMenuWidget extends WidgetType {
           formatted={this.formatted}
           pastedContent={this.pastedContent}
         />
-      </SplitTestProvider>,
-      element
+      </SplitTestProvider>
     )
     return element
   }

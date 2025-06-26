@@ -18,13 +18,16 @@ const toolbarState = StateField.define<boolean>({
 export function createToolbarPanel() {
   const dom = document.createElement('div')
   dom.classList.add('ol-cm-toolbar-portal')
+  dom.id = 'ol-cm-toolbar-portal'
   return { dom, top: true }
 }
 
 const toolbarTheme = EditorView.theme({
-  '.ol-cm-toolbar': {
+  '.ol-cm-toolbar-wrapper': {
     backgroundColor: 'var(--editor-toolbar-bg)',
     color: 'var(--toolbar-btn-color)',
+  },
+  '.ol-cm-toolbar': {
     flex: 1,
     display: 'flex',
     overflowX: 'hidden',
@@ -43,21 +46,46 @@ const toolbarTheme = EditorView.theme({
     borderColor: 'rgba(125, 125, 125, 0.2)',
     backgroundColor: 'var(--editor-toolbar-bg)',
     color: 'var(--toolbar-btn-color)',
-    '& .popover-content': {
+    '& .popover-content, & .popover-body': {
       padding: 0,
     },
-    '& .arrow': {
+    '& .popover-body': {
+      color: 'inherit',
+    },
+    '& .arrow, & .popover-arrow': {
       borderBottomColor: 'rgba(125, 125, 125, 0.2)',
       '&:after': {
         borderBottomColor: 'var(--editor-toolbar-bg)',
       },
     },
   },
+  '.ol-cm-toolbar-header': {
+    color: 'var(--toolbar-btn-color)',
+  },
+  '.ol-cm-toolbar-dropdown-divider': {
+    borderBottom: '1px solid',
+    borderColor: 'var(--toolbar-dropdown-divider-color)',
+  },
+  // here render both the icons, and hide one depending on if its dark or light mode with &.overall-theme-dark
+  '.ol-cm-toolbar-ai-sparkle-gradient': {
+    display: 'block',
+  },
+  '.ol-cm-toolbar-ai-sparkle-white': {
+    display: 'none',
+  },
+  '&.overall-theme-dark .ol-cm-toolbar-ai-sparkle-gradient': {
+    display: 'none',
+  },
+  '&.overall-theme-dark .ol-cm-toolbar-ai-sparkle-white': {
+    display: 'block',
+  },
   '.ol-cm-toolbar-button-menu-popover': {
-    '& > .popover-content': {
+    backgroundColor: 'initial',
+    '& > .popover-content, & > .popover-body': {
       padding: 0,
+      color: 'initial',
     },
-    '& .arrow': {
+    '& .arrow, & .popover-arrow': {
       display: 'none',
     },
     '& .list-group': {
@@ -111,11 +139,12 @@ const toolbarTheme = EditorView.theme({
     margin: '0 1px',
     backgroundColor: 'transparent',
     border: 'none',
-    borderRadius: '1px',
+    borderRadius: 'var(--border-radius-base)',
     lineHeight: '1',
     width: '24px',
     height: '24px',
     overflow: 'hidden',
+    color: 'inherit',
     '&:hover, &:focus, &:active, &.active': {
       backgroundColor: 'rgba(125, 125, 125, 0.1)',
       color: 'inherit',
@@ -166,15 +195,12 @@ const toolbarTheme = EditorView.theme({
   },
   '.ol-cm-toolbar-menu-toggle': {
     background: 'transparent',
-    boxShadow: 'none !important',
     border: 'none',
-    whiteSpace: 'nowrap',
     color: 'inherit',
-    borderRadius: '0',
+    borderRadius: 'var(--border-radius-base)',
     opacity: 0.8,
     width: '120px',
     fontSize: '13px',
-    fontFamily: 'Lato',
     fontWeight: '700',
     display: 'flex',
     alignItems: 'center',
@@ -204,14 +230,15 @@ const toolbarTheme = EditorView.theme({
     '&.top': {
       marginBottom: '1px',
     },
-    '& .arrow': {
+    '& .arrow, & .popover-arrow': {
       display: 'none',
     },
-    '& .popover-content': {
+    '& .popover-content, & > .popover-body': {
       padding: '0',
+      color: 'inherit',
     },
     '& .ol-cm-toolbar-menu': {
-      width: '120px',
+      minWidth: '120px',
       display: 'flex',
       flexDirection: 'column',
       boxSizing: 'border-box',
@@ -225,6 +252,7 @@ const toolbarTheme = EditorView.theme({
       display: 'flex',
       alignItems: 'center',
       fontWeight: 'bold',
+      color: 'inherit',
       '&.ol-cm-toolbar-menu-item-active': {
         backgroundColor: 'rgba(125, 125, 125, 0.1)',
       },
@@ -242,9 +270,6 @@ const toolbarTheme = EditorView.theme({
         fontWeight: 'normal',
       },
     },
-  },
-  '&.overall-theme-dark .ol-cm-toolbar-table-grid-popover': {
-    color: '#fff',
   },
   '&.overall-theme-dark .ol-cm-toolbar-table-grid': {
     '& td.active': {
@@ -282,6 +307,7 @@ const toolbarTheme = EditorView.theme({
     borderRadius: '4px',
     backgroundColor: 'var(--editor-toolbar-bg)',
     pointerEvents: 'all',
+    color: 'var(--toolbar-btn-color)',
   },
   '.ol-cm-toolbar-button-menu-popover-unstyled': {
     maxWidth: 'unset',

@@ -1,4 +1,5 @@
-import { MainDocument, PdfViewer } from '../../../../types/project-settings'
+import { MainDocument } from '../../../../types/project-settings'
+import { PdfViewer } from '../../../../types/user-settings'
 
 type Scope = {
   settings?: {
@@ -46,10 +47,5 @@ export const mockScope = (scope?: Scope) => ({
     },
   },
   hasLintingError: false,
-  ui: {
-    view: 'editor',
-    pdfLayout: 'sideBySide',
-    leftMenuShown: false,
-  },
   ...scope,
 })

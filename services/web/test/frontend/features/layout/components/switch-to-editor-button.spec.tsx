@@ -1,11 +1,12 @@
-import '../../../helpers/bootstrap-3'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import SwitchToEditorButton from '@/features/pdf-preview/components/switch-to-editor-button'
 
 describe('<SwitchToEditorButton />', function () {
   it('shows button in full screen pdf layout', function () {
     cy.mount(
-      <EditorProviders ui={{ view: 'pdf', pdfLayout: 'flat', chatOpen: false }}>
+      <EditorProviders
+        layoutContext={{ view: 'pdf', pdfLayout: 'flat', chatIsOpen: false }}
+      >
         <SwitchToEditorButton />
       </EditorProviders>
     )
@@ -16,7 +17,11 @@ describe('<SwitchToEditorButton />', function () {
   it('does not show button in split screen layout', function () {
     cy.mount(
       <EditorProviders
-        ui={{ view: 'pdf', pdfLayout: 'sideBySide', chatOpen: false }}
+        layoutContext={{
+          view: 'pdf',
+          pdfLayout: 'sideBySide',
+          chatIsOpen: false,
+        }}
       >
         <SwitchToEditorButton />
       </EditorProviders>
@@ -29,7 +34,13 @@ describe('<SwitchToEditorButton />', function () {
     window.metaAttributesCache.set('ol-detachRole', 'detacher')
 
     cy.mount(
-      <EditorProviders ui={{ view: 'pdf', pdfLayout: 'flat', chatOpen: false }}>
+      <EditorProviders
+        layoutContext={{
+          view: 'pdf',
+          pdfLayout: 'flat',
+          chatIsOpen: false,
+        }}
+      >
         <SwitchToEditorButton />
       </EditorProviders>
     )

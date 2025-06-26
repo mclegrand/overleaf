@@ -1,6 +1,5 @@
 // Needed since eslint gets confused by mocha-each
 /* eslint-disable mocha/prefer-arrow-callback */
-import '../../../helpers/bootstrap-3'
 import { FC } from 'react'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import CodemirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
@@ -14,7 +13,6 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
     cy.interceptEvents()
     cy.interceptMetadata()
-    cy.interceptSpelling()
     cy.interceptMathJax()
 
     // 3 blank lines
@@ -23,7 +21,9 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
     const scope = mockScope(content)
     scope.editor.showVisual = true
 
-    const FileTreePathProvider: FC = ({ children }) => (
+    const FileTreePathProvider: FC<React.PropsWithChildren> = ({
+      children,
+    }) => (
       <FileTreePathContext.Provider
         value={{
           dirname: cy.stub(),

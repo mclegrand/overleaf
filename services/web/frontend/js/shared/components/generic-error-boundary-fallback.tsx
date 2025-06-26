@@ -1,33 +1,33 @@
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import Icon from './icon'
-import { Button } from 'react-bootstrap'
 import { useLocation } from '../hooks/use-location'
 import { DefaultMessage } from './default-message'
+import MaterialIcon from './material-icon'
+import OLButton from '@/features/ui/components/ol/ol-button'
 
-export const GenericErrorBoundaryFallback: FC = ({ children }) => {
+export const GenericErrorBoundaryFallback: FC<React.PropsWithChildren> = ({
+  children,
+}) => {
   const { t } = useTranslation()
   const { reload: handleClick } = useLocation()
 
   return (
     <div className="error-boundary-container">
-      <div className="icon-error-boundary-container">
-        <Icon
-          accessibilityLabel={`${t('generic_something_went_wrong')} ${t(
-            'please_refresh'
-          )}`}
-          type="exclamation-triangle fa-2x"
-          fw
-        />
-      </div>
+      <MaterialIcon
+        accessibilityLabel={`${t('generic_something_went_wrong')} ${t(
+          'please_refresh'
+        )}`}
+        type="warning"
+        size="2x"
+      />
       {children || (
-        <div className="error-message-container">
+        <div className="error-message">
           <DefaultMessage className="small" style={{ fontWeight: 'bold' }} />
         </div>
       )}
-      <Button bsStyle="primary" onClick={handleClick}>
+      <OLButton variant="primary" onClick={handleClick}>
         {t('refresh')}
-      </Button>
+      </OLButton>
     </div>
   )
 }

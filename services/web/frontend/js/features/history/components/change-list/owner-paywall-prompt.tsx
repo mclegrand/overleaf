@@ -3,8 +3,6 @@ import Icon from '../../../../shared/components/icon'
 import { useCallback, useEffect, useState } from 'react'
 import * as eventTracking from '../../../../infrastructure/event-tracking'
 import StartFreeTrialButton from '../../../../shared/components/start-free-trial-button'
-import { paywallPrompt } from '../../../../main/account-upgrade'
-import { useFeatureFlag } from '@/shared/context/split-test-context'
 
 function FeatureItem({ text }: { text: string }) {
   return (
@@ -18,11 +16,9 @@ export function OwnerPaywallPrompt() {
   const { t } = useTranslation()
   const [clickedFreeTrialButton, setClickedFreeTrialButton] = useState(false)
 
-  const hasNewPaywallCta = useFeatureFlag('paywall-cta')
-
   useEffect(() => {
     eventTracking.send('subscription-funnel', 'editor-click-feature', 'history')
-    paywallPrompt('history')
+    eventTracking.sendMB('paywall-prompt', { 'paywall-type': 'history' })
   }, [])
 
   const handleFreeTrialClick = useCallback(() => {
@@ -54,9 +50,7 @@ export function OwnerPaywallPrompt() {
           buttonProps={{ variant: 'premium' }}
           handleClick={handleFreeTrialClick}
         >
-          {hasNewPaywallCta
-            ? t('get_full_project_history')
-            : t('start_free_trial')}
+          {t('start_free_trial')}
         </StartFreeTrialButton>
       </p>
       {clickedFreeTrialButton ? (

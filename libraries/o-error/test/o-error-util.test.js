@@ -1,5 +1,5 @@
 const { expect } = require('chai')
-const { promisify } = require('util')
+const { promisify } = require('node:util')
 
 const OError = require('..')
 
@@ -266,6 +266,11 @@ describe('utils', function () {
   describe('OError.getFullInfo', function () {
     it('works when given null', function () {
       expect(OError.getFullInfo(null)).to.deep.equal({})
+    })
+
+    it('works when given a string', function () {
+      const err = 'not an error instance'
+      expect(OError.getFullInfo(err)).to.deep.equal({})
     })
 
     it('works on a normal error', function () {

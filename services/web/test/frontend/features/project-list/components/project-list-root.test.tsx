@@ -1,10 +1,16 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import {
+  fireEvent,
+  screen,
+  waitFor,
+  waitForElementToBeRemoved,
+  within,
+} from '@testing-library/react'
 import { expect } from 'chai'
 import fetchMock from 'fetch-mock'
 import sinon from 'sinon'
 import ProjectListRoot from '../../../../../frontend/js/features/project-list/components/project-list-root'
 import { renderWithProjectListContext } from '../helpers/render-with-context'
-import * as eventTracking from '../../../../../frontend/js/infrastructure/event-tracking'
+import * as eventTracking from '@/infrastructure/event-tracking'
 import {
   projectsData,
   owner,
@@ -13,7 +19,7 @@ import {
   archiveableProject,
   copyableProject,
 } from '../fixtures/projects-data'
-import * as useLocationModule from '../../../../../frontend/js/shared/hooks/use-location'
+import { location } from '@/shared/components/location'
 import getMeta from '@/utils/meta'
 
 const {
@@ -31,7 +37,6 @@ describe('<ProjectListRoot />', function () {
   this.timeout('10s')
 
   let sendMBSpy: sinon.SinonSpy
-  let assignStub: sinon.SinonStub
 
   beforeEach(async function () {
     global.localStorage.clear()
@@ -54,18 +59,22 @@ describe('<ProjectListRoot />', function () {
     // we need a blank user here since its used in checking if we should display certain ads
     window.metaAttributesCache.set('ol-user', {})
     window.metaAttributesCache.set('ol-user_id', userId)
-    assignStub = sinon.stub()
-    this.locationStub = sinon.stub(useLocationModule, 'useLocation').returns({
-      assign: assignStub,
-      replace: sinon.stub(),
-      reload: sinon.stub(),
+    window.metaAttributesCache.set('ol-footer', {
+      showThinFooter: false,
+      translatedLanguages: { en: 'English' },
+      subdomainLang: { en: { lngCode: 'en', url: 'overleaf.com' } },
     })
+    window.metaAttributesCache.set('ol-navbar', {
+      items: [],
+    })
+    this.locationWrapperSandbox = sinon.createSandbox()
+    this.locationWrapperStub = this.locationWrapperSandbox.stub(location)
   })
 
   afterEach(function () {
     sendMBSpy.restore()
-    fetchMock.reset()
-    this.locationStub.restore()
+    fetchMock.removeRoutes().clearHistory()
+    this.locationWrapperSandbox.restore()
   })
 
   describe('welcome page', function () {
@@ -73,17 +82,17 @@ describe('<ProjectListRoot />', function () {
       renderWithProjectListContext(<ProjectListRoot />, {
         projects: [],
       })
-      await fetchMock.flush(true)
+      await fetchMock.callHistory.flush(true)
     })
 
     it('the welcome page is displayed', async function () {
-      screen.getByRole('heading', { name: 'Welcome to Overleaf' })
+      await screen.findByRole('heading', { name: 'Welcome to Overleaf' })
     })
 
     it('the email confirmation alert is not displayed', async function () {
       expect(
         screen.queryByText(
-          'Please confirm your email test@overleaf.com by clicking on the link in the confirmation email'
+          'Please confirm your primary email address test@overleaf.com by clicking on the link in the confirmation email.'
         )
       ).to.be.null
     })
@@ -95,7 +104,7 @@ describe('<ProjectListRoot />', function () {
         projects: fullList,
       })
       this.unmount = unmount
-      await fetchMock.flush(true)
+      await fetchMock.callHistory.flush(true)
       await screen.findByRole('table')
     })
 
@@ -121,6 +130,7 @@ describe('<ProjectListRoot />', function () {
             within(actionsToolbar).getByLabelText('Download')
           fireEvent.click(downloadButton)
 
+          const assignStub = this.locationWrapperStub.assign
           await waitFor(() => {
             expect(assignStub).to.have.been.called
           })
@@ -148,20 +158,26 @@ describe('<ProjectListRoot />', function () {
           const archiveButton = within(actionsToolbar).getByLabelText('Archive')
           fireEvent.click(archiveButton)
 
-          const confirmBtn = screen.getByText('Confirm') as HTMLButtonElement
+          const confirmBtn = screen.getByRole('button', {
+            name: 'Confirm',
+          }) as HTMLButtonElement
           fireEvent.click(confirmBtn)
           expect(confirmBtn.disabled).to.be.true
 
           await waitFor(
             () =>
               expect(
-                archiveProjectMock.called(`/project/${project1Id}/archive`)
+                archiveProjectMock.callHistory.called(
+                  `/project/${project1Id}/archive`
+                )
               ).to.be.true
           )
           await waitFor(
             () =>
               expect(
-                archiveProjectMock.called(`/project/${project2Id}/archive`)
+                archiveProjectMock.callHistory.called(
+                  `/project/${project2Id}/archive`
+                )
               ).to.be.true
           )
         })
@@ -178,19 +194,27 @@ describe('<ProjectListRoot />', function () {
           const archiveButton = within(actionsToolbar).getByLabelText('Trash')
           fireEvent.click(archiveButton)
 
-          const confirmBtn = screen.getByText('Confirm') as HTMLButtonElement
+          const confirmBtn = screen.getByRole('button', {
+            name: 'Confirm',
+          }) as HTMLButtonElement
           fireEvent.click(confirmBtn)
           expect(confirmBtn.disabled).to.be.true
 
           await waitFor(
             () =>
-              expect(trashProjectMock.called(`/project/${project1Id}/trash`)).to
-                .be.true
+              expect(
+                trashProjectMock.callHistory.called(
+                  `/project/${project1Id}/trash`
+                )
+              ).to.be.true
           )
           await waitFor(
             () =>
-              expect(trashProjectMock.called(`/project/${project2Id}/trash`)).to
-                .be.true
+              expect(
+                trashProjectMock.callHistory.called(
+                  `/project/${project2Id}/trash`
+                )
+              ).to.be.true
           )
         })
 
@@ -236,7 +260,7 @@ describe('<ProjectListRoot />', function () {
 
       describe('archived projects', function () {
         beforeEach(function () {
-          const filterButton = screen.getAllByText('Archived Projects')[0]
+          const filterButton = screen.getAllByText('Archived projects')[0]
           fireEvent.click(filterButton)
 
           allCheckboxes = screen.getAllByRole<HTMLInputElement>('checkbox')
@@ -257,14 +281,14 @@ describe('<ProjectListRoot />', function () {
             status: 200,
           })
 
-          const unarchiveButton =
-            within(actionsToolbar).getByText<HTMLButtonElement>('Restore')
+          const unarchiveButton = within(actionsToolbar).getByRole('button', {
+            name: 'Restore',
+          })
           fireEvent.click(unarchiveButton)
 
-          await fetchMock.flush(true)
-          expect(fetchMock.done()).to.be.true
+          await fetchMock.callHistory.flush(true)
 
-          screen.getByText('No projects')
+          await screen.findByText('No projects')
         })
 
         it('only unarchive the selected projects', async function () {
@@ -276,8 +300,7 @@ describe('<ProjectListRoot />', function () {
             archivedProjects.length - 1
           )
 
-          await fetchMock.flush(true)
-          expect(fetchMock.done()).to.be.true
+          await fetchMock.callHistory.flush(true)
 
           expect(screen.queryByText('No projects')).to.be.null
         })
@@ -285,7 +308,7 @@ describe('<ProjectListRoot />', function () {
 
       describe('trashed projects', function () {
         beforeEach(function () {
-          const filterButton = screen.getAllByText('Trashed Projects')[0]
+          const filterButton = screen.getAllByText('Trashed projects')[0]
           fireEvent.click(filterButton)
 
           allCheckboxes = screen.getAllByRole<HTMLInputElement>('checkbox')
@@ -310,7 +333,7 @@ describe('<ProjectListRoot />', function () {
         })
 
         it('clears selected projects when filter changed', function () {
-          const filterButton = screen.getAllByText('All Projects')[0]
+          const filterButton = screen.getAllByText('All projects')[0]
           fireEvent.click(filterButton)
 
           const allCheckboxes =
@@ -328,10 +351,9 @@ describe('<ProjectListRoot />', function () {
             within(actionsToolbar).getByText<HTMLButtonElement>('Restore')
           fireEvent.click(untrashButton)
 
-          await fetchMock.flush(true)
-          expect(fetchMock.done()).to.be.true
+          await fetchMock.callHistory.flush(true)
 
-          screen.getByText('No projects')
+          await screen.findByText('No projects')
         })
 
         it('only untrashes the selected projects', async function () {
@@ -341,8 +363,7 @@ describe('<ProjectListRoot />', function () {
           const allCheckboxesChecked = allCheckboxes.filter(c => c.checked)
           expect(allCheckboxesChecked.length).to.equal(trashedList.length - 1)
 
-          await fetchMock.flush(true)
-          expect(fetchMock.done()).to.be.true
+          await fetchMock.callHistory.flush(true)
 
           expect(screen.queryByText('No projects')).to.be.null
         })
@@ -360,30 +381,33 @@ describe('<ProjectListRoot />', function () {
             within(actionsToolbar).getByLabelText<HTMLButtonElement>('Archive')
           fireEvent.click(archiveButton)
 
-          const confirmButton = screen.getByText<HTMLButtonElement>('Confirm')
+          const confirmButton = screen.getByRole('button', {
+            name: 'Confirm',
+          }) as HTMLButtonElement
           fireEvent.click(confirmButton)
           expect(confirmButton.disabled).to.be.true
 
-          await fetchMock.flush(true)
-          expect(fetchMock.done()).to.be.true
+          await fetchMock.callHistory.flush(true)
 
-          const calls = fetchMock.calls().map(([url]) => url)
+          const calls = fetchMock.callHistory.calls().map(({ url }) => url)
 
           trashedList.forEach(project => {
-            expect(calls).to.contain(`/project/${project.id}/archive`)
+            expect(calls).to.contain(
+              `https://www.test-overleaf.com/project/${project.id}/archive`
+            )
           })
         })
 
         it('removes only selected projects from view when leaving', async function () {
           // rerender content with different projects
           this.unmount()
-          fetchMock.restore()
+          fetchMock.removeRoutes().clearHistory()
 
           renderWithProjectListContext(<ProjectListRoot />, {
             projects: leavableList,
           })
 
-          await fetchMock.flush(true)
+          await fetchMock.callHistory.flush(true)
           await screen.findByRole('table')
 
           expect(leavableList.length).to.be.greaterThan(0)
@@ -396,12 +420,15 @@ describe('<ProjectListRoot />', function () {
             { repeat: leavableList.length }
           )
 
-          allCheckboxes = screen.getAllByRole<HTMLInputElement>('checkbox')
           // + 1 because of select all
-          expect(allCheckboxes.length).to.equal(leavableList.length + 1)
+          await waitFor(() =>
+            expect(
+              screen.getAllByRole<HTMLInputElement>('checkbox').length
+            ).to.equal(leavableList.length + 1)
+          )
 
           // first one is the select all checkbox
-          fireEvent.click(allCheckboxes[0])
+          fireEvent.click(screen.getAllByRole('checkbox')[0])
 
           actionsToolbar = screen.getAllByRole('toolbar')[0]
 
@@ -418,29 +445,32 @@ describe('<ProjectListRoot />', function () {
           })
           fireEvent.click(leaveButton)
 
-          const confirmButton = screen.getByText<HTMLButtonElement>('Confirm')
+          const confirmButton = screen.getByRole('button', {
+            name: 'Confirm',
+          }) as HTMLButtonElement
           fireEvent.click(confirmButton)
           expect(confirmButton.disabled).to.be.true
 
-          await fetchMock.flush(true)
-          expect(fetchMock.done()).to.be.true
+          await fetchMock.callHistory.flush(true)
 
-          const calls = fetchMock.calls().map(([url]) => url)
+          const calls = fetchMock.callHistory.calls().map(({ url }) => url)
           leavableList.forEach(project => {
-            expect(calls).to.contain(`/project/${project.id}/leave`)
+            expect(calls).to.contain(
+              `https://www.test-overleaf.com/project/${project.id}/leave`
+            )
           })
         })
 
         it('removes only selected projects from view when deleting', async function () {
           // rerender content with different projects
           this.unmount()
-          fetchMock.restore()
+          fetchMock.removeRoutes().clearHistory()
 
           renderWithProjectListContext(<ProjectListRoot />, {
             projects: deletableList,
           })
 
-          await fetchMock.flush(true)
+          await fetchMock.callHistory.flush(true)
           await screen.findByRole('table')
 
           expect(deletableList.length).to.be.greaterThan(0)
@@ -453,9 +483,11 @@ describe('<ProjectListRoot />', function () {
             { repeat: deletableList.length }
           )
 
-          allCheckboxes = screen.getAllByRole<HTMLInputElement>('checkbox')
-          // + 1 because of select all
-          expect(allCheckboxes.length).to.equal(deletableList.length + 1)
+          await waitFor(() => {
+            allCheckboxes = screen.getAllByRole<HTMLInputElement>('checkbox')
+            // + 1 because of select all
+            expect(allCheckboxes.length).to.equal(deletableList.length + 1)
+          })
 
           // first one is the select all checkbox
           fireEvent.click(allCheckboxes[0])
@@ -475,23 +507,26 @@ describe('<ProjectListRoot />', function () {
           })
           fireEvent.click(deleteButton)
 
-          const confirmButton = screen.getByText<HTMLButtonElement>('Confirm')
+          const confirmButton = screen.getByRole('button', {
+            name: 'Confirm',
+          }) as HTMLButtonElement
           fireEvent.click(confirmButton)
           expect(confirmButton.disabled).to.be.true
 
-          await fetchMock.flush(true)
-          expect(fetchMock.done()).to.be.true
+          await fetchMock.callHistory.flush(true)
 
-          const calls = fetchMock.calls().map(([url]) => url)
+          const calls = fetchMock.callHistory.calls().map(({ url }) => url)
           deletableList.forEach(project => {
-            expect(calls).to.contain(`/project/${project.id}`)
+            expect(calls).to.contain(
+              `https://www.test-overleaf.com/project/${project.id}`
+            )
           })
         })
 
         it('removes only selected projects from view when deleting and leaving', async function () {
           // rerender content with different projects
           this.unmount()
-          fetchMock.restore()
+          fetchMock.removeRoutes().clearHistory()
 
           const deletableAndLeavableList = [...deletableList, ...leavableList]
 
@@ -499,7 +534,7 @@ describe('<ProjectListRoot />', function () {
             projects: deletableAndLeavableList,
           })
 
-          await fetchMock.flush(true)
+          await fetchMock.callHistory.flush(true)
           await screen.findByRole('table')
 
           expect(deletableList.length).to.be.greaterThan(0)
@@ -521,14 +556,15 @@ describe('<ProjectListRoot />', function () {
               { repeat: leavableList.length }
             )
 
-          allCheckboxes = screen.getAllByRole<HTMLInputElement>('checkbox')
           // + 1 because of select all
-          expect(allCheckboxes.length).to.equal(
-            deletableAndLeavableList.length + 1
+          await waitFor(() =>
+            expect(
+              screen.getAllByRole<HTMLInputElement>('checkbox').length
+            ).to.equal(deletableAndLeavableList.length + 1)
           )
 
           // first one is the select all checkbox
-          fireEvent.click(allCheckboxes[0])
+          fireEvent.click(screen.getAllByRole<HTMLInputElement>('checkbox')[0])
 
           actionsToolbar = screen.getAllByRole('toolbar')[0]
 
@@ -541,18 +577,19 @@ describe('<ProjectListRoot />', function () {
           })
           fireEvent.click(deleteLeaveButton)
 
-          const confirmButton = screen.getByText<HTMLButtonElement>('Confirm')
+          const confirmButton = screen.getByRole('button', {
+            name: 'Confirm',
+          }) as HTMLButtonElement
           fireEvent.click(confirmButton)
           expect(confirmButton.disabled).to.be.true
 
-          await fetchMock.flush(true)
-          expect(fetchMock.done()).to.be.true
+          await fetchMock.callHistory.flush(true)
 
-          const calls = fetchMock.calls().map(([url]) => url)
+          const calls = fetchMock.callHistory.calls().map(({ url }) => url)
           deletableAndLeavableList.forEach(project => {
             expect(calls).to.contain.oneOf([
-              `/project/${project.id}`,
-              `/project/${project.id}/leave`,
+              `https://www.test-overleaf.com/project/${project.id}`,
+              `https://www.test-overleaf.com/project/${project.id}/leave`,
             ])
           })
         })
@@ -561,7 +598,7 @@ describe('<ProjectListRoot />', function () {
       describe('tags', function () {
         it('does not show archived or trashed project', async function () {
           this.unmount()
-          fetchMock.restore()
+          fetchMock.removeRoutes().clearHistory()
           window.metaAttributesCache.set('ol-tags', [
             {
               _id: this.tagId,
@@ -607,17 +644,23 @@ describe('<ProjectListRoot />', function () {
           const trashBtns = screen.getAllByRole('button', { name: 'Trash' })
           for (const [index, trashBtn] of trashBtns.entries()) {
             fireEvent.click(trashBtn)
-            fireEvent.click(screen.getByText<HTMLButtonElement>('Confirm'))
+            fireEvent.click(
+              screen.getByRole('button', {
+                name: 'Confirm',
+              })
+            )
             await waitFor(() => {
               expect(
-                trashProjectMock.called(
+                trashProjectMock.callHistory.called(
                   `/project/${projectsData[index].id}/trash`
                 )
               ).to.be.true
             })
-            expect(
-              screen.queryAllByText(projectsData[index].name)
-            ).to.have.length(0)
+            await waitFor(() => {
+              expect(
+                screen.queryAllByText(projectsData[index].name)
+              ).to.have.length(0)
+            })
 
             screen.getAllByRole('button', {
               name: `${this.tagName} (${--visibleProjectsCount})`,
@@ -651,13 +694,15 @@ describe('<ProjectListRoot />', function () {
             status: 204,
           })
 
-          await waitFor(() => {
-            const tagsDropdown = within(actionsToolbar).getByLabelText('Tags')
-            fireEvent.click(tagsDropdown)
-          })
+          const tagsDropdown =
+            await within(actionsToolbar).findByLabelText('Tags')
+          fireEvent.click(tagsDropdown)
           screen.getByText('Add to tag')
 
-          const newTagButton = screen.getByText('Create new tag')
+          const newTagButton = screen.getByRole('menuitem', {
+            name: 'Create new tag',
+          })
+
           fireEvent.click(newTagButton)
 
           const modal = screen.getAllByRole('dialog')[0]
@@ -670,18 +715,24 @@ describe('<ProjectListRoot />', function () {
           })
           fireEvent.click(createButton)
 
-          await fetchMock.flush(true)
+          await fetchMock.callHistory.flush(true)
 
-          expect(fetchMock.called('/tag', { name: this.newTagName })).to.be.true
           expect(
-            fetchMock.called(`/tag/${this.newTagId}/projects`, {
+            fetchMock.callHistory.called('/tag', { name: this.newTagName })
+          ).to.be.true
+          expect(
+            fetchMock.callHistory.called(`/tag/${this.newTagId}/projects`, {
               body: {
                 projectIds: [projectsData[0].id, projectsData[1].id],
               },
             })
           ).to.be.true
 
-          screen.getByRole('button', { name: `${this.newTagName} (2)` })
+          await screen.findByRole(
+            'button',
+            { name: `${this.newTagName} (2)` },
+            { timeout: 5000 }
+          )
         })
 
         it('opens the tags dropdown and remove a tag from selected projects', async function () {
@@ -702,10 +753,10 @@ describe('<ProjectListRoot />', function () {
           )
           fireEvent.click(tagButton)
 
-          await fetchMock.flush(true)
+          await fetchMock.callHistory.flush(true)
 
           expect(
-            deleteProjectsFromTagMock.called(
+            deleteProjectsFromTagMock.callHistory.called(
               `/tag/${this.tagId}/projects/remove`,
               {
                 body: {
@@ -738,14 +789,17 @@ describe('<ProjectListRoot />', function () {
           )
           fireEvent.click(tagButton)
 
-          await fetchMock.flush(true)
+          await fetchMock.callHistory.flush(true)
 
           expect(
-            addProjectsToTagMock.called(`/tag/${this.tagId}/projects`, {
-              body: {
-                projectIds: [projectsData[2].id],
-              },
-            })
+            addProjectsToTagMock.callHistory.called(
+              `/tag/${this.tagId}/projects`,
+              {
+                body: {
+                  projectIds: [projectsData[2].id],
+                },
+              }
+            )
           ).to.be.true
           screen.getByRole('button', { name: `${this.tagName} (3)` })
         })
@@ -789,7 +843,7 @@ describe('<ProjectListRoot />', function () {
 
         describe('"More" dropdown', function () {
           beforeEach(async function () {
-            const filterButton = screen.getAllByText('All Projects')[0]
+            const filterButton = screen.getAllByText('All projects')[0]
             fireEvent.click(filterButton)
             allCheckboxes = screen.getAllByRole<HTMLInputElement>('checkbox')
           })
@@ -821,7 +875,7 @@ describe('<ProjectListRoot />', function () {
             const modals = await screen.findAllByRole('dialog')
             const modal = modals[0]
 
-            expect(sendMBSpy).to.have.been.calledTwice
+            expect(sendMBSpy).to.have.been.calledThrice
             expect(sendMBSpy).to.have.been.calledWith('loads_v2_dash')
             expect(sendMBSpy).to.have.been.calledWith(
               'project-list-page-interaction',
@@ -834,8 +888,9 @@ describe('<ProjectListRoot />', function () {
             )
 
             // same name
-            let confirmButton =
-              within(modal).getByText<HTMLButtonElement>('Rename')
+            let confirmButton = within(modal).getByRole('button', {
+              name: 'Rename',
+            }) as HTMLButtonElement
             expect(confirmButton.disabled).to.be.true
 
             // no name
@@ -843,7 +898,9 @@ describe('<ProjectListRoot />', function () {
             fireEvent.change(input, {
               target: { value: '' },
             })
-            confirmButton = within(modal).getByText<HTMLButtonElement>('Rename')
+            confirmButton = within(modal).getByRole('button', {
+              name: 'Rename',
+            }) as HTMLButtonElement
             expect(confirmButton.disabled).to.be.true
           })
 
@@ -878,19 +935,22 @@ describe('<ProjectListRoot />', function () {
               target: { value: newProjectName },
             })
 
-            const confirmButton =
-              within(modal).getByText<HTMLButtonElement>('Rename')
+            const confirmButton = within(modal).getByRole('button', {
+              name: 'Rename',
+            }) as HTMLButtonElement
             expect(confirmButton.disabled).to.be.false
             fireEvent.click(confirmButton)
 
-            await fetchMock.flush(true)
+            await fetchMock.callHistory.flush(true)
 
             expect(
-              renameProjectMock.called(`/project/${projectsData[0].id}/rename`)
+              renameProjectMock.callHistory.called(
+                `/project/${projectsData[0].id}/rename`
+              )
             ).to.be.true
 
             const table = await screen.findByRole('table')
-            within(table).getByText(newProjectName)
+            await within(table).findByText(newProjectName)
             expect(within(table).queryByText(oldName)).to.be.null
 
             const allCheckboxesInTable =
@@ -946,13 +1006,15 @@ describe('<ProjectListRoot />', function () {
             ) as HTMLElement
             fireEvent.click(copyConfirmButton)
 
-            await fetchMock.flush(true)
+            await fetchMock.callHistory.flush(true)
 
             expect(
-              cloneProjectMock.called(`/project/${projectsData[1].id}/clone`)
+              cloneProjectMock.callHistory.called(
+                `/project/${projectsData[1].id}/clone`
+              )
             ).to.be.true
 
-            expect(sendMBSpy).to.have.been.calledTwice
+            expect(sendMBSpy).to.have.been.calledThrice
             expect(sendMBSpy).to.have.been.calledWith('loads_v2_dash')
             expect(sendMBSpy).to.have.been.calledWith(
               'project-list-page-interaction',
@@ -964,7 +1026,7 @@ describe('<ProjectListRoot />', function () {
               }
             )
 
-            screen.getByText(copiedProjectName)
+            await screen.findByText(copiedProjectName)
           })
         })
       })
@@ -1012,6 +1074,8 @@ describe('<ProjectListRoot />', function () {
         }
 
         beforeEach(function () {
+          fetchMock.removeRoutes().clearHistory()
+
           allCheckboxes = screen.getAllByRole<HTMLInputElement>('checkbox')
           // first one is the select all checkbox, just check 2 at first
           fireEvent.click(allCheckboxes[1])
@@ -1024,7 +1088,7 @@ describe('<ProjectListRoot />', function () {
           selectedMatchesDisplayed(2)
         })
 
-        it('shows correct list after closing modal, changing selecting, and reopening modal', async function () {
+        it('shows correct list after closing modal, changing selection, and reopening modal', async function () {
           selectedMatchesDisplayed(2)
 
           const modal = screen.getAllByRole('dialog', { hidden: false })[0]
@@ -1032,7 +1096,10 @@ describe('<ProjectListRoot />', function () {
             name: 'Cancel',
           })
           fireEvent.click(cancelButton)
-          expect(screen.queryByRole('dialog', { hidden: false })).to.be.null
+
+          await waitForElementToBeRemoved(
+            screen.getByRole('dialog', { hidden: false })
+          )
 
           await screen.findAllByRole('checkbox')
           fireEvent.click(allCheckboxes[3])
@@ -1110,10 +1177,9 @@ describe('<ProjectListRoot />', function () {
         ) as HTMLElement
         fireEvent.click(copyConfirmButton)
 
-        await fetchMock.flush(true)
-        expect(fetchMock.done()).to.be.true
+        await fetchMock.callHistory.flush(true)
 
-        expect(sendMBSpy).to.have.been.calledTwice
+        expect(sendMBSpy).to.have.been.calledThrice
         expect(sendMBSpy).to.have.been.calledWith('loads_v2_dash')
         expect(sendMBSpy).to.have.been.calledWith(
           'project-list-page-interaction',
@@ -1127,17 +1193,9 @@ describe('<ProjectListRoot />', function () {
 
         expect(screen.queryByText(copiedProjectName)).to.be.null
 
-        const yourProjectFilter = screen.getAllByText('Your Projects')[0]
+        const yourProjectFilter = screen.getAllByText('Your projects')[0]
         fireEvent.click(yourProjectFilter)
-        screen.findByText(copiedProjectName)
-      })
-    })
-
-    describe('notifications', function () {
-      it('email confirmation alert is displayed', async function () {
-        screen.getByText(
-          'Please confirm your email test@overleaf.com by clicking on the link in the confirmation email'
-        )
+        await screen.findByText(copiedProjectName)
       })
     })
   })

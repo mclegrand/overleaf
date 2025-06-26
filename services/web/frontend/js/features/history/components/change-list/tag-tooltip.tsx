@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { forwardRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Modal } from 'react-bootstrap'
-import Icon from '../../../../shared/components/icon'
-import Tooltip from '../../../../shared/components/tooltip'
-import AccessibleModal from '../../../../shared/components/accessible-modal'
+import OLModal, {
+  OLModalBody,
+  OLModalFooter,
+  OLModalHeader,
+  OLModalTitle,
+} from '@/features/ui/components/ol/ol-modal'
+import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
 import ModalError from './modal-error'
 import useAbortController from '../../../../shared/hooks/use-abort-controller'
 import useAsync from '../../../../shared/hooks/use-async'
@@ -13,120 +16,125 @@ import { deleteLabel } from '../../services/api'
 import { isPseudoLabel } from '../../utils/label'
 import { LoadedLabel } from '../../services/types/label'
 import { debugConsole } from '@/utils/debugging'
-import { formatTimeBasedOnYear } from '@/features/utils/format-date'
+import { FormatTimeBasedOnYear } from '@/shared/components/format-time-based-on-year'
 import { useEditorContext } from '@/shared/context/editor-context'
-import Tag from '@/shared/components/tag'
+import OLTag from '@/features/ui/components/ol/ol-tag'
+import OLButton from '@/features/ui/components/ol/ol-button'
+import OLTagIcon from '@/features/ui/components/ol/icons/ol-tag-icon'
 
 type TagProps = {
   label: LoadedLabel
   currentUserId: string
 }
 
-function ChangeTag({ label, currentUserId, ...props }: TagProps) {
-  const { isProjectOwner } = useEditorContext()
+const ChangeTag = forwardRef<HTMLElement, TagProps>(
+  ({ label, currentUserId, ...props }: TagProps, ref) => {
+    const { isProjectOwner } = useEditorContext()
 
-  const { t } = useTranslation()
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const { projectId } = useHistoryContext()
-  const { signal } = useAbortController()
-  const { removeUpdateLabel } = useAddOrRemoveLabels()
-  const { isLoading, isSuccess, isError, error, reset, runAsync } = useAsync()
-  const isPseudoCurrentStateLabel = isPseudoLabel(label)
-  const isOwnedByCurrentUser = !isPseudoCurrentStateLabel
-    ? label.user_id === currentUserId
-    : null
+    const { t } = useTranslation()
+    const [showDeleteModal, setShowDeleteModal] = useState(false)
+    const { projectId } = useHistoryContext()
+    const { signal } = useAbortController()
+    const { removeUpdateLabel } = useAddOrRemoveLabels()
+    const { isLoading, isSuccess, isError, error, reset, runAsync } = useAsync()
+    const isPseudoCurrentStateLabel = isPseudoLabel(label)
+    const isOwnedByCurrentUser = !isPseudoCurrentStateLabel
+      ? label.user_id === currentUserId
+      : null
 
-  const showConfirmationModal = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setShowDeleteModal(true)
-  }
-
-  const handleModalExited = () => {
-    if (!isSuccess) return
-
-    if (!isPseudoCurrentStateLabel) {
-      removeUpdateLabel(label)
+    const showConfirmationModal = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      setShowDeleteModal(true)
     }
 
-    reset()
-  }
+    const handleModalExited = () => {
+      if (!isSuccess) return
 
-  const localDeleteHandler = () => {
-    runAsync(deleteLabel(projectId, label.id, signal))
-      .then(() => setShowDeleteModal(false))
-      .catch(debugConsole.error)
-  }
+      if (!isPseudoCurrentStateLabel) {
+        removeUpdateLabel(label)
+      }
 
-  const responseError = error as unknown as {
-    response: Response
-    data?: {
-      message?: string
+      reset()
     }
-  }
 
-  const showCloseButton = Boolean(
-    (isOwnedByCurrentUser || isProjectOwner) && !isPseudoCurrentStateLabel
-  )
+    const localDeleteHandler = () => {
+      runAsync(deleteLabel(projectId, label.id, signal))
+        .then(() => setShowDeleteModal(false))
+        .catch(debugConsole.error)
+    }
 
-  return (
-    <>
-      <Tag
-        prepend={<Icon type="tag" fw />}
-        closeBtnProps={
-          showCloseButton
-            ? { 'aria-label': t('delete'), onClick: showConfirmationModal }
-            : undefined
-        }
-        className="history-version-badge"
-        data-testid="history-version-badge"
-        {...props}
-      >
-        {isPseudoCurrentStateLabel
-          ? t('history_label_project_current_state')
-          : label.comment}
-      </Tag>
-      {!isPseudoCurrentStateLabel && (
-        <AccessibleModal
-          show={showDeleteModal}
-          onExited={handleModalExited}
-          onHide={() => setShowDeleteModal(false)}
-          id="delete-history-label"
+    const responseError = error as unknown as {
+      response: Response
+      data?: {
+        message?: string
+      }
+    }
+
+    const showCloseButton = Boolean(
+      (isOwnedByCurrentUser || isProjectOwner) && !isPseudoCurrentStateLabel
+    )
+
+    return (
+      <>
+        <OLTag
+          ref={ref}
+          prepend={<OLTagIcon />}
+          closeBtnProps={
+            showCloseButton
+              ? { 'aria-label': t('delete'), onClick: showConfirmationModal }
+              : undefined
+          }
+          className="history-version-badge"
+          data-testid="history-version-badge"
+          {...props}
+          translate={isPseudoCurrentStateLabel ? 'yes' : 'no'}
         >
-          <Modal.Header>
-            <Modal.Title>{t('history_delete_label')}</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            {isError && <ModalError error={responseError} />}
-            <p>
-              {t('history_are_you_sure_delete_label')}&nbsp;
-              <strong>"{label.comment}"</strong>?
-            </p>
-          </Modal.Body>
-          <Modal.Footer>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={isLoading}
-              onClick={() => setShowDeleteModal(false)}
-            >
-              {t('cancel')}
-            </button>
-            <button
-              type="button"
-              className="btn btn-danger"
-              disabled={isLoading}
-              onClick={localDeleteHandler}
-            >
-              {isLoading
-                ? t('history_deleting_label')
-                : t('history_delete_label')}
-            </button>
-          </Modal.Footer>
-        </AccessibleModal>
-      )}
-    </>
-  )
-}
+          {isPseudoCurrentStateLabel
+            ? t('history_label_project_current_state')
+            : label.comment}
+        </OLTag>
+        {!isPseudoCurrentStateLabel && (
+          <OLModal
+            show={showDeleteModal}
+            onExited={handleModalExited}
+            onHide={() => setShowDeleteModal(false)}
+            id="delete-history-label"
+          >
+            <OLModalHeader>
+              <OLModalTitle>{t('history_delete_label')}</OLModalTitle>
+            </OLModalHeader>
+            <OLModalBody>
+              {isError && <ModalError error={responseError} />}
+              <p>
+                {t('history_are_you_sure_delete_label')}&nbsp;
+                <strong>"{label.comment}"</strong>?
+              </p>
+            </OLModalBody>
+            <OLModalFooter>
+              <OLButton
+                variant="secondary"
+                disabled={isLoading}
+                onClick={() => setShowDeleteModal(false)}
+              >
+                {t('cancel')}
+              </OLButton>
+              <OLButton
+                variant="danger"
+                disabled={isLoading}
+                isLoading={isLoading}
+                onClick={localDeleteHandler}
+              >
+                {t('history_delete_label')}
+              </OLButton>
+            </OLModalFooter>
+          </OLModal>
+        )}
+      </>
+    )
+  }
+)
+
+ChangeTag.displayName = 'ChangeTag'
 
 type LabelBadgesProps = {
   showTooltip: boolean
@@ -140,34 +148,46 @@ function TagTooltip({ label, currentUserId, showTooltip }: LabelBadgesProps) {
 
   const isPseudoCurrentStateLabel = isPseudoLabel(label)
   const currentLabelData = allLabels?.find(({ id }) => id === label.id)
-  const labelOwnerName =
-    currentLabelData && !isPseudoLabel(currentLabelData)
-      ? currentLabelData.user_display_name
-      : t('anonymous')
+  const isAnonymous = !currentLabelData || isPseudoLabel(currentLabelData)
+  const labelOwnerName = isAnonymous
+    ? t('anonymous')
+    : currentLabelData.user_display_name
+  const labelOwnerNameComponent = isAnonymous ? (
+    labelOwnerName
+  ) : (
+    <span translate="no">{labelOwnerName}</span>
+  )
 
-  return showTooltip && !isPseudoCurrentStateLabel ? (
-    <Tooltip
+  return !isPseudoCurrentStateLabel ? (
+    <OLTooltip
       description={
         <div className="history-version-label-tooltip">
           <div className="history-version-label-tooltip-row">
-            <b className="history-version-label-tooltip-row-comment">
-              <Icon type="tag" fw />
+            <b
+              className="history-version-label-tooltip-row-comment"
+              translate="no"
+            >
+              <OLTagIcon />
+              &nbsp;
               {label.comment}
             </b>
           </div>
           <div className="history-version-label-tooltip-row">
-            {t('history_label_created_by')} {labelOwnerName}
+            {t('history_label_created_by')} {labelOwnerNameComponent}
           </div>
           <div className="history-version-label-tooltip-row">
-            <time>{formatTimeBasedOnYear(label.created_at)}</time>
+            <time>
+              <FormatTimeBasedOnYear date={label.created_at} />
+            </time>
           </div>
         </div>
       }
       id={label.id}
       overlayProps={{ placement: 'left' }}
+      hidden={!showTooltip}
     >
       <ChangeTag label={label} currentUserId={currentUserId} />
-    </Tooltip>
+    </OLTooltip>
   ) : (
     <ChangeTag label={label} currentUserId={currentUserId} />
   )

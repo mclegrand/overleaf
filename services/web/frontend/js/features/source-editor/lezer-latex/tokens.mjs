@@ -25,6 +25,7 @@ import {
   AuthorCtrlSeq,
   AffilCtrlSeq,
   AffiliationCtrlSeq,
+  DateCtrlSeq,
   DocumentClassCtrlSeq,
   UsePackageCtrlSeq,
   HrefCtrlSeq,
@@ -97,6 +98,9 @@ import {
   TextStrikeOutCtrlSeq,
   EmphasisCtrlSeq,
   UnderlineCtrlSeq,
+  SetLengthCtrlSeq,
+  FootnoteCtrlSeq,
+  EndnoteCtrlSeq,
 } from './latex.terms.mjs'
 
 const MAX_ARGUMENT_LOOKAHEAD = 100
@@ -546,6 +550,7 @@ const otherKnowncommands = {
   '\\author': AuthorCtrlSeq,
   '\\affil': AffilCtrlSeq,
   '\\affiliation': AffiliationCtrlSeq,
+  '\\date': DateCtrlSeq,
   '\\documentclass': DocumentClassCtrlSeq,
   '\\usepackage': UsePackageCtrlSeq,
   '\\href': HrefCtrlSeq,
@@ -601,6 +606,9 @@ const otherKnowncommands = {
   '\\sout': TextStrikeOutCtrlSeq,
   '\\emph': EmphasisCtrlSeq,
   '\\underline': UnderlineCtrlSeq,
+  '\\setlength': SetLengthCtrlSeq,
+  '\\footnote': FootnoteCtrlSeq,
+  '\\endnote': EndnoteCtrlSeq,
 }
 // specializer for control sequences
 // return new tokens for specific control sequences
@@ -688,6 +696,8 @@ const equationArrayEnvNames = new Set([
   'rcases*',
   'IEEEeqnarray',
   'IEEEeqnarray*',
+  'subeqnarray',
+  'subeqnarray*',
 ])
 
 const verbatimEnvNames = new Set([
@@ -697,6 +707,7 @@ const verbatimEnvNames = new Set([
   'minted',
   'Verbatim',
   'lstlisting',
+  'tcblisting',
   'codeexample',
   'comment',
 ])

@@ -98,6 +98,16 @@
         }
       }
 
+      .welcome-message-card-item {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+
+        @media (min-width: @screen-md-min) {
+          flex: 0 1 310px;
+        }
+      }
+
       .welcome-message-card {
         border: 1px solid @neutral-20;
         border-radius: 16px;
@@ -115,6 +125,7 @@
         @media (min-width: @screen-md-min) {
           margin: 0 15px;
           height: 240px;
+          width: auto;
         }
 
         &:hover {
@@ -122,6 +133,8 @@
         }
 
         .welcome-message-card-img {
+          max-width: 100%;
+
           @media (min-width: @screen-md-min) {
             margin-bottom: 20px;
           }
@@ -159,7 +172,7 @@
           }
 
           > a {
-            color: @ol-blue-gray-3;
+            color: @gray-dark;
             display: block;
 
             &:hover {
@@ -179,7 +192,7 @@
         &,
         &:hover {
           text-decoration: none;
-          color: @ol-blue-gray-3;
+          color: @gray-dark;
         }
       }
     }
@@ -205,12 +218,22 @@
     font-size: @font-size-large;
     line-height: 28px;
     font-weight: bold;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   ul.project-list-filters {
     margin: @margin-sm @folders-menu-margin;
+
+    .dropdown-header {
+      margin-top: @folders-title-margin-top;
+      margin-bottom: @folders-title-margin-bottom;
+      font-size: @folders-title-font-size;
+      color: @folders-title-color;
+      text-transform: @folders-title-text-transform;
+      padding: 12.5px 16px;
+      font-weight: @folders-title-font-weight;
+      font-family: @font-family-sans-serif;
+      text-transform: uppercase;
+    }
 
     .subdued {
       color: @gray-light;
@@ -263,17 +286,6 @@
       }
     }
 
-    h2 {
-      margin-top: @folders-title-margin-top;
-      margin-bottom: @folders-title-margin-bottom;
-      font-size: @folders-title-font-size;
-      color: @folders-title-color;
-      text-transform: @folders-title-text-transform;
-      padding: @folders-title-padding;
-      font-weight: @folders-title-font-weight;
-      font-family: @font-family-sans-serif;
-    }
-
     > li.tag {
       &.active {
         .tag-menu > button {
@@ -317,6 +329,11 @@
         display: @folders-tag-display;
         align-items: center;
         word-wrap: anywhere;
+
+        .tag-list-icon {
+          vertical-align: sub;
+          font-weight: bold;
+        }
 
         span.name {
           padding-left: 0.5em;
@@ -710,6 +727,7 @@
 
     & + .projects-dropdown-menu {
       min-width: 226px;
+      max-width: 92vw;
     }
   }
 
@@ -724,12 +742,6 @@
       // Avoid line breaks for labels in menu items.
       // There is enough space for these on mobile devices (checked DE and EN translations).
       white-space: nowrap;
-    }
-
-    .dropdown-header {
-      padding: 14px 20px;
-      font-size: 13px;
-      text-transform: uppercase;
     }
   }
 
@@ -816,6 +828,7 @@
 .menu-item-button {
   position: relative;
   width: 100%;
+  overflow: hidden;
   border: none;
   box-shadow: none;
   background: inherit;
@@ -824,6 +837,18 @@
 
   .menu-item-button-text {
     padding-left: 14px;
+    overflow: hidden;
+
+    .tag-name-and-size {
+      overflow: hidden;
+      display: flex;
+      gap: 1ex;
+    }
+
+    .tag-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   }
 
   .menu-item-button-icon {

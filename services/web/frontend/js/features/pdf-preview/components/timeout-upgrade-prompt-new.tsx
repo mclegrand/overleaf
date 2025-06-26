@@ -1,12 +1,11 @@
 import { Trans, useTranslation } from 'react-i18next'
 import { useDetachCompileContext } from '../../../shared/context/detach-compile-context'
 import StartFreeTrialButton from '../../../shared/components/start-free-trial-button'
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 import PdfLogEntry from './pdf-log-entry'
 import { useStopOnFirstError } from '../../../shared/hooks/use-stop-on-first-error'
-import { Button } from 'react-bootstrap'
+import OLButton from '@/features/ui/components/ol/ol-button'
 import * as eventTracking from '../../../infrastructure/event-tracking'
-import { useFeatureFlag } from '@/shared/context/split-test-context'
 import getMeta from '@/utils/meta'
 
 function TimeoutUpgradePromptNew() {
@@ -27,14 +26,29 @@ function TimeoutUpgradePromptNew() {
     setAnimateCompileDropdownArrow(true)
   }, [enableStopOnFirstError, startCompile, setAnimateCompileDropdownArrow])
 
+  const { reducedTimeoutWarning, compileTimeout } =
+    getMeta('ol-compileSettings')
+
+  const sharedSegmentation = useMemo(
+    () => ({
+      '10s-timeout-warning': reducedTimeoutWarning,
+      'is-owner': isProjectOwner,
+      compileTime: compileTimeout,
+    }),
+    [isProjectOwner, reducedTimeoutWarning, compileTimeout]
+  )
+
   return (
     <>
-      <CompileTimeout isProjectOwner={isProjectOwner} />
+      <CompileTimeout
+        isProjectOwner={isProjectOwner}
+        segmentation={sharedSegmentation}
+      />
       {getMeta('ol-ExposedSettings').enableSubscriptions && (
         <PreventTimeoutHelpMessage
           handleEnableStopOnFirstErrorClick={handleEnableStopOnFirstErrorClick}
           lastCompileOptions={lastCompileOptions}
-          isProjectOwner={isProjectOwner}
+          segmentation={sharedSegmentation}
         />
       )}
     </>
@@ -43,14 +57,14 @@ function TimeoutUpgradePromptNew() {
 
 type CompileTimeoutProps = {
   isProjectOwner: boolean
+  segmentation: eventTracking.Segmentation
 }
 
 const CompileTimeout = memo(function CompileTimeout({
   isProjectOwner,
+  segmentation,
 }: CompileTimeoutProps) {
   const { t } = useTranslation()
-
-  const hasNewPaywallCta = useFeatureFlag('paywall-cta')
 
   return (
     <PdfLogEntry
@@ -65,7 +79,7 @@ const CompileTimeout = memo(function CompileTimeout({
             </p>
             {isProjectOwner ? (
               <p>
-                <strong>{t('upgrade_for_12x_more_compile_time')}</strong>{' '}
+                <strong>{t('upgrade_for_more_compile_time')}</strong>{' '}
                 {t(
                   'plus_additional_collaborators_document_history_track_changes_and_more'
                 )}
@@ -84,17 +98,10 @@ const CompileTimeout = memo(function CompileTimeout({
               <p className="text-center">
                 <StartFreeTrialButton
                   source="compile-timeout"
-                  buttonProps={{
-                    variant: 'primary',
-                    className: 'row-spaced-small',
-                    bs3Props: {
-                      block: true,
-                    },
-                  }}
+                  buttonProps={{ variant: 'primary', className: 'w-100' }}
+                  segmentation={segmentation}
                 >
-                  {hasNewPaywallCta
-                    ? t('get_more_compile_time')
-                    : t('start_a_free_trial')}
+                  {t('start_a_free_trial')}
                 </StartFreeTrialButton>
               </p>
             )}
@@ -111,18 +118,19 @@ const CompileTimeout = memo(function CompileTimeout({
 type PreventTimeoutHelpMessageProps = {
   lastCompileOptions: any
   handleEnableStopOnFirstErrorClick: () => void
-  isProjectOwner: boolean
+  segmentation: eventTracking.Segmentation
 }
 
 const PreventTimeoutHelpMessage = memo(function PreventTimeoutHelpMessage({
   lastCompileOptions,
   handleEnableStopOnFirstErrorClick,
-  isProjectOwner,
+  segmentation,
 }: PreventTimeoutHelpMessageProps) {
   const { t } = useTranslation()
 
   function sendInfoClickEvent() {
     eventTracking.sendMB('paywall-info-click', {
+      ...segmentation,
       'paywall-type': 'compile-timeout',
       content: 'blog',
     })
@@ -132,7 +140,7 @@ const PreventTimeoutHelpMessage = memo(function PreventTimeoutHelpMessage({
     /* eslint-disable-next-line jsx-a11y/anchor-has-content, react/jsx-key */
     <a
       aria-label={t('read_more_about_free_compile_timeouts_servers')}
-      href="/blog/changes-to-free-compile-timeouts-and-servers"
+      href="/blog/changes-to-free-compile-timeout"
       rel="noopener noreferrer"
       target="_blank"
       onClick={sendInfoClickEvent}
@@ -144,6 +152,16 @@ const PreventTimeoutHelpMessage = memo(function PreventTimeoutHelpMessage({
       headerTitle={t('reasons_for_compile_timeouts')}
       formattedContent={
         <>
+          {segmentation?.['10s-timeout-warning'] === 'enabled' && (
+            <p>
+              <em>
+                <Trans
+                  i18nKey="were_reducing_compile_timeout"
+                  components={[compileTimeoutChangesBlogLink]}
+                />
+              </em>
+            </p>
+          )}
           <p>{t('common_causes_of_compile_timeouts_include')}:</p>
           <ul>
             <li>
@@ -178,9 +196,10 @@ const PreventTimeoutHelpMessage = memo(function PreventTimeoutHelpMessage({
                     i18nKey="enable_stop_on_first_error_under_recompile_dropdown_menu"
                     components={[
                       // eslint-disable-next-line react/jsx-key
-                      <Button
-                        bsSize="xs"
-                        bsStyle="info-ghost-inline"
+                      <OLButton
+                        variant="link"
+                        className="btn-inline-link fw-bold"
+                        size="sm"
                         onClick={handleEnableStopOnFirstErrorClick}
                       />,
                       // eslint-disable-next-line react/jsx-key
@@ -203,23 +222,6 @@ const PreventTimeoutHelpMessage = memo(function PreventTimeoutHelpMessage({
                 />,
               ]}
             />
-          </p>
-          <p>
-            <em>
-              <>
-                {isProjectOwner ? (
-                  <Trans
-                    i18nKey="weve_recently_reduced_the_compile_timeout_limit_which_may_have_affected_your_project"
-                    components={[compileTimeoutChangesBlogLink]}
-                  />
-                ) : (
-                  <Trans
-                    i18nKey="weve_recently_reduced_the_compile_timeout_limit_which_may_have_affected_this_project"
-                    components={[compileTimeoutChangesBlogLink]}
-                  />
-                )}
-              </>
-            </em>
           </p>
         </>
       }

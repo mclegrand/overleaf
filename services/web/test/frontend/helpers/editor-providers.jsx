@@ -1,23 +1,9 @@
 // Disable prop type checks for test harnesses
 /* eslint-disable react/prop-types */
-import sinon from 'sinon'
-import { get, merge } from 'lodash'
-import { SplitTestProvider } from '@/shared/context/split-test-context'
-import { UserProvider } from '@/shared/context/user-context'
-import { ProjectProvider } from '@/shared/context/project-context'
-import { FileTreeDataProvider } from '@/shared/context/file-tree-data-context'
-import { EditorProvider } from '@/shared/context/editor-context'
-import { DetachProvider } from '@/shared/context/detach-context'
-import { LayoutProvider } from '@/shared/context/layout-context'
-import { LocalCompileProvider } from '@/shared/context/local-compile-context'
-import { DetachCompileProvider } from '@/shared/context/detach-compile-context'
-import { ProjectSettingsProvider } from '@/features/editor-left-menu/context/project-settings-context'
-import { FileTreePathProvider } from '@/features/file-tree/contexts/file-tree-path'
-import { UserSettingsProvider } from '@/shared/context/user-settings-context'
-import { OutlineProvider } from '@/features/ide-react/context/outline-context'
+import { merge } from 'lodash'
 import { SocketIOMock } from '@/ide/connection/SocketIoShim'
 import { IdeContext } from '@/shared/context/ide-context'
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   createReactScopeValueStore,
   IdeReactContext,
@@ -25,15 +11,10 @@ import {
 import { IdeEventEmitter } from '@/features/ide-react/create-ide-event-emitter'
 import { ReactScopeEventEmitter } from '@/features/ide-react/scope-event-emitter/react-scope-event-emitter'
 import { ConnectionContext } from '@/features/ide-react/context/connection-context'
-import { EventLog } from '@/features/ide-react/editor/event-log'
-import { ChatProvider } from '@/features/chat/context/chat-context'
-import { EditorManagerProvider } from '@/features/ide-react/context/editor-manager-context'
-import { FileTreeOpenProvider } from '@/features/ide-react/context/file-tree-open-context'
-import { MetadataProvider } from '@/features/ide-react/context/metadata-context'
-import { ModalsContextProvider } from '@/features/ide-react/context/modals-context'
-import { OnlineUsersProvider } from '@/features/ide-react/context/online-users-context'
-import { PermissionsProvider } from '@/features/ide-react/context/permissions-context'
-import { ReferencesProvider } from '@/features/ide-react/context/references-context'
+import { ReactContextRoot } from '@/features/ide-react/context/react-context-root'
+import useEventListener from '@/shared/hooks/use-event-listener'
+import useDetachLayout from '@/shared/hooks/use-detach-layout'
+import { LayoutContext } from '@/shared/context/layout-context'
 
 // these constants can be imported in tests instead of
 // using magic strings
@@ -57,6 +38,22 @@ const defaultUserSettings = {
   mathPreview: true,
 }
 
+/**
+ * @typedef {import('@/shared/context/layout-context').LayoutContextValue} LayoutContextValue
+ * @type Partial<LayoutContextValue>
+ */
+const layoutContextDefault = {
+  view: 'editor',
+  openFile: null,
+  chatIsOpen: true, // false in the application, true in tests
+  reviewPanelOpen: false,
+  miniReviewPanelVisible: false,
+  leftMenuShown: false,
+  projectSearchIsOpen: false,
+  pdfLayout: 'sideBySide',
+  loadingStyleSheet: false,
+}
+
 export function EditorProviders({
   user = { id: USER_ID, email: USER_EMAIL },
   projectId = PROJECT_ID,
@@ -65,37 +62,33 @@ export function EditorProviders({
     email: 'owner@example.com',
   },
   rootDocId = '_root_doc_id',
+  imageName = 'texlive-full:2024.1',
+  compiler = 'pdflatex',
   socket = new SocketIOMock(),
   isRestrictedTokenMember = false,
-  clsiServerId = '1234',
-  scope = {},
+  scope: defaultScope = {},
   features = {
     referencesSearch: true,
   },
+  projectFeatures = features,
   permissionsLevel = 'owner',
   children,
   rootFolder = [
     {
       _id: 'root-folder-id',
       name: 'rootFolder',
-      docs: [],
+      docs: [
+        {
+          _id: '_root_doc_id',
+          name: 'main.tex',
+        },
+      ],
       folders: [],
       fileRefs: [],
     },
   ],
-  ui = { view: 'editor', pdfLayout: 'sideBySide', chatOpen: true },
-  fileTreeManager = {
-    findEntityById: () => null,
-    findEntityByPath: () => null,
-    getEntityPath: () => '',
-    getRootDocDirname: () => '',
-    getPreviewByPath: path => ({ url: path, extension: 'png' }),
-  },
-  editorManager = {
-    getCurrentDocId: () => 'foo',
-    getCurrentDocValue: () => {},
-    openDoc: sinon.stub(),
-  },
+  /** @type {Partial<LayoutContext>} */
+  layoutContext = layoutContextDefault,
   userSettings = {},
   providers = {},
 }) {
@@ -112,198 +105,239 @@ export function EditorProviders({
     merge({}, defaultUserSettings, userSettings)
   )
 
-  const $scope = merge(
+  window.metaAttributesCache.set('ol-capabilities', ['chat', 'dropbox'])
+
+  const scope = merge(
     {
       user,
       editor: {
         sharejs_doc: {
           doc_id: 'test-doc',
           getSnapshot: () => 'some doc content',
+          hasBufferedOps: () => false,
+          on: () => {},
+          off: () => {},
+          leaveAndCleanUpPromise: async () => {},
         },
       },
       project: {
         _id: projectId,
         name: PROJECT_NAME,
         owner: projectOwner,
-        features,
-        rootDoc_id: rootDocId,
+        features: projectFeatures,
+        rootDocId,
         rootFolder,
+        imageName,
+        compiler,
       },
-      ui,
-      $watch: (path, callback) => {
-        callback(get($scope, path))
-        return () => null
-      },
-      $on: sinon.stub(),
-      $applyAsync: sinon.stub(),
       permissionsLevel,
     },
-    scope
+    defaultScope
   )
-
-  window._ide = {
-    $scope,
-    socket,
-    clsiServerId,
-    editorManager,
-    fileTreeManager,
-  }
 
   // Add details for useUserContext
   window.metaAttributesCache.set('ol-user', { ...user, features })
   window.metaAttributesCache.set('ol-project_id', projectId)
-  const Providers = {
-    ChatProvider,
-    ConnectionProvider,
-    DetachCompileProvider,
-    DetachProvider,
-    EditorProvider,
-    EditorManagerProvider,
-    FileTreeDataProvider,
-    FileTreeOpenProvider,
-    FileTreePathProvider,
-    IdeReactProvider,
-    LayoutProvider,
-    LocalCompileProvider,
-    MetadataProvider,
-    ModalsContextProvider,
-    OnlineUsersProvider,
-    OutlineProvider,
-    PermissionsProvider,
-    ProjectProvider,
-    ProjectSettingsProvider,
-    ReferencesProvider,
-    SplitTestProvider,
-    UserProvider,
-    UserSettingsProvider,
-    ...providers,
-  }
 
   return (
-    <Providers.SplitTestProvider>
-      <Providers.ModalsContextProvider>
-        <Providers.ConnectionProvider>
-          <Providers.IdeReactProvider>
-            <Providers.UserProvider>
-              <Providers.UserSettingsProvider>
-                <Providers.ProjectProvider>
-                  <Providers.FileTreeDataProvider>
-                    <Providers.FileTreePathProvider>
-                      <Providers.ReferencesProvider>
-                        <Providers.DetachProvider>
-                          <Providers.EditorProvider>
-                            <Providers.PermissionsProvider>
-                              <Providers.ProjectSettingsProvider>
-                                <Providers.LayoutProvider>
-                                  <Providers.EditorManagerProvider>
-                                    <Providers.LocalCompileProvider>
-                                      <Providers.DetachCompileProvider>
-                                        <Providers.ChatProvider>
-                                          <Providers.FileTreeOpenProvider>
-                                            <Providers.OnlineUsersProvider>
-                                              <Providers.MetadataProvider>
-                                                <Providers.OutlineProvider>
-                                                  {children}
-                                                </Providers.OutlineProvider>
-                                              </Providers.MetadataProvider>
-                                            </Providers.OnlineUsersProvider>
-                                          </Providers.FileTreeOpenProvider>
-                                        </Providers.ChatProvider>
-                                      </Providers.DetachCompileProvider>
-                                    </Providers.LocalCompileProvider>
-                                  </Providers.EditorManagerProvider>
-                                </Providers.LayoutProvider>
-                              </Providers.ProjectSettingsProvider>
-                            </Providers.PermissionsProvider>
-                          </Providers.EditorProvider>
-                        </Providers.DetachProvider>
-                      </Providers.ReferencesProvider>
-                    </Providers.FileTreePathProvider>
-                  </Providers.FileTreeDataProvider>
-                </Providers.ProjectProvider>
-              </Providers.UserSettingsProvider>
-            </Providers.UserProvider>
-          </Providers.IdeReactProvider>
-        </Providers.ConnectionProvider>
-      </Providers.ModalsContextProvider>
-    </Providers.SplitTestProvider>
-  )
-}
-
-const ConnectionProvider = ({ children }) => {
-  const [value] = useState(() => ({
-    socket: window._ide.socket,
-    connectionState: {
-      readyState: WebSocket.OPEN,
-      forceDisconnected: false,
-      inactiveDisconnect: false,
-      reconnectAt: null,
-      forcedDisconnectDelay: 0,
-      lastConnectionAttempt: 0,
-      error: '',
-    },
-    isConnected: true,
-    isStillReconnecting: false,
-    secondsUntilReconnect: () => 0,
-    tryReconnectNow: () => {},
-    registerUserActivity: () => {},
-    disconnect: () => {},
-  }))
-
-  return (
-    <ConnectionContext.Provider value={value}>
+    <ReactContextRoot
+      providers={{
+        ConnectionProvider: makeConnectionProvider(socket),
+        IdeReactProvider: makeIdeReactProvider(scope, socket),
+        LayoutProvider: makeLayoutProvider(layoutContext),
+        ...providers,
+      }}
+    >
       {children}
-    </ConnectionContext.Provider>
+    </ReactContextRoot>
   )
 }
 
-const IdeReactProvider = ({ children }) => {
-  const [startedFreeTrial, setStartedFreeTrial] = useState(false)
-
-  const [ideReactContextValue] = useState(() => ({
-    projectId: PROJECT_ID,
-    eventEmitter: new IdeEventEmitter(),
-    eventLog: new EventLog(),
-    startedFreeTrial,
-    setStartedFreeTrial,
-    reportError: () => {},
-    projectJoined: true,
-  }))
-
-  const [ideContextValue] = useState(() => {
-    const ide = window._ide
-
-    const scopeStore = createReactScopeValueStore(PROJECT_ID)
-    for (const [key, value] of Object.entries(ide.$scope)) {
-      // TODO: path for nested entries
-      scopeStore.set(key, value)
-    }
-    scopeStore.set('editor.sharejs_doc', ide.$scope.editor.sharejs_doc)
-    scopeStore.set('ui.chatOpen', ide.$scope.ui.chatOpen)
-    const scopeEventEmitter = new ReactScopeEventEmitter(new IdeEventEmitter())
-
-    return {
-      ...ide,
-      scopeStore,
-      scopeEventEmitter,
-    }
-  })
-
-  useEffect(() => {
-    window.overleaf = {
-      ...window.overleaf,
-      unstable: {
-        ...window.overleaf?.unstable,
-        store: ideContextValue.scopeStore,
+const makeConnectionProvider = socket => {
+  const ConnectionProvider = ({ children }) => {
+    const [value] = useState(() => ({
+      socket,
+      connectionState: {
+        readyState: WebSocket.OPEN,
+        forceDisconnected: false,
+        inactiveDisconnect: false,
+        reconnectAt: null,
+        forcedDisconnectDelay: 0,
+        lastConnectionAttempt: 0,
+        error: '',
       },
-    }
-  }, [ideContextValue.scopeStore])
+      isConnected: true,
+      isStillReconnecting: false,
+      secondsUntilReconnect: () => 0,
+      tryReconnectNow: () => {},
+      registerUserActivity: () => {},
+      disconnect: () => {},
+    }))
 
-  return (
-    <IdeReactContext.Provider value={ideReactContextValue}>
-      <IdeContext.Provider value={ideContextValue}>
+    return (
+      <ConnectionContext.Provider value={value}>
         {children}
-      </IdeContext.Provider>
-    </IdeReactContext.Provider>
-  )
+      </ConnectionContext.Provider>
+    )
+  }
+  return ConnectionProvider
+}
+
+const makeIdeReactProvider = (scope, socket) => {
+  const IdeReactProvider = ({ children }) => {
+    const [startedFreeTrial, setStartedFreeTrial] = useState(false)
+
+    const [ideReactContextValue] = useState(() => ({
+      projectId: PROJECT_ID,
+      eventEmitter: new IdeEventEmitter(),
+      startedFreeTrial,
+      setStartedFreeTrial,
+      reportError: () => {},
+      projectJoined: true,
+    }))
+
+    const [ideContextValue] = useState(() => {
+      const scopeStore = createReactScopeValueStore(PROJECT_ID)
+      for (const [key, value] of Object.entries(scope)) {
+        // TODO: path for nested entries
+        scopeStore.set(key, value)
+      }
+      scopeStore.set('editor.sharejs_doc', scope.editor.sharejs_doc)
+      const scopeEventEmitter = new ReactScopeEventEmitter(
+        new IdeEventEmitter()
+      )
+
+      return {
+        socket,
+        scopeStore,
+        scopeEventEmitter,
+      }
+    })
+
+    useEffect(() => {
+      window.overleaf = {
+        ...window.overleaf,
+        unstable: {
+          ...window.overleaf?.unstable,
+          store: ideContextValue.scopeStore,
+        },
+      }
+    }, [ideContextValue.scopeStore])
+
+    return (
+      <IdeReactContext.Provider value={ideReactContextValue}>
+        <IdeContext.Provider value={ideContextValue}>
+          {children}
+        </IdeContext.Provider>
+      </IdeReactContext.Provider>
+    )
+  }
+  return IdeReactProvider
+}
+
+const makeLayoutProvider = layoutContextOverrides => {
+  const layout = {
+    ...layoutContextDefault,
+    ...layoutContextOverrides,
+  }
+  const LayoutProvider = ({ children }) => {
+    const [view, setView] = useState(layout.view)
+    const [openFile, setOpenFile] = useState(layout.openFile)
+    const [chatIsOpen, setChatIsOpen] = useState(layout.chatIsOpen)
+    const [reviewPanelOpen, setReviewPanelOpen] = useState(
+      layout.reviewPanelOpen
+    )
+    const [miniReviewPanelVisible, setMiniReviewPanelVisible] = useState(
+      layout.miniReviewPanelVisible
+    )
+    const [leftMenuShown, setLeftMenuShown] = useState(layout.leftMenuShown)
+    const [projectSearchIsOpen, setProjectSearchIsOpen] = useState(
+      layout.projectSearchIsOpen
+    )
+    const [pdfLayout, setPdfLayout] = useState(layout.pdfLayout)
+    const [loadingStyleSheet, setLoadingStyleSheet] = useState(
+      layout.loadingStyleSheet
+    )
+
+    useEventListener(
+      'ui.toggle-review-panel',
+      useCallback(() => {
+        setReviewPanelOpen(open => !open)
+      }, [setReviewPanelOpen])
+    )
+    const changeLayout = useCallback(
+      (newLayout, newView = 'editor') => {
+        setPdfLayout(newLayout)
+        setView(newLayout === 'sideBySide' ? 'editor' : newView)
+      },
+      [setPdfLayout, setView]
+    )
+    const {
+      reattach,
+      detach,
+      isLinked: detachIsLinked,
+      role: detachRole,
+    } = useDetachLayout()
+    const pdfPreviewOpen =
+      pdfLayout === 'sideBySide' || view === 'pdf' || detachRole === 'detacher'
+    const value = useMemo(
+      () => ({
+        reattach,
+        detach,
+        detachIsLinked,
+        detachRole,
+        changeLayout,
+        chatIsOpen,
+        leftMenuShown,
+        openFile,
+        pdfLayout,
+        pdfPreviewOpen,
+        projectSearchIsOpen,
+        setProjectSearchIsOpen,
+        reviewPanelOpen,
+        miniReviewPanelVisible,
+        loadingStyleSheet,
+        setChatIsOpen,
+        setLeftMenuShown,
+        setOpenFile,
+        setPdfLayout,
+        setReviewPanelOpen,
+        setMiniReviewPanelVisible,
+        setLoadingStyleSheet,
+        setView,
+        view,
+      }),
+      [
+        reattach,
+        detach,
+        detachIsLinked,
+        detachRole,
+        changeLayout,
+        chatIsOpen,
+        leftMenuShown,
+        openFile,
+        pdfLayout,
+        pdfPreviewOpen,
+        projectSearchIsOpen,
+        setProjectSearchIsOpen,
+        reviewPanelOpen,
+        miniReviewPanelVisible,
+        loadingStyleSheet,
+        setChatIsOpen,
+        setLeftMenuShown,
+        setOpenFile,
+        setPdfLayout,
+        setReviewPanelOpen,
+        setMiniReviewPanelVisible,
+        setLoadingStyleSheet,
+        setView,
+        view,
+      ]
+    )
+
+    return (
+      <LayoutContext.Provider value={value}>{children}</LayoutContext.Provider>
+    )
+  }
+  return LayoutProvider
 }

@@ -1,39 +1,54 @@
 import { useLayoutContext } from '../../../shared/context/layout-context'
 import LeftMenuMask from './left-menu-mask'
-import AccessibleModal from '../../../shared/components/accessible-modal'
-import { Modal } from 'react-bootstrap'
 import classNames from 'classnames'
 import { lazy, memo, Suspense } from 'react'
 import { FullSizeLoadingSpinner } from '@/shared/components/loading-spinner'
+import { Offcanvas } from 'react-bootstrap'
+import { EditorLeftMenuProvider } from './editor-left-menu-context'
+import withErrorBoundary from '@/infrastructure/error-boundary'
+import OLNotification from '@/features/ui/components/ol/ol-notification'
+import { useTranslation } from 'react-i18next'
+
 const EditorLeftMenuBody = lazy(() => import('./editor-left-menu-body'))
+
+const LazyEditorLeftMenuWithErrorBoundary = withErrorBoundary(
+  () => (
+    <Suspense fallback={<FullSizeLoadingSpinner delay={500} />}>
+      <EditorLeftMenuBody />
+    </Suspense>
+  ),
+  () => {
+    const { t } = useTranslation()
+    return <OLNotification type="error" content={t('something_went_wrong')} />
+  }
+)
 
 function EditorLeftMenu() {
   const { leftMenuShown, setLeftMenuShown } = useLayoutContext()
 
-  const closeModal = () => {
+  const closeLeftMenu = () => {
     setLeftMenuShown(false)
   }
 
   return (
-    <>
-      <AccessibleModal
-        backdropClassName="left-menu-modal-backdrop"
-        keyboard
-        onHide={closeModal}
-        id="left-menu-modal"
+    <EditorLeftMenuProvider>
+      <Offcanvas
         show={leftMenuShown}
+        onHide={closeLeftMenu}
+        backdropClassName="left-menu-modal-backdrop"
+        id="left-menu-offcanvas"
       >
-        <Modal.Body
-          className={classNames('full-size', { shown: leftMenuShown })}
+        <Offcanvas.Body
+          className={classNames('full-size', 'left-menu', {
+            shown: leftMenuShown,
+          })}
           id="left-menu"
         >
-          <Suspense fallback={<FullSizeLoadingSpinner delay={500} />}>
-            <EditorLeftMenuBody />
-          </Suspense>
-        </Modal.Body>
-      </AccessibleModal>
+          <LazyEditorLeftMenuWithErrorBoundary />
+        </Offcanvas.Body>
+      </Offcanvas>
       {leftMenuShown && <LeftMenuMask />}
-    </>
+    </EditorLeftMenuProvider>
   )
 }
 

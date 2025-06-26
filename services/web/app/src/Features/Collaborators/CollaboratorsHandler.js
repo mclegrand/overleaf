@@ -10,6 +10,7 @@ const TpdsProjectFlusher = require('../ThirdPartyDataStore/TpdsProjectFlusher')
 const CollaboratorsGetter = require('./CollaboratorsGetter')
 const Errors = require('../Errors/Errors')
 const TpdsUpdateSender = require('../ThirdPartyDataStore/TpdsUpdateSender')
+const EditorRealTimeController = require('../Editor/EditorRealTimeController')
 
 module.exports = {
   userIsTokenMember: callbackify(userIsTokenMember),
@@ -24,12 +25,37 @@ module.exports = {
     addUserIdToProject,
     transferProjects,
     setCollaboratorPrivilegeLevel,
+    convertTrackChangesToExplicitFormat,
   },
+}
+// Forces null pendingReviewer_refs, readOnly_refs, and reviewer_refs to
+// be empty arrays to avoid errors during $pull ops
+// See https://github.com/overleaf/internal/issues/24610
+async function fixNullCollaboratorRefs(projectId) {
+  // Temporary cleanup for the case where pendingReviewer_refs is null
+  await Project.updateOne(
+    { _id: projectId, pendingReviewer_refs: { $type: 'null' } },
+    { $set: { pendingReviewer_refs: [] } }
+  ).exec()
+
+  // Temporary cleanup for the case where readOnly_refs is null
+  await Project.updateOne(
+    { _id: projectId, readOnly_refs: { $type: 'null' } },
+    { $set: { readOnly_refs: [] } }
+  ).exec()
+
+  // Temporary cleanup for the case where reviewer_refs is null
+  await Project.updateOne(
+    { _id: projectId, reviewer_refs: { $type: 'null' } },
+    { $set: { reviewer_refs: [] } }
+  ).exec()
 }
 
 async function removeUserFromProject(projectId, userId) {
   try {
     const project = await Project.findOne({ _id: projectId }).exec()
+
+    await fixNullCollaboratorRefs(projectId)
 
     // Deal with the old type of boolean value for archived
     // In order to clear it
@@ -48,7 +74,10 @@ async function removeUserFromProject(projectId, userId) {
           $set: { archived },
           $pull: {
             collaberator_refs: userId,
+            reviewer_refs: userId,
             readOnly_refs: userId,
+            pendingEditor_refs: userId,
+            pendingReviewer_refs: userId,
             tokenAccessReadOnly_refs: userId,
             tokenAccessReadAndWrite_refs: userId,
             trashed: userId,
@@ -62,6 +91,9 @@ async function removeUserFromProject(projectId, userId) {
           $pull: {
             collaberator_refs: userId,
             readOnly_refs: userId,
+            reviewer_refs: userId,
+            pendingEditor_refs: userId,
+            pendingReviewer_refs: userId,
             tokenAccessReadOnly_refs: userId,
             tokenAccessReadAndWrite_refs: userId,
             archived: userId,
@@ -90,25 +122,46 @@ async function removeUserFromAllProjects(userId) {
     .concat(readOnly)
     .concat(tokenReadAndWrite)
     .concat(tokenReadOnly)
+  logger.info(
+    {
+      userId,
+      readAndWriteCount: readAndWrite.length,
+      readOnlyCount: readOnly.length,
+      tokenReadAndWriteCount: tokenReadAndWrite.length,
+      tokenReadOnlyCount: tokenReadOnly.length,
+    },
+    'removing user from projects'
+  )
   for (const project of allProjects) {
     await removeUserFromProject(project._id, userId)
   }
+  logger.info(
+    {
+      userId,
+      allProjectsCount: allProjects.length,
+    },
+    'removed user from all projects'
+  )
 }
 
 async function addUserIdToProject(
   projectId,
   addingUserId,
   userId,
-  privilegeLevel
+  privilegeLevel,
+  { pendingEditor, pendingReviewer } = {}
 ) {
   const project = await ProjectGetter.promises.getProject(projectId, {
     owner_ref: 1,
     name: 1,
     collaberator_refs: 1,
     readOnly_refs: 1,
+    reviewer_refs: 1,
+    track_changes: 1,
   })
   let level
   let existingUsers = project.collaberator_refs || []
+  existingUsers = existingUsers.concat(project.reviewer_refs || [])
   existingUsers = existingUsers.concat(project.readOnly_refs || [])
   existingUsers = existingUsers.map(u => u.toString())
   if (existingUsers.includes(userId.toString())) {
@@ -122,7 +175,24 @@ async function addUserIdToProject(
     )
   } else if (privilegeLevel === PrivilegeLevels.READ_ONLY) {
     level = { readOnly_refs: userId }
-    logger.debug({ privileges: 'readOnly', userId, projectId }, 'adding user')
+    if (pendingEditor) {
+      level.pendingEditor_refs = userId
+    } else if (pendingReviewer) {
+      level.pendingReviewer_refs = userId
+    }
+    logger.debug(
+      {
+        privileges: 'readOnly',
+        userId,
+        projectId,
+        pendingEditor,
+        pendingReviewer,
+      },
+      'adding user'
+    )
+  } else if (privilegeLevel === PrivilegeLevels.REVIEW) {
+    level = { reviewer_refs: userId }
+    logger.debug({ privileges: 'reviewer', userId, projectId }, 'adding user')
   } else {
     throw new Error(`unknown privilegeLevel: ${privilegeLevel}`)
   }
@@ -131,7 +201,26 @@ async function addUserIdToProject(
     ContactManager.addContact(addingUserId, userId, () => {})
   }
 
-  await Project.updateOne({ _id: projectId }, { $addToSet: level }).exec()
+  if (privilegeLevel === PrivilegeLevels.REVIEW) {
+    const trackChanges = await convertTrackChangesToExplicitFormat(
+      projectId,
+      project.track_changes
+    )
+    trackChanges[userId] = true
+
+    await Project.updateOne(
+      { _id: projectId },
+      { track_changes: trackChanges, $addToSet: level }
+    ).exec()
+
+    EditorRealTimeController.emitToRoom(
+      projectId,
+      'toggle-track-changes',
+      trackChanges
+    )
+  } else {
+    await Project.updateOne({ _id: projectId }, { $addToSet: level }).exec()
+  }
 
   // Ensure there is a dedicated folder for this "new" project.
   await TpdsUpdateSender.promises.createProject({
@@ -196,6 +285,32 @@ async function transferProjects(fromUserId, toUserId) {
     }
   ).exec()
 
+  await Project.updateMany(
+    { pendingEditor_refs: fromUserId },
+    {
+      $addToSet: { pendingEditor_refs: toUserId },
+    }
+  ).exec()
+  await Project.updateMany(
+    { pendingEditor_refs: fromUserId },
+    {
+      $pull: { pendingEditor_refs: fromUserId },
+    }
+  ).exec()
+
+  await Project.updateMany(
+    { pendingReviewer_refs: fromUserId },
+    {
+      $addToSet: { pendingReviewer_refs: toUserId },
+    }
+  ).exec()
+  await Project.updateMany(
+    { pendingReviewer_refs: fromUserId },
+    {
+      $pull: { pendingReviewer_refs: fromUserId },
+    }
+  ).exec()
+
   // Flush in background, no need to block on this
   _flushProjects(projectIds).catch(err => {
     logger.err(
@@ -208,28 +323,82 @@ async function transferProjects(fromUserId, toUserId) {
 async function setCollaboratorPrivilegeLevel(
   projectId,
   userId,
-  privilegeLevel
+  privilegeLevel,
+  { pendingEditor, pendingReviewer } = {}
 ) {
   // Make sure we're only updating the project if the user is already a
   // collaborator
   const query = {
     _id: projectId,
-    $or: [{ collaberator_refs: userId }, { readOnly_refs: userId }],
+    $or: [
+      { collaberator_refs: userId },
+      { readOnly_refs: userId },
+      { reviewer_refs: userId },
+    ],
   }
   let update
+
+  await fixNullCollaboratorRefs(projectId)
+
   switch (privilegeLevel) {
     case PrivilegeLevels.READ_AND_WRITE: {
       update = {
-        $pull: { readOnly_refs: userId },
+        $pull: {
+          readOnly_refs: userId,
+          pendingEditor_refs: userId,
+          reviewer_refs: userId,
+          pendingReviewer_refs: userId,
+        },
         $addToSet: { collaberator_refs: userId },
+      }
+      break
+    }
+    case PrivilegeLevels.REVIEW: {
+      update = {
+        $pull: {
+          readOnly_refs: userId,
+          pendingEditor_refs: userId,
+          collaberator_refs: userId,
+          pendingReviewer_refs: userId,
+        },
+        $addToSet: { reviewer_refs: userId },
+      }
+
+      const project = await ProjectGetter.promises.getProject(projectId, {
+        track_changes: true,
+      })
+      const newTrackChangesState = await convertTrackChangesToExplicitFormat(
+        projectId,
+        project.track_changes
+      )
+      if (newTrackChangesState[userId] !== true) {
+        newTrackChangesState[userId] = true
+      }
+      if (typeof project.track_changes === 'object') {
+        update.$set = { [`track_changes.${userId}`]: true }
+      } else {
+        update.$set = { track_changes: newTrackChangesState }
       }
       break
     }
     case PrivilegeLevels.READ_ONLY: {
       update = {
-        $pull: { collaberator_refs: userId },
+        $pull: { collaberator_refs: userId, reviewer_refs: userId },
         $addToSet: { readOnly_refs: userId },
       }
+
+      if (pendingEditor) {
+        update.$addToSet.pendingEditor_refs = userId
+      } else {
+        update.$pull.pendingEditor_refs = userId
+      }
+
+      if (pendingReviewer) {
+        update.$addToSet.pendingReviewer_refs = userId
+      } else {
+        update.$pull.pendingReviewer_refs = userId
+      }
+
       break
     }
     default: {
@@ -239,6 +408,14 @@ async function setCollaboratorPrivilegeLevel(
   const mongoResponse = await Project.updateOne(query, update).exec()
   if (mongoResponse.matchedCount === 0) {
     throw new Errors.NotFoundError('project or collaborator not found')
+  }
+
+  if (update.$set?.track_changes) {
+    EditorRealTimeController.emitToRoom(
+      projectId,
+      'toggle-track-changes',
+      update.$set.track_changes
+    )
   }
 }
 
@@ -272,4 +449,38 @@ async function _flushProjects(projectIds) {
   for (const projectId of projectIds) {
     await TpdsProjectFlusher.promises.flushProjectToTpds(projectId)
   }
+}
+
+async function convertTrackChangesToExplicitFormat(
+  projectId,
+  trackChangesState
+) {
+  if (typeof trackChangesState === 'object') {
+    return { ...trackChangesState }
+  }
+
+  if (trackChangesState === true) {
+    // track changes are enabled for all
+    const members =
+      await CollaboratorsGetter.promises.getMemberIdsWithPrivilegeLevels(
+        projectId
+      )
+
+    const newTrackChangesState = {}
+    for (const { id, privilegeLevel } of members) {
+      if (
+        [
+          PrivilegeLevels.OWNER,
+          PrivilegeLevels.READ_AND_WRITE,
+          PrivilegeLevels.REVIEW,
+        ].includes(privilegeLevel)
+      ) {
+        newTrackChangesState[id] = true
+      }
+    }
+
+    return newTrackChangesState
+  }
+
+  return {}
 }

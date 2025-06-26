@@ -9,10 +9,6 @@ logger.initialize('document-updater')
 
 logger.logger.addSerializers(require('./app/js/LoggerSerializers'))
 
-if (Settings.sentry != null && Settings.sentry.dsn != null) {
-  logger.initializeErrorReporting(Settings.sentry.dsn)
-}
-
 const RedisManager = require('./app/js/RedisManager')
 const DispatchManager = require('./app/js/DispatchManager')
 const DeleteQueueManager = require('./app/js/DeleteQueueManager')
@@ -139,6 +135,10 @@ app.use((req, res, next) => {
 })
 
 app.get('/project/:project_id/doc/:doc_id', HttpController.getDoc)
+app.get(
+  '/project/:project_id/doc/:doc_id/comment/:comment_id',
+  HttpController.getComment
+)
 app.get('/project/:project_id/doc/:doc_id/peek', HttpController.peekDoc)
 // temporarily keep the GET method for backwards compatibility
 app.get('/project/:project_id/doc', HttpController.getProjectDocsAndFlushIfOld)
@@ -147,8 +147,13 @@ app.post(
   '/project/:project_id/get_and_flush_if_old',
   HttpController.getProjectDocsAndFlushIfOld
 )
+app.get(
+  '/project/:project_id/last_updated_at',
+  HttpController.getProjectLastUpdatedAt
+)
 app.post('/project/:project_id/clearState', HttpController.clearProjectState)
 app.post('/project/:project_id/doc/:doc_id', HttpController.setDoc)
+app.post('/project/:project_id/doc/:doc_id/append', HttpController.appendToDoc)
 app.post(
   '/project/:project_id/doc/:doc_id/flush',
   HttpController.flushDocIfLoaded
@@ -187,7 +192,6 @@ app.delete(
 app.post('/project/:project_id/block', HttpController.blockProject)
 app.post('/project/:project_id/unblock', HttpController.unblockProject)
 
-app.get('/flush_all_projects', HttpController.flushAllProjects)
 app.get('/flush_queued_projects', HttpController.flushQueuedProjects)
 
 app.get('/total', (req, res, next) => {

@@ -4,8 +4,9 @@ import { useTranslation } from 'react-i18next'
 import HistoryFileTreeItem from './history-file-tree-item'
 import HistoryFileTreeFolderList from './history-file-tree-folder-list'
 
-import Icon from '../../../../shared/components/icon'
 import type { HistoryDoc, HistoryFileTree } from '../../utils/file-tree'
+import MaterialIcon from '@/shared/components/material-icon'
+import { useIsNewEditorEnabled } from '@/features/ide-redesign/utils/new-editor-utils'
 
 type HistoryFileTreeFolderProps = {
   name: string
@@ -35,6 +36,7 @@ function HistoryFileTreeFolder({
   docs,
 }: HistoryFileTreeFolderProps) {
   const { t } = useTranslation()
+  const newEditor = useIsNewEditorEnabled()
 
   const [expanded, setExpanded] = useState(() => {
     return hasChanges({ name, folders, docs })
@@ -47,17 +49,17 @@ function HistoryFileTreeFolder({
         aria-label={expanded ? t('collapse') : t('expand')}
         className="history-file-tree-folder-button"
       >
-        <Icon
-          type={expanded ? 'angle-down' : 'angle-right'}
-          fw
+        <MaterialIcon
+          type={expanded ? 'expand_more' : 'chevron_right'}
           className="file-tree-expand-icon"
         />
       </button>
-      <Icon
-        type={expanded ? 'folder-open' : 'folder'}
-        fw
-        className="file-tree-folder-icon"
-      />
+      {!newEditor && (
+        <MaterialIcon
+          type={expanded ? 'folder_open' : 'folder'}
+          className="file-tree-folder-icon"
+        />
+      )}
     </>
   )
 
@@ -71,12 +73,22 @@ function HistoryFileTreeFolder({
         aria-label={name}
         tabIndex={0}
         onClick={() => setExpanded(!expanded)}
-        onKeyDown={() => setExpanded(!expanded)}
+        onKeyDown={event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            setExpanded(!expanded)
+          }
+        }}
+        translate="no"
       >
         <HistoryFileTreeItem name={name} icons={icons} />
       </li>
       {expanded ? (
-        <HistoryFileTreeFolderList folders={folders} docs={docs} />
+        <HistoryFileTreeFolderList
+          folders={folders}
+          docs={docs}
+          rootClassName="history-file-tree-list-inner"
+        />
       ) : null}
     </>
   )

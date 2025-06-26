@@ -1,5 +1,5 @@
 const { callbackify } = require('util')
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 const CollaboratorsGetter = require('../Collaborators/CollaboratorsGetter')
 const CollaboratorsHandler = require('../Collaborators/CollaboratorsHandler')
 const ProjectGetter = require('../Project/ProjectGetter')
@@ -10,6 +10,7 @@ const PublicAccessLevels = require('./PublicAccessLevels')
 const Errors = require('../Errors/Errors')
 const { hasAdminAccess } = require('../Helpers/AdminAuthorizationHelper')
 const Settings = require('@overleaf/settings')
+const DocumentUpdaterHandler = require('../DocumentUpdater/DocumentUpdaterHandler')
 
 function isRestrictedUser(
   userId,
@@ -87,9 +88,54 @@ async function getPrivilegeLevelForProject(
   opts = {}
 ) {
   if (userId) {
-    return getPrivilegeLevelForProjectWithUser(userId, projectId, opts)
+    return await getPrivilegeLevelForProjectWithUser(
+      userId,
+      projectId,
+      null,
+      opts
+    )
   } else {
-    return getPrivilegeLevelForProjectWithoutUser(projectId, token, opts)
+    return await getPrivilegeLevelForProjectWithoutUser(projectId, token, opts)
+  }
+}
+
+/**
+ * Get the privilege level that the user has for the project.
+ *
+ * @param userId - The id of the user that wants to access the project.
+ * @param projectId - The id of the project to be accessed.
+ * @param {string} token
+ * @param {ProjectAccess} projectAccess
+ * @param {Object} opts
+ * @param {boolean} opts.ignoreSiteAdmin - Do not consider whether the user is
+ *     a site admin.
+ * @param {boolean} opts.ignorePublicAccess - Do not consider the project is
+ *     publicly accessible.
+ *
+ * @returns {string|boolean} The privilege level. One of "owner",
+ *     "readAndWrite", "readOnly" or false.
+ */
+async function getPrivilegeLevelForProjectWithProjectAccess(
+  userId,
+  projectId,
+  token,
+  projectAccess,
+  opts = {}
+) {
+  if (userId) {
+    return await getPrivilegeLevelForProjectWithUser(
+      userId,
+      projectId,
+      projectAccess,
+      opts
+    )
+  } else {
+    return await _getPrivilegeLevelForProjectWithoutUserWithPublicAccessLevel(
+      projectId,
+      token,
+      projectAccess.publicAccessLevel(),
+      opts
+    )
   }
 }
 
@@ -97,6 +143,7 @@ async function getPrivilegeLevelForProject(
 async function getPrivilegeLevelForProjectWithUser(
   userId,
   projectId,
+  projectAccess,
   opts = {}
 ) {
   if (!opts.ignoreSiteAdmin) {
@@ -105,11 +152,11 @@ async function getPrivilegeLevelForProjectWithUser(
     }
   }
 
-  const privilegeLevel =
-    await CollaboratorsGetter.promises.getMemberIdPrivilegeLevel(
-      userId,
-      projectId
-    )
+  projectAccess =
+    projectAccess ||
+    (await CollaboratorsGetter.promises.getProjectAccess(projectId))
+
+  const privilegeLevel = projectAccess.privilegeLevelForUser(userId)
   if (privilegeLevel && privilegeLevel !== PrivilegeLevels.NONE) {
     // The user has direct access
     return privilegeLevel
@@ -118,7 +165,7 @@ async function getPrivilegeLevelForProjectWithUser(
   if (!opts.ignorePublicAccess) {
     // Legacy public-access system
     // User is present (not anonymous), but does not have direct access
-    const publicAccessLevel = await getPublicAccessLevel(projectId)
+    const publicAccessLevel = projectAccess.publicAccessLevel()
     if (publicAccessLevel === PublicAccessLevels.READ_ONLY) {
       return PrivilegeLevels.READ_ONLY
     }
@@ -136,7 +183,21 @@ async function getPrivilegeLevelForProjectWithoutUser(
   token,
   opts = {}
 ) {
-  const publicAccessLevel = await getPublicAccessLevel(projectId)
+  return await _getPrivilegeLevelForProjectWithoutUserWithPublicAccessLevel(
+    projectId,
+    token,
+    await getPublicAccessLevel(projectId),
+    opts
+  )
+}
+
+// User is Anonymous, Try Token-based access
+async function _getPrivilegeLevelForProjectWithoutUserWithPublicAccessLevel(
+  projectId,
+  token,
+  publicAccessLevel,
+  opts = {}
+) {
   if (!opts.ignorePublicAccess) {
     if (publicAccessLevel === PublicAccessLevels.READ_ONLY) {
       // Legacy public read-only access for anonymous user
@@ -148,7 +209,7 @@ async function getPrivilegeLevelForProjectWithoutUser(
     }
   }
   if (publicAccessLevel === PublicAccessLevels.TOKEN_BASED) {
-    return getPrivilegeLevelForProjectWithToken(projectId, token)
+    return await getPrivilegeLevelForProjectWithToken(projectId, token)
   }
 
   // Deny anonymous user access
@@ -186,6 +247,7 @@ async function canUserReadProject(userId, projectId, token) {
     PrivilegeLevels.OWNER,
     PrivilegeLevels.READ_AND_WRITE,
     PrivilegeLevels.READ_ONLY,
+    PrivilegeLevels.REVIEW,
   ].includes(privilegeLevel)
 }
 
@@ -197,6 +259,19 @@ async function canUserWriteProjectContent(userId, projectId, token) {
   )
   return [PrivilegeLevels.OWNER, PrivilegeLevels.READ_AND_WRITE].includes(
     privilegeLevel
+  )
+}
+
+async function canUserWriteOrReviewProjectContent(userId, projectId, token) {
+  const privilegeLevel = await getPrivilegeLevelForProject(
+    userId,
+    projectId,
+    token
+  )
+  return (
+    privilegeLevel === PrivilegeLevels.OWNER ||
+    privilegeLevel === PrivilegeLevels.READ_AND_WRITE ||
+    privilegeLevel === PrivilegeLevels.REVIEW
   )
 }
 
@@ -239,9 +314,45 @@ async function isUserSiteAdmin(userId) {
   return hasAdminAccess(user)
 }
 
+async function canUserDeleteOrResolveThread(
+  userId,
+  projectId,
+  docId,
+  threadId,
+  token
+) {
+  const privilegeLevel = await getPrivilegeLevelForProject(
+    userId,
+    projectId,
+    token,
+    { ignorePublicAccess: true }
+  )
+  if (
+    privilegeLevel === PrivilegeLevels.OWNER ||
+    privilegeLevel === PrivilegeLevels.READ_AND_WRITE
+  ) {
+    return true
+  }
+
+  if (privilegeLevel !== PrivilegeLevels.REVIEW) {
+    return false
+  }
+
+  const comment = await DocumentUpdaterHandler.promises.getComment(
+    projectId,
+    docId,
+    threadId
+  )
+  return comment.metadata.user_id === userId
+}
+
 module.exports = {
   canUserReadProject: callbackify(canUserReadProject),
   canUserWriteProjectContent: callbackify(canUserWriteProjectContent),
+  canUserWriteOrReviewProjectContent: callbackify(
+    canUserWriteOrReviewProjectContent
+  ),
+  canUserDeleteOrResolveThread: callbackify(canUserDeleteOrResolveThread),
   canUserWriteProjectSettings: callbackify(canUserWriteProjectSettings),
   canUserRenameProject: callbackify(canUserRenameProject),
   canUserAdminProject: callbackify(canUserAdminProject),
@@ -252,10 +363,13 @@ module.exports = {
   promises: {
     canUserReadProject,
     canUserWriteProjectContent,
+    canUserWriteOrReviewProjectContent,
+    canUserDeleteOrResolveThread,
     canUserWriteProjectSettings,
     canUserRenameProject,
     canUserAdminProject,
     getPrivilegeLevelForProject,
+    getPrivilegeLevelForProjectWithProjectAccess,
     isRestrictedUserForProject,
     isUserSiteAdmin,
   },

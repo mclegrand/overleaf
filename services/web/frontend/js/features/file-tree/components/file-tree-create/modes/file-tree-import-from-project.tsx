@@ -5,8 +5,6 @@ import {
   useMemo,
   FormEventHandler,
 } from 'react'
-import { Button, ControlLabel, FormControl, FormGroup } from 'react-bootstrap'
-import Icon from '../../../../../shared/components/icon'
 import FileTreeCreateNameInput from '../file-tree-create-name-input'
 import { useTranslation } from 'react-i18next'
 import { useUserProjects } from '../../../hooks/use-user-projects'
@@ -21,6 +19,12 @@ import * as eventTracking from '../../../../../infrastructure/event-tracking'
 import { File } from '@/features/source-editor/utils/file'
 import { Project } from '../../../../../../../types/project'
 import getMeta from '@/utils/meta'
+import OLButton from '@/features/ui/components/ol/ol-button'
+import OLFormGroup from '@/features/ui/components/ol/ol-form-group'
+import OLFormLabel from '@/features/ui/components/ol/ol-form-label'
+import OLForm from '@/features/ui/components/ol/ol-form'
+import OLFormSelect from '@/features/ui/components/ol/ol-form-select'
+import { Spinner } from 'react-bootstrap'
 
 export default function FileTreeImportFromProject() {
   const { t } = useTranslation()
@@ -46,7 +50,7 @@ export default function FileTreeImportFromProject() {
 
   // use the basename of a path as the file name
   const setNameFromPath = useCallback(
-    path => {
+    (path: string) => {
       const filename = path.split('/').pop()
 
       if (filename) {
@@ -125,7 +129,7 @@ export default function FileTreeImportFromProject() {
   }
 
   return (
-    <form className="form-controls" id="create-file" onSubmit={handleSubmit}>
+    <OLForm id="create-file" onSubmit={handleSubmit}>
       <SelectProject
         selectedProject={selectedProject}
         setSelectedProject={setSelectedProject}
@@ -148,8 +152,8 @@ export default function FileTreeImportFromProject() {
       {canSwitchOutputFilesMode && (
         <div className="toggle-file-type-button">
           or&nbsp;
-          <Button
-            bsStyle="link"
+          <OLButton
+            variant="link"
             type="button"
             onClick={() => setOutputFilesMode(value => !value)}
           >
@@ -158,7 +162,7 @@ export default function FileTreeImportFromProject() {
                 ? t('select_from_source_files')
                 : t('select_from_output_files')}
             </span>
-          </Button>
+          </OLButton>
         </div>
       )}
 
@@ -173,7 +177,7 @@ export default function FileTreeImportFromProject() {
       />
 
       {error && <ErrorMessage error={error} />}
-    </form>
+    </OLForm>
   )
 }
 
@@ -204,18 +208,22 @@ function SelectProject({
   }
 
   return (
-    <FormGroup className="form-controls" controlId="project-select">
-      <ControlLabel>{t('select_a_project')}</ControlLabel>
+    <OLFormGroup controlId="project-select">
+      <OLFormLabel>{t('select_a_project')}</OLFormLabel>
 
       {loading && (
         <span>
           &nbsp;
-          <Icon type="spinner" spin />
+          <Spinner
+            animation="border"
+            aria-hidden="true"
+            size="sm"
+            role="status"
+          />
         </span>
       )}
 
-      <FormControl
-        componentClass="select"
+      <OLFormSelect
         disabled={!data}
         value={selectedProject ? selectedProject._id : ''}
         onChange={event => {
@@ -234,12 +242,12 @@ function SelectProject({
               {project.name}
             </option>
           ))}
-      </FormControl>
+      </OLFormSelect>
 
       {filteredData && !filteredData.length && (
         <small>{t('no_other_projects_found')}</small>
       )}
-    </FormGroup>
+    </OLFormGroup>
   )
 }
 
@@ -263,25 +271,29 @@ function SelectProjectOutputFile({
   }
 
   return (
-    <FormGroup
-      className="form-controls row-spaced-small"
+    <OLFormGroup
+      className="row-spaced-small"
       controlId="project-output-file-select"
     >
-      <ControlLabel>{t('select_an_output_file')}</ControlLabel>
+      <OLFormLabel>{t('select_an_output_file')}</OLFormLabel>
 
       {loading && (
         <span>
           &nbsp;
-          <Icon type="spinner" spin />
+          <Spinner
+            animation="border"
+            aria-hidden="true"
+            size="sm"
+            role="status"
+          />
         </span>
       )}
 
-      <FormControl
-        componentClass="select"
+      <OLFormSelect
         disabled={!data}
         value={selectedProjectOutputFile?.path || ''}
         onChange={event => {
-          const path = (event.target as HTMLSelectElement).value
+          const path = (event.target as unknown as HTMLSelectElement).value
           const file = data?.find(item => item.path === path)
           setSelectedProjectOutputFile(file)
         }}
@@ -296,8 +308,8 @@ function SelectProjectOutputFile({
               {file.path}
             </option>
           ))}
-      </FormControl>
-    </FormGroup>
+      </OLFormSelect>
+    </OLFormGroup>
   )
 }
 
@@ -321,21 +333,22 @@ function SelectProjectEntity({
   }
 
   return (
-    <FormGroup
-      className="form-controls row-spaced-small"
-      controlId="project-entity-select"
-    >
-      <ControlLabel>{t('select_a_file')}</ControlLabel>
+    <OLFormGroup className="row-spaced-small" controlId="project-entity-select">
+      <OLFormLabel>{t('select_a_file')}</OLFormLabel>
 
       {loading && (
         <span>
           &nbsp;
-          <Icon type="spinner" spin />
+          <Spinner
+            animation="border"
+            aria-hidden="true"
+            size="sm"
+            role="status"
+          />
         </span>
       )}
 
-      <FormControl
-        componentClass="select"
+      <OLFormSelect
         disabled={!data}
         value={selectedProjectEntity?.path || ''}
         onChange={event => {
@@ -354,7 +367,7 @@ function SelectProjectEntity({
               {entity.path.slice(1)}
             </option>
           ))}
-      </FormControl>
-    </FormGroup>
+      </OLFormSelect>
+    </OLFormGroup>
   )
 }

@@ -6,14 +6,7 @@ export default function HelpDocumentation() {
 
   return (
     <>
-      <LeftMenuButton
-        type="link"
-        href="/learn"
-        icon={{
-          type: 'book',
-          fw: true,
-        }}
-      >
+      <LeftMenuButton type="link" href="/learn" icon="book_4">
         {t('documentation')}
       </LeftMenuButton>
     </>

@@ -13,9 +13,9 @@
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
 let OutputFileOptimiser
-const fs = require('fs')
-const Path = require('path')
-const { spawn } = require('child_process')
+const fs = require('node:fs')
+const Path = require('node:path')
+const { spawn } = require('node:child_process')
 const logger = require('@overleaf/logger')
 const Metrics = require('./Metrics')
 const _ = require('lodash')
@@ -74,9 +74,7 @@ module.exports = OutputFileOptimiser = {
     logger.debug({ args }, 'running qpdf command')
 
     const timer = new Metrics.Timer('qpdf')
-    const proc = spawn('qpdf', args)
-    let stdout = ''
-    proc.stdout.setEncoding('utf8').on('data', chunk => (stdout += chunk))
+    const proc = spawn('qpdf', args, { stdio: 'ignore' })
     callback = _.once(callback) // avoid double call back for error and close event
     proc.on('error', function (err) {
       logger.warn({ err, args }, 'qpdf failed')

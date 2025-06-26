@@ -1,7 +1,7 @@
 const { expect } = require('chai')
 const sinon = require('sinon')
 const SandboxedModule = require('sandboxed-module')
-const modulePath = require('path').join(
+const modulePath = require('node:path').join(
   __dirname,
   '../../../app/js/LockManager'
 )
@@ -21,6 +21,7 @@ describe('LockManager', function () {
           compileConcurrencyLimit: 5,
         }),
         './Errors': (this.Erros = Errors),
+        './RequestParser': { MAX_TIMEOUT: 600 },
       },
     })
   })

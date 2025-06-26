@@ -3,6 +3,7 @@ const Settings = require('@overleaf/settings')
 const logger = require('@overleaf/logger')
 const redis = require('@overleaf/redis-wrapper')
 const OError = require('@overleaf/o-error')
+const Metrics = require('@overleaf/metrics')
 const rclient = redis.createClient(Settings.redis.realtime)
 const Keys = Settings.redis.realtime.key_schema
 
@@ -13,7 +14,25 @@ const FOUR_DAYS_IN_S = ONE_DAY_IN_S * 4
 const USER_TIMEOUT_IN_S = ONE_HOUR_IN_S / 4
 const REFRESH_TIMEOUT_IN_S = 10 // only show clients which have responded to a refresh request in the last 10 seconds
 
+function recordProjectNotEmptySinceMetric(res, status) {
+  const diff = Date.now() / 1000 - parseInt(res, 10)
+  const BUCKETS = [
+    0,
+    ONE_HOUR_IN_S,
+    2 * ONE_HOUR_IN_S,
+    ONE_DAY_IN_S,
+    2 * ONE_DAY_IN_S,
+    7 * ONE_DAY_IN_S,
+    30 * ONE_DAY_IN_S,
+  ]
+  Metrics.histogram('project_not_empty_since', diff, BUCKETS, { status })
+}
+
 module.exports = {
+  countConnectedClients(projectId, callback) {
+    rclient.scard(Keys.clientsInProject({ project_id: projectId }), callback)
+  },
+
   // Use the same method for when a user connects, and when a user sends a cursor
   // update. This way we don't care if the connected_user key has expired when
   // we receive a cursor update.
@@ -23,6 +42,7 @@ module.exports = {
     const multi = rclient.multi()
 
     multi.sadd(Keys.clientsInProject({ project_id: projectId }), clientId)
+    multi.scard(Keys.clientsInProject({ project_id: projectId }))
     multi.expire(
       Keys.clientsInProject({ project_id: projectId }),
       FOUR_DAYS_IN_S
@@ -66,11 +86,17 @@ module.exports = {
       USER_TIMEOUT_IN_S
     )
 
-    multi.exec(function (err) {
+    multi.exec(function (err, res) {
       if (err) {
         err = new OError('problem marking user as connected').withCause(err)
+        return callback(err)
       }
-      callback(err)
+      const [, nConnectedClients] = res
+      Metrics.inc('editing_session_mode', 1, {
+        method: cursorData ? 'update' : 'connect',
+        status: nConnectedClients === 1 ? 'single' : 'multi',
+      })
+      callback(null)
     })
   },
 
@@ -100,6 +126,7 @@ module.exports = {
     logger.debug({ projectId, clientId }, 'marking user as disconnected')
     const multi = rclient.multi()
     multi.srem(Keys.clientsInProject({ project_id: projectId }), clientId)
+    multi.scard(Keys.clientsInProject({ project_id: projectId }))
     multi.expire(
       Keys.clientsInProject({ project_id: projectId }),
       FOUR_DAYS_IN_S
@@ -107,11 +134,58 @@ module.exports = {
     multi.del(
       Keys.connectedUser({ project_id: projectId, client_id: clientId })
     )
-    multi.exec(function (err) {
+    multi.exec(function (err, res) {
       if (err) {
         err = new OError('problem marking user as disconnected').withCause(err)
+        return callback(err)
       }
-      callback(err)
+      const [, nConnectedClients] = res
+      const status =
+        nConnectedClients === 0
+          ? 'empty'
+          : nConnectedClients === 1
+            ? 'single'
+            : 'multi'
+      Metrics.inc('editing_session_mode', 1, {
+        method: 'disconnect',
+        status,
+      })
+      if (status === 'empty') {
+        rclient.getdel(Keys.projectNotEmptySince({ projectId }), (err, res) => {
+          if (err) {
+            logger.warn(
+              { err, projectId },
+              'could not collect projectNotEmptySince'
+            )
+          } else if (res) {
+            recordProjectNotEmptySinceMetric(res, status)
+          }
+        })
+      } else {
+        // Only populate projectNotEmptySince when more clients remain connected.
+        const nowInSeconds = Math.ceil(Date.now() / 1000).toString()
+        // We can go back to SET GET after upgrading to redis 7.0+
+        const multi = rclient.multi()
+        multi.get(Keys.projectNotEmptySince({ projectId }))
+        multi.set(
+          Keys.projectNotEmptySince({ projectId }),
+          nowInSeconds,
+          'NX',
+          'EX',
+          31 * ONE_DAY_IN_S
+        )
+        multi.exec((err, res) => {
+          if (err) {
+            logger.warn(
+              { err, projectId },
+              'could not get/set projectNotEmptySince'
+            )
+          } else if (res[0]) {
+            recordProjectNotEmptySinceMetric(res[0], status)
+          }
+        })
+      }
+      callback(null)
     })
   },
 

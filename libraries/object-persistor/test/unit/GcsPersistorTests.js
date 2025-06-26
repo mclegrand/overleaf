@@ -1,4 +1,4 @@
-const { EventEmitter } = require('events')
+const { EventEmitter } = require('node:events')
 const sinon = require('sinon')
 const chai = require('chai')
 const { expect } = chai
@@ -41,18 +41,15 @@ describe('GcsPersistorTests', function () {
   beforeEach(function () {
     Settings = {
       directoryKeyRegex: /^[0-9a-fA-F]{24}\/[0-9a-fA-F]{24}/,
-      Metrics: {
-        count: sinon.stub(),
-      },
     }
 
     files = [
       {
-        metadata: { size: 11, md5Hash: '/////wAAAAD/////AAAAAA==' },
+        metadata: { size: '11', md5Hash: '/////wAAAAD/////AAAAAA==' },
         delete: sinon.stub(),
       },
       {
-        metadata: { size: 22, md5Hash: '/////wAAAAD/////AAAAAA==' },
+        metadata: { size: '22', md5Hash: '/////wAAAAD/////AAAAAA==' },
         delete: sinon.stub(),
       },
     ]
@@ -66,7 +63,7 @@ describe('GcsPersistorTests', function () {
 
       read() {
         if (this.err) return this.emit('error', this.err)
-        this.emit('response', { statusCode: this.statusCode })
+        this.emit('response', { statusCode: this.statusCode, headers: {} })
       }
     }
 
@@ -305,7 +302,7 @@ describe('GcsPersistorTests', function () {
       })
 
       it('should return the object size', function () {
-        expect(size).to.equal(files[0].metadata.size)
+        expect(size).to.equal(11)
       })
 
       it('should pass the bucket and key to GCS', function () {

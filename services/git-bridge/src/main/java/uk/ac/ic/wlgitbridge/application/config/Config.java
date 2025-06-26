@@ -26,10 +26,11 @@ public class Config implements JSONSource {
         config.bindIp,
         config.idleTimeout,
         config.rootGitDirectory,
+        config.allowedCorsOrigins,
         config.apiBaseURL,
         config.postbackURL,
         config.serviceName,
-        Oauth2.asSanitised(config.oauth2),
+        config.oauth2Server,
         config.userPasswordEnabled,
         config.repoStore,
         SwapStoreConfig.sanitisedCopy(config.swapStore),
@@ -41,10 +42,11 @@ public class Config implements JSONSource {
   private String bindIp;
   private int idleTimeout;
   private String rootGitDirectory;
+  private String[] allowedCorsOrigins;
   private String apiBaseURL;
   private String postbackURL;
   private String serviceName;
-  @Nullable private Oauth2 oauth2;
+  @Nullable private String oauth2Server;
   private boolean userPasswordEnabled;
   @Nullable private RepoStoreConfig repoStore;
   @Nullable private SwapStoreConfig swapStore;
@@ -64,10 +66,11 @@ public class Config implements JSONSource {
       String bindIp,
       int idleTimeout,
       String rootGitDirectory,
+      String[] allowedCorsOrigins,
       String apiBaseURL,
       String postbackURL,
       String serviceName,
-      Oauth2 oauth2,
+      String oauth2Server,
       boolean userPasswordEnabled,
       RepoStoreConfig repoStore,
       SwapStoreConfig swapStore,
@@ -77,10 +80,11 @@ public class Config implements JSONSource {
     this.bindIp = bindIp;
     this.idleTimeout = idleTimeout;
     this.rootGitDirectory = rootGitDirectory;
+    this.allowedCorsOrigins = allowedCorsOrigins;
     this.apiBaseURL = apiBaseURL;
     this.postbackURL = postbackURL;
     this.serviceName = serviceName;
-    this.oauth2 = oauth2;
+    this.oauth2Server = oauth2Server;
     this.userPasswordEnabled = userPasswordEnabled;
     this.repoStore = repoStore;
     this.swapStore = swapStore;
@@ -101,11 +105,18 @@ public class Config implements JSONSource {
     }
     this.apiBaseURL = apiBaseURL;
     serviceName = getElement(configObject, "serviceName").getAsString();
+    final String rawAllowedCorsOrigins =
+        getOptionalString(configObject, "allowedCorsOrigins").trim();
+    if (rawAllowedCorsOrigins.isEmpty()) {
+      allowedCorsOrigins = new String[] {};
+    } else {
+      allowedCorsOrigins = rawAllowedCorsOrigins.split(",");
+    }
     postbackURL = getElement(configObject, "postbackBaseUrl").getAsString();
     if (!postbackURL.endsWith("/")) {
       postbackURL += "/";
     }
-    oauth2 = new Gson().fromJson(configObject.get("oauth2"), Oauth2.class);
+    oauth2Server = getOptionalString(configObject, "oauth2Server");
     userPasswordEnabled = getOptionalString(configObject, "userPasswordEnabled").equals("true");
     repoStore = new Gson().fromJson(configObject.get("repoStore"), RepoStoreConfig.class);
     swapStore = new Gson().fromJson(configObject.get("swapStore"), SwapStoreConfig.class);
@@ -139,6 +150,10 @@ public class Config implements JSONSource {
     return this.sqliteHeapLimitBytes;
   }
 
+  public String[] getAllowedCorsOrigins() {
+    return allowedCorsOrigins;
+  }
+
   public String getAPIBaseURL() {
     return apiBaseURL;
   }
@@ -151,19 +166,12 @@ public class Config implements JSONSource {
     return postbackURL;
   }
 
-  public boolean isUsingOauth2() {
-    return oauth2 != null;
-  }
-
   public boolean isUserPasswordEnabled() {
     return userPasswordEnabled;
   }
 
-  public Oauth2 getOauth2() {
-    if (!isUsingOauth2()) {
-      throw new AssertionError("Getting oauth2 when not using it");
-    }
-    return oauth2;
+  public String getOauth2Server() {
+    return oauth2Server;
   }
 
   public Optional<RepoStoreConfig> getRepoStore() {

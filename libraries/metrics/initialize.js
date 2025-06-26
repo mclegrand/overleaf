@@ -5,6 +5,8 @@
  * before any other module to support code instrumentation.
  */
 
+const metricsModuleImportStartTime = performance.now()
+
 const APP_NAME = process.env.METRICS_APP_NAME || 'unknown'
 const BUILD_VERSION = process.env.BUILD_VERSION
 const ENABLE_PROFILE_AGENT = process.env.ENABLE_PROFILE_AGENT === 'true'
@@ -88,7 +90,7 @@ function initializeProfileAgent() {
 }
 
 function initializePrometheus() {
-  const os = require('os')
+  const os = require('node:os')
   const promClient = require('prom-client')
   promClient.register.setDefaultLabels({ app: APP_NAME, host: os.hostname() })
   promClient.collectDefaultMetrics({ timeout: 5000, prefix: '' })
@@ -103,3 +105,5 @@ function recordProcessStart() {
   const metrics = require('.')
   metrics.inc('process_startup')
 }
+
+module.exports = { metricsModuleImportStartTime }

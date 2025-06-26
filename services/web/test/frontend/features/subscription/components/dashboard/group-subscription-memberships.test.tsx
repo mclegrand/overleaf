@@ -15,7 +15,7 @@ import {
   groupActiveSubscription,
   groupActiveSubscriptionWithPendingLicenseChange,
 } from '../../fixtures/subscriptions'
-import * as useLocationModule from '../../../../../../frontend/js/shared/hooks/use-location'
+import { location } from '@/shared/components/location'
 import { UserId } from '../../../../../../types/user'
 import { SplitTestProvider } from '@/shared/context/split-test-context'
 
@@ -51,7 +51,7 @@ describe('<GroupSubscriptionMemberships />', function () {
   })
 
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   it('renders all group subscriptions not managed', function () {
@@ -73,15 +73,9 @@ describe('<GroupSubscriptionMemberships />', function () {
   })
 
   describe('opens leave group modal when button is clicked', function () {
-    let reloadStub: sinon.SinonStub
-
     beforeEach(function () {
-      reloadStub = sinon.stub()
-      this.locationStub = sinon.stub(useLocationModule, 'useLocation').returns({
-        assign: sinon.stub(),
-        replace: sinon.stub(),
-        reload: reloadStub,
-      })
+      this.locationWrapperSandbox = sinon.createSandbox()
+      this.locationWrapperStub = this.locationWrapperSandbox.stub(location)
 
       render(
         <SplitTestProvider>
@@ -91,7 +85,9 @@ describe('<GroupSubscriptionMemberships />', function () {
         </SplitTestProvider>
       )
 
-      const leaveGroupButton = screen.getByText('Leave group')
+      const leaveGroupButton = screen.getByRole('button', {
+        name: 'Leave group',
+      })
       fireEvent.click(leaveGroupButton)
 
       this.confirmModal = screen.getByRole('dialog')
@@ -99,12 +95,16 @@ describe('<GroupSubscriptionMemberships />', function () {
         'Are you sure you want to leave this group?'
       )
 
-      this.cancelButton = within(this.confirmModal).getByText('Cancel')
-      this.leaveNowButton = within(this.confirmModal).getByText('Leave now')
+      this.cancelButton = within(this.confirmModal).getByRole('button', {
+        name: 'Cancel',
+      })
+      this.leaveNowButton = within(this.confirmModal).getByRole('button', {
+        name: 'Leave now',
+      })
     })
 
     afterEach(function () {
-      this.locationStub.restore()
+      this.locationWrapperSandbox.restore()
     })
 
     it('close the modal', function () {
@@ -122,7 +122,8 @@ describe('<GroupSubscriptionMemberships />', function () {
 
       fireEvent.click(this.leaveNowButton)
 
-      expect(leaveGroupApiMock.called()).to.be.true
+      expect(leaveGroupApiMock.callHistory.called()).to.be.true
+      const reloadStub = this.locationWrapperStub.reload
       await waitFor(() => {
         expect(reloadStub).to.have.been.called
       })

@@ -1,4 +1,5 @@
 const SandboxedModule = require('sandboxed-module')
+const { ObjectId } = require('mongodb-legacy')
 const sinon = require('sinon')
 const modulePath =
   '../../../../app/src/Features/Subscription/RecurlyEventHandler'
@@ -27,6 +28,7 @@ describe('RecurlyEventHandler', function () {
 
     this.RecurlyEventHandler = SandboxedModule.require(modulePath, {
       requires: {
+        'mongodb-legacy': { ObjectId },
         './SubscriptionEmailHandler': (this.SubscriptionEmailHandler = {
           sendTrialOnboardingEmail: sinon.stub(),
         }),
@@ -58,7 +60,9 @@ describe('RecurlyEventHandler', function () {
         plan_code: this.planCode,
         quantity: 1,
         is_trial: true,
+        has_ai_add_on: false,
         subscriptionId: this.eventData.subscription.uuid,
+        payment_provider: 'recurly',
       }
     )
     sinon.assert.calledWith(
@@ -111,7 +115,9 @@ describe('RecurlyEventHandler', function () {
         plan_code: this.planCode,
         quantity: 3,
         is_trial: false,
+        has_ai_add_on: false,
         subscriptionId: this.eventData.subscription.uuid,
+        payment_provider: 'recurly',
       }
     )
     sinon.assert.calledWith(
@@ -143,7 +149,9 @@ describe('RecurlyEventHandler', function () {
         plan_code: this.planCode,
         quantity: 1,
         is_trial: true,
+        has_ai_add_on: false,
         subscriptionId: this.eventData.subscription.uuid,
+        payment_provider: 'recurly',
       }
     )
     sinon.assert.calledWith(
@@ -180,7 +188,9 @@ describe('RecurlyEventHandler', function () {
         plan_code: this.planCode,
         quantity: 1,
         is_trial: true,
+        has_ai_add_on: false,
         subscriptionId: this.eventData.subscription.uuid,
+        payment_provider: 'recurly',
       }
     )
     sinon.assert.calledWith(
@@ -211,7 +221,9 @@ describe('RecurlyEventHandler', function () {
         plan_code: this.planCode,
         quantity: 1,
         is_trial: true,
+        has_ai_add_on: false,
         subscriptionId: this.eventData.subscription.uuid,
+        payment_provider: 'recurly',
       }
     )
     sinon.assert.calledWith(
@@ -247,7 +259,9 @@ describe('RecurlyEventHandler', function () {
         plan_code: this.planCode,
         quantity: 1,
         is_trial: true,
+        has_ai_add_on: false,
         subscriptionId: this.eventData.subscription.uuid,
+        payment_provider: 'recurly',
       }
     )
   })
@@ -264,7 +278,9 @@ describe('RecurlyEventHandler', function () {
       {
         plan_code: this.planCode,
         quantity: 1,
+        has_ai_add_on: false,
         subscriptionId: this.eventData.subscription.uuid,
+        payment_provider: 'recurly',
       }
     )
   })
@@ -304,6 +320,7 @@ describe('RecurlyEventHandler', function () {
         collectionMethod: invoice.collection_method,
         subscriptionId1: invoice.subscription_ids[0],
         subscriptionId2: invoice.subscription_ids[1],
+        payment_provider: 'recurly',
       }
     )
   })

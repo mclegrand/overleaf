@@ -1,4 +1,6 @@
 let CompileManager
+const Crypto = require('crypto')
+// const { gitUpdate } = require('../Git/GitController')
 const Settings = require('@overleaf/settings')
 const RedisWrapper = require('../../infrastructure/RedisWrapper')
 const rclient = RedisWrapper.client('clsi_recently_compiled')
@@ -23,6 +25,10 @@ function instrumentWithTimer(fn, key) {
       timer.done()
     }
   }
+}
+
+function generateBuildId() {
+  return `${Date.now().toString(16)}-${Crypto.randomBytes(8).toString('hex')}`
 }
 
 async function compile(projectId, userId, options = {}) {
@@ -67,6 +73,9 @@ async function compile(projectId, userId, options = {}) {
     return { message: 'autocompile-backoff', outputFiles: [] }
   }
 
+  // Generate the buildId ahead of fetching the project content from redis/mongo so that the buildId's timestamp is before any lastUpdated date.
+  options.buildId = generateBuildId()
+
   // only pass userId down to clsi if this is a per-user compile
   const compileAsUser = Settings.disablePerUserCompiles ? undefined : userId
   const {
@@ -78,9 +87,10 @@ async function compile(projectId, userId, options = {}) {
     timings,
     outputUrlPrefix,
     buildId,
+    clsiCacheShard,
   } = await ClsiManager.promises.sendRequest(projectId, compileAsUser, options)
 
-const { gitUpdate } = require('../Git/GitController')
+  const { gitUpdate } = require('../Git/GitController')
   await gitUpdate(projectId, userId)
   return {
     status,
@@ -92,6 +102,7 @@ const { gitUpdate } = require('../Git/GitController')
     timings,
     outputUrlPrefix,
     buildId,
+    clsiCacheShard,
   }
 }
 
@@ -178,6 +189,7 @@ module.exports = CompileManager = {
     'timings',
     'outputUrlPrefix',
     'buildId',
+    'clsiCacheShard',
   ]),
 
   stopCompile: callbackify(stopCompile),

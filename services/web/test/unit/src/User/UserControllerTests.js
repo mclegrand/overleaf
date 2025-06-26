@@ -133,6 +133,14 @@ describe('UserController', function () {
       promises: { expireAllTokensForUser: sinon.stub().resolves() },
     }
 
+    this.Modules = {
+      promises: {
+        hooks: {
+          fire: sinon.stub().resolves(),
+        },
+      },
+    }
+
     this.UserController = SandboxedModule.require(modulePath, {
       requires: {
         '../Helpers/UrlHelper': this.UrlHelper,
@@ -156,6 +164,7 @@ describe('UserController', function () {
         '../Security/OneTimeTokenHandler': this.OneTimeTokenHandler,
         '../../infrastructure/RequestContentTypeDetection':
           this.RequestContentTypeDetection,
+        '../../infrastructure/Modules': this.Modules,
       },
     })
 
@@ -209,6 +218,17 @@ describe('UserController', function () {
         this.UserDeleter.promises.deleteUser.should.have.been.calledOnce
         this.UserDeleter.promises.deleteUser.should.have.been.calledWith(
           this.user._id
+        )
+        done()
+      }
+      this.UserController.tryDeleteUser(this.req, this.res, this.next)
+    })
+
+    it('should call hook to try to delete v1 account', function (done) {
+      this.res.sendStatus = code => {
+        expect(this.Modules.promises.hooks.fire).to.have.been.calledWith(
+          'tryDeleteV1Account',
+          this.user
         )
         done()
       }
@@ -400,6 +420,60 @@ describe('UserController', function () {
       this.req.body = { overallTheme: 'green-ish' }
       this.res.sendStatus = code => {
         this.user.ace.overallTheme.should.equal('green-ish')
+        done()
+      }
+      this.UserController.updateUserSettings(this.req, this.res)
+    })
+
+    it('should set referencesSearchMode to advanced', function (done) {
+      this.req.body = { referencesSearchMode: 'advanced' }
+      this.res.sendStatus = code => {
+        this.user.ace.referencesSearchMode.should.equal('advanced')
+        done()
+      }
+      this.UserController.updateUserSettings(this.req, this.res)
+    })
+
+    it('should set referencesSearchMode to simple', function (done) {
+      this.req.body = { referencesSearchMode: 'simple' }
+      this.res.sendStatus = code => {
+        this.user.ace.referencesSearchMode.should.equal('simple')
+        done()
+      }
+      this.UserController.updateUserSettings(this.req, this.res)
+    })
+
+    it('should not allow arbitrary referencesSearchMode', function (done) {
+      this.req.body = { referencesSearchMode: 'foobar' }
+      this.res.sendStatus = code => {
+        this.user.ace.referencesSearchMode.should.equal('advanced')
+        done()
+      }
+      this.UserController.updateUserSettings(this.req, this.res)
+    })
+
+    it('should set enableNewEditor to true', function (done) {
+      this.req.body = { enableNewEditor: true }
+      this.res.sendStatus = code => {
+        this.user.ace.enableNewEditor.should.equal(true)
+        done()
+      }
+      this.UserController.updateUserSettings(this.req, this.res)
+    })
+
+    it('should set enableNewEditor to false', function (done) {
+      this.req.body = { enableNewEditor: false }
+      this.res.sendStatus = code => {
+        this.user.ace.enableNewEditor.should.equal(false)
+        done()
+      }
+      this.UserController.updateUserSettings(this.req, this.res)
+    })
+
+    it('should keep enableNewEditor a boolean', function (done) {
+      this.req.body = { enableNewEditor: 'foobar' }
+      this.res.sendStatus = code => {
+        this.user.ace.enableNewEditor.should.equal(true)
         done()
       }
       this.UserController.updateUserSettings(this.req, this.res)
@@ -873,6 +947,7 @@ describe('UserController', function () {
           }
           this.EmailHandler.promises.sendEmail.rejects(anError)
         })
+
         it('should not return error but should log it', function (done) {
           this.res.json.callsFake(result => {
             expect(result.message.type).to.equal('success')
@@ -895,41 +970,47 @@ describe('UserController', function () {
   describe('ensureAffiliationMiddleware', function () {
     describe('without affiliations feature', function () {
       beforeEach(async function () {
-        await this.UserController.promises.ensureAffiliationMiddleware(
+        await this.UserController.ensureAffiliationMiddleware(
           this.req,
           this.res,
           this.next
         )
       })
+
       it('should not run affiliation check', function () {
         expect(this.UserGetter.promises.getUser).to.not.have.been.called
         expect(this.UserUpdater.promises.confirmEmail).to.not.have.been.called
         expect(this.UserUpdater.promises.addAffiliationForNewUser).to.not.have
           .been.called
       })
+
       it('should not return an error', function () {
         expect(this.next).to.be.calledWith()
       })
     })
+
     describe('without ensureAffiliation query parameter', function () {
       beforeEach(async function () {
         this.Features.hasFeature.withArgs('affiliations').returns(true)
-        await this.UserController.promises.ensureAffiliationMiddleware(
+        await this.UserController.ensureAffiliationMiddleware(
           this.req,
           this.res,
           this.next
         )
       })
+
       it('should not run middleware', function () {
         expect(this.UserGetter.promises.getUser).to.not.have.been.called
         expect(this.UserUpdater.promises.confirmEmail).to.not.have.been.called
         expect(this.UserUpdater.promises.addAffiliationForNewUser).to.not.have
           .been.called
       })
+
       it('should not return an error', function () {
         expect(this.next).to.be.calledWith()
       })
     })
+
     describe('no flagged email', function () {
       beforeEach(async function () {
         const email = 'unit-test@overleaf.com'
@@ -941,25 +1022,29 @@ describe('UserController', function () {
         ]
         this.Features.hasFeature.withArgs('affiliations').returns(true)
         this.req.query.ensureAffiliation = true
-        await this.UserController.promises.ensureAffiliationMiddleware(
+        await this.UserController.ensureAffiliationMiddleware(
           this.req,
           this.res,
           this.next
         )
       })
+
       it('should get the user', function () {
         expect(this.UserGetter.promises.getUser).to.have.been.calledWith(
           this.user._id
         )
       })
+
       it('should not try to add affiliation or update user', function () {
         expect(this.UserUpdater.promises.addAffiliationForNewUser).to.not.have
           .been.called
       })
+
       it('should not return an error', function () {
         expect(this.next).to.be.calledWith()
       })
     })
+
     describe('flagged non-SSO email', function () {
       let emailFlagged
       beforeEach(async function () {
@@ -974,17 +1059,19 @@ describe('UserController', function () {
         this.Features.hasFeature.withArgs('affiliations').returns(true)
         this.req.query.ensureAffiliation = true
         this.req.assertPermission = sinon.stub()
-        await this.UserController.promises.ensureAffiliationMiddleware(
+        await this.UserController.ensureAffiliationMiddleware(
           this.req,
           this.res,
           this.next
         )
       })
+
       it('should check the user has permission', function () {
         expect(this.req.assertPermission).to.have.been.calledWith(
           'add-affiliation'
         )
       })
+
       it('should unflag the emails but not confirm', function () {
         expect(
           this.UserUpdater.promises.addAffiliationForNewUser
@@ -993,10 +1080,12 @@ describe('UserController', function () {
           this.UserUpdater.promises.confirmEmail
         ).to.not.have.been.calledWith(this.user._id, emailFlagged)
       })
+
       it('should not return an error', function () {
         expect(this.next).to.be.calledWith()
       })
     })
+
     describe('flagged SSO email', function () {
       let emailFlagged
       beforeEach(async function () {
@@ -1012,17 +1101,19 @@ describe('UserController', function () {
         this.Features.hasFeature.withArgs('affiliations').returns(true)
         this.req.query.ensureAffiliation = true
         this.req.assertPermission = sinon.stub()
-        await this.UserController.promises.ensureAffiliationMiddleware(
+        await this.UserController.ensureAffiliationMiddleware(
           this.req,
           this.res,
           this.next
         )
       })
+
       it('should check the user has permission', function () {
         expect(this.req.assertPermission).to.have.been.calledWith(
           'add-affiliation'
         )
       })
+
       it('should add affiliation to v1, unflag and confirm on v2', function () {
         expect(this.UserUpdater.promises.addAffiliationForNewUser).to.have.not
           .been.called
@@ -1031,10 +1122,12 @@ describe('UserController', function () {
           emailFlagged
         )
       })
+
       it('should not return an error', function () {
         expect(this.next).to.be.calledWith()
       })
     })
+
     describe('when v1 returns an error', function () {
       let emailFlagged
       beforeEach(async function () {
@@ -1050,17 +1143,36 @@ describe('UserController', function () {
         this.Features.hasFeature.withArgs('affiliations').returns(true)
         this.req.query.ensureAffiliation = true
         this.req.assertPermission = sinon.stub()
-        await this.UserController.promises.ensureAffiliationMiddleware(
+        await this.UserController.ensureAffiliationMiddleware(
           this.req,
           this.res,
           this.next
         )
       })
+
       it('should check the user has permission', function () {
         expect(this.req.assertPermission).to.have.been.calledWith(
           'add-affiliation'
         )
       })
+
+      it('should return the error', function () {
+        expect(this.next).to.be.calledWith(sinon.match.instanceOf(Error))
+      })
+    })
+
+    describe('when user is not found', function () {
+      beforeEach(async function () {
+        this.UserGetter.promises.getUser.rejects(new Error('not found'))
+        this.Features.hasFeature.withArgs('affiliations').returns(true)
+        this.req.query.ensureAffiliation = true
+        await this.UserController.ensureAffiliationMiddleware(
+          this.req,
+          this.res,
+          this.next
+        )
+      })
+
       it('should return the error', function () {
         expect(this.next).to.be.calledWith(sinon.match.instanceOf(Error))
       })

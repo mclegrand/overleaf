@@ -32,10 +32,14 @@ describe('<RenameProjectModal />', function () {
       />
     )
     screen.getByText('Rename Project')
-    const input = screen.getByLabelText('New Name') as HTMLButtonElement
+    const input = screen.getByRole('textbox', {
+      name: 'New Name',
+    }) as HTMLInputElement
     expect(input.value).to.equal(currentProjects[0].name)
 
-    const submitButton = screen.getByText('Rename') as HTMLButtonElement
+    const submitButton = screen.getByRole('button', {
+      name: 'Rename',
+    }) as HTMLButtonElement
     expect(submitButton.disabled).to.be.true
 
     fireEvent.change(input, {
@@ -54,7 +58,9 @@ describe('<RenameProjectModal />', function () {
     await waitFor(
       () =>
         expect(
-          renameProjectMock.called(`/project/${currentProjects[0].id}/rename`)
+          renameProjectMock.callHistory.called(
+            `/project/${currentProjects[0].id}/rename`
+          )
         ).to.be.true
     )
   })
@@ -84,8 +90,8 @@ describe('<RenameProjectModal />', function () {
     const submitButton = within(modal).getByText('Rename') as HTMLButtonElement
     fireEvent.click(submitButton)
 
-    await waitFor(() => expect(postRenameMock.called()).to.be.true)
+    await waitFor(() => expect(postRenameMock.callHistory.called()).to.be.true)
 
-    screen.getByText('Something went wrong. Please try again.')
+    await screen.findByText('Something went wrong. Please try again.')
   })
 })

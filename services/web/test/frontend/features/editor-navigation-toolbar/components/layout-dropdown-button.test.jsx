@@ -1,17 +1,19 @@
 import sinon from 'sinon'
 import fetchMock from 'fetch-mock'
 import { expect } from 'chai'
-import { fireEvent, screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import LayoutDropdownButton from '../../../../../frontend/js/features/editor-navigation-toolbar/components/layout-dropdown-button'
 import { renderWithEditorContext } from '../../../helpers/render-with-context'
-import * as eventTracking from '../../../../../frontend/js/infrastructure/event-tracking'
+import * as eventTracking from '@/infrastructure/event-tracking'
 
 describe('<LayoutDropdownButton />', function () {
   let openStub
   let sendMBSpy
-  const defaultUi = {
+
+  const defaultLayout = {
     pdfLayout: 'flat',
     view: 'pdf',
+    chatIsOpen: false,
   }
 
   beforeEach(function () {
@@ -22,88 +24,168 @@ describe('<LayoutDropdownButton />', function () {
   afterEach(function () {
     openStub.restore()
     sendMBSpy.restore()
-    fetchMock.restore()
+    fetchMock.removeRoutes().clearHistory()
   })
 
-  it('should mark current layout option as selected', function () {
-    // Selected is aria-label, visually we show a checkmark
-    renderWithEditorContext(<LayoutDropdownButton />, { ui: defaultUi })
-    screen.getByRole('menuitem', {
-      name: 'Editor & PDF',
-    })
-    screen.getByRole('menuitem', {
-      name: 'Selected PDF only (hide editor)',
-    })
-    screen.getByRole('menuitem', {
-      name: 'Editor only (hide PDF)',
-    })
-    screen.getByRole('menuitem', {
-      name: 'PDF in separate tab',
-    })
-  })
-
-  it('should not select any option in history view', function () {
+  it('should mark current layout option as selected', async function () {
     // Selected is aria-label, visually we show a checkmark
     renderWithEditorContext(<LayoutDropdownButton />, {
-      ui: { ...defaultUi, view: 'history' },
+      layoutContext: defaultLayout,
     })
-    screen.getByRole('menuitem', {
-      name: 'Editor & PDF',
-    })
-    screen.getByRole('menuitem', {
-      name: 'PDF only (hide editor)',
-    })
-    screen.getByRole('menuitem', {
-      name: 'Editor only (hide PDF)',
-    })
-    screen.getByRole('menuitem', {
-      name: 'PDF in separate tab',
-    })
+
+    screen.getByRole('button', { name: 'Layout' }).click()
+
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole('menuitem', {
+            name: 'Editor & PDF',
+          })
+          .getAttribute('aria-selected')
+      ).to.equal('false')
+    )
+
+    expect(
+      screen
+        .getByRole('menuitem', {
+          name: 'PDF only (hide editor)',
+        })
+        .getAttribute('aria-selected')
+    ).to.equal('true')
+
+    expect(
+      screen
+        .getByRole('menuitem', {
+          name: 'Editor only (hide PDF)',
+        })
+        .getAttribute('aria-selected')
+    ).to.equal('false')
+
+    expect(
+      screen
+        .getByRole('menuitem', {
+          name: 'PDF in separate tab',
+        })
+        .getAttribute('aria-selected')
+    ).to.equal('false')
   })
 
-  it('should treat file and editor views the same way', function () {
+  it('should not select any option in history view', async function () {
     // Selected is aria-label, visually we show a checkmark
     renderWithEditorContext(<LayoutDropdownButton />, {
-      ui: {
+      layoutContext: { ...defaultLayout, view: 'history' },
+    })
+
+    screen.getByRole('button', { name: 'Layout' }).click()
+
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole('menuitem', {
+            name: 'Editor & PDF',
+          })
+          .getAttribute('aria-selected')
+      ).to.equal('false')
+    )
+
+    expect(
+      screen
+        .getByRole('menuitem', {
+          name: 'PDF only (hide editor)',
+        })
+        .getAttribute('aria-selected')
+    ).to.equal('false')
+
+    expect(
+      screen
+        .getByRole('menuitem', {
+          name: 'Editor only (hide PDF)',
+        })
+        .getAttribute('aria-selected')
+    ).to.equal('false')
+
+    expect(
+      screen
+        .getByRole('menuitem', {
+          name: 'PDF in separate tab',
+        })
+        .getAttribute('aria-selected')
+    ).to.equal('false')
+  })
+
+  it('should treat file and editor views the same way', async function () {
+    // Selected is aria-label, visually we show a checkmark
+    renderWithEditorContext(<LayoutDropdownButton />, {
+      layoutContext: {
         pdfLayout: 'flat',
         view: 'file',
+        chatIsOpen: false,
       },
     })
-    screen.getByRole('menuitem', {
-      name: 'Editor & PDF',
-    })
-    screen.getByRole('menuitem', {
-      name: 'PDF only (hide editor)',
-    })
-    screen.getByRole('menuitem', {
-      name: 'Selected Editor only (hide PDF)',
-    })
-    screen.getByRole('menuitem', {
-      name: 'PDF in separate tab',
-    })
+
+    screen.getByRole('button', { name: 'Layout' }).click()
+
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole('menuitem', {
+            name: 'Editor & PDF',
+          })
+          .getAttribute('aria-selected')
+      ).to.equal('false')
+    )
+
+    expect(
+      screen
+        .getByRole('menuitem', {
+          name: 'PDF only (hide editor)',
+        })
+        .getAttribute('aria-selected')
+    ).to.equal('false')
+
+    expect(
+      screen
+        .getByRole('menuitem', {
+          name: 'Editor only (hide PDF)',
+        })
+        .getAttribute('aria-selected')
+    ).to.equal('true')
+
+    expect(
+      screen
+        .getByRole('menuitem', {
+          name: 'PDF in separate tab',
+        })
+        .getAttribute('aria-selected')
+    ).to.equal('false')
   })
 
-  describe('on detach', function () {
+  describe('on detach', async function () {
     let originalBroadcastChannel
-    beforeEach(function () {
+    beforeEach(async function () {
       window.BroadcastChannel = originalBroadcastChannel || true // ensure that window.BroadcastChannel is truthy
 
       renderWithEditorContext(<LayoutDropdownButton />, {
-        ui: { ...defaultUi, view: 'editor' },
+        layoutContext: { ...defaultLayout, view: 'editor' },
       })
 
-      const menuItem = screen.getByRole('menuitem', {
-        name: 'PDF in separate tab',
-      })
-      fireEvent.click(menuItem)
+      screen.getByRole('button', { name: 'Layout' }).click()
+
+      await waitFor(() =>
+        screen
+          .getByRole('menuitem', {
+            name: 'PDF in separate tab',
+          })
+          .click()
+      )
     })
 
     afterEach(function () {
       window.BroadcastChannel = originalBroadcastChannel
     })
 
-    it('should show processing', function () {
-      screen.getByText('Layout processing')
+    it('should show processing', async function () {
+      await screen.findByText('Layout processing')
     })
 
     it('should record event', function () {
@@ -111,17 +193,22 @@ describe('<LayoutDropdownButton />', function () {
     })
   })
 
-  describe('on layout change / reattach', function () {
-    beforeEach(function () {
+  describe('on layout change / reattach', async function () {
+    beforeEach(async function () {
       window.metaAttributesCache.set('ol-detachRole', 'detacher')
       renderWithEditorContext(<LayoutDropdownButton />, {
-        ui: { ...defaultUi, view: 'editor' },
+        layoutContext: { ...defaultLayout, view: 'editor' },
       })
 
-      const menuItem = screen.getByRole('menuitem', {
-        name: 'Editor only (hide PDF)',
-      })
-      fireEvent.click(menuItem)
+      screen.getByRole('button', { name: 'Layout' }).click()
+
+      await waitFor(() =>
+        screen
+          .getByRole('menuitem', {
+            name: 'Editor only (hide PDF)',
+          })
+          .click()
+      )
     })
 
     it('should not show processing', function () {
@@ -140,7 +227,7 @@ describe('<LayoutDropdownButton />', function () {
 
     it('should select new menu item', function () {
       screen.getByRole('menuitem', {
-        name: 'Selected Editor only (hide PDF)',
+        name: 'Editor only (hide PDF)',
       })
     })
   })

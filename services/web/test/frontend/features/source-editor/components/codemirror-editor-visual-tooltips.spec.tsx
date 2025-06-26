@@ -1,4 +1,3 @@
-import '../../../helpers/bootstrap-3'
 import { mockScope } from '../helpers/mock-scope'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import CodemirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
@@ -10,7 +9,6 @@ describe('<CodeMirrorEditor/> tooltips in Visual mode', function () {
     cy.interceptMathJax()
     cy.interceptMetadata()
     cy.interceptEvents()
-    cy.interceptSpelling()
 
     const scope = mockScope('\n\n\n')
     scope.editor.showVisual = true

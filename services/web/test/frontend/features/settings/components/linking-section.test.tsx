@@ -52,7 +52,7 @@ describe('<LinkingSection />', function () {
   })
 
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   it('shows header', async function () {
@@ -66,19 +66,21 @@ describe('<LinkingSection />', function () {
 
   it('lists SSO providers', async function () {
     renderSectionWithProviders()
-    screen.getByText('linked accounts')
+    screen.getByText('Linked accounts')
 
     screen.getByText('Google')
     screen.getByText('Log in with Google.')
-    screen.getByRole('button', { name: 'Unlink' })
+    screen.getByRole('button', { name: /unlink/i })
 
     screen.getByText('ORCID')
     screen.getByText(
       /Securely establish your identity by linking your ORCID iD/
     )
-    const helpLink = screen.getByRole('link', { name: 'Learn more' })
+    const helpLink = screen.getByRole('link', {
+      name: /learn more about orcid/i,
+    })
     expect(helpLink.getAttribute('href')).to.equal('/blog/434')
-    const linkButton = screen.getByRole('link', { name: 'Link' })
+    const linkButton = screen.getByRole('link', { name: /link orcid/i })
     expect(linkButton.getAttribute('href')).to.equal('/auth/orcid?intent=link')
   })
 
@@ -92,6 +94,6 @@ describe('<LinkingSection />', function () {
     window.metaAttributesCache.delete('ol-oauthProviders')
     renderSectionWithProviders()
 
-    expect(screen.queryByText('linked accounts')).to.not.exist
+    expect(screen.queryByText('Linked accounts')).to.not.exist
   })
 })

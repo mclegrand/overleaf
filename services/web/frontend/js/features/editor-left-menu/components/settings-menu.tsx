@@ -1,4 +1,4 @@
-import { Form } from 'react-bootstrap'
+// import { Form } from 'react-bootstrap'
 import { useTranslation } from 'react-i18next'
 import getMeta from '../../../utils/meta'
 import SettingsAutoCloseBrackets from './settings/settings-auto-close-brackets'
@@ -9,6 +9,7 @@ import SettingsDocument from './settings/settings-document'
 import SettingsEditorTheme from './settings/settings-editor-theme'
 import SettingsFontFamily from './settings/settings-font-family'
 import SettingsFontSize from './settings/settings-font-size'
+import SettingsGit from './settings/settings-git'
 import SettingsImageName from './settings/settings-image-name'
 import SettingsKeybindings from './settings/settings-keybindings'
 import SettingsLineHeight from './settings/settings-line-height'
@@ -17,8 +18,15 @@ import SettingsPdfViewer from './settings/settings-pdf-viewer'
 import SettingsSpellCheckLanguage from './settings/settings-spell-check-language'
 import SettingsSyntaxValidation from './settings/settings-syntax-validation'
 import SettingsMathPreview from './settings/settings-math-preview'
+import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
+import { ElementType } from 'react'
 import { useFeatureFlag } from '@/shared/context/split-test-context'
-import SettingsGit from './settings/settings-git'
+import OLForm from '@/features/ui/components/ol/ol-form'
+
+const moduleSettings: Array<{
+  import: { default: ElementType }
+  path: string
+}> = importOverleafModules('settingsEntries')
 
 export default function SettingsMenu() {
   const { t } = useTranslation()
@@ -32,17 +40,20 @@ export default function SettingsMenu() {
   return (
     <>
       <h4>{t('settings')}</h4>
-      <Form className="settings">
+      <OLForm id="left-menu-setting" className="settings">
         <SettingsCompiler />
         <SettingsImageName />
         <SettingsDocument />
         <SettingsGit />
         <SettingsSpellCheckLanguage />
         <SettingsDictionary />
+        {moduleSettings.map(({ import: { default: Component }, path }) => (
+          <Component key={path} />
+        ))}
         <SettingsAutoComplete />
         <SettingsAutoCloseBrackets />
         <SettingsSyntaxValidation />
-        {enableMathPreview && <SettingsMathPreview />}
+        <SettingsMathPreview />
         <SettingsEditorTheme />
         <SettingsOverallTheme />
         <SettingsKeybindings />
@@ -50,7 +61,7 @@ export default function SettingsMenu() {
         <SettingsFontFamily />
         <SettingsLineHeight />
         <SettingsPdfViewer />
-      </Form>
+      </OLForm>
     </>
   )
 }

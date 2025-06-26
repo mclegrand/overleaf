@@ -1,9 +1,9 @@
 import { ReactNode, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import Badge from '@/shared/components/badge'
-import Tooltip from '@/shared/components/tooltip'
+import OLBadge from '@/features/ui/components/ol/ol-badge'
+import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
 import { postJSON } from '@/infrastructure/fetch-json'
-import { Button } from 'react-bootstrap'
+import OLButton from '@/features/ui/components/ol/ol-button'
 import getMeta from '@/utils/meta'
 
 type IntegrationLinkingWidgetProps = {
@@ -62,11 +62,11 @@ export function LabsExperimentWidget({
     <div
       className={`labs-experiment-widget-container ${disabled ? 'disabled-experiment' : ''}`}
     >
-      <div className="p-2">{logo}</div>
+      <div className="experiment-logo-container">{logo}</div>
       <div className="description-container">
         <div className="title-row">
           <h3 className="h4">{title}</h3>
-          {optedIn && <Badge bsStyle="info">{t('enabled')}</Badge>}
+          {optedIn && <OLBadge bg="info">{t('enabled')}</OLBadge>}
         </div>
         <p className="small">
           {description}{' '}
@@ -111,35 +111,33 @@ function ActionButton({
 
   if (optedIn) {
     return (
-      <Button
-        bsStyle="secondary"
-        onClick={handleDisable}
-        className="btn btn-secondary"
-      >
+      <OLButton variant="secondary" onClick={handleDisable}>
         {t('turn_off')}
-      </Button>
+      </OLButton>
     )
   } else if (disabled) {
+    const tooltipableButton = (
+      <div className="d-inline-block">
+        <OLButton variant="primary" disabled>
+          {t('turn_on')}
+        </OLButton>
+      </div>
+    )
+
     return (
-      <Tooltip
+      <OLTooltip
         id="experiment-disabled"
         description={t('this_experiment_isnt_accepting_new_participants')}
         overlayProps={{ delay: 0 }}
       >
-        <Button bsStyle="secondary" className="btn btn-primary" disabled>
-          {t('turn_on')}
-        </Button>
-      </Tooltip>
+        {tooltipableButton}
+      </OLTooltip>
     )
   } else {
     return (
-      <Button
-        bsStyle="primary"
-        onClick={handleEnable}
-        className="btn btn-primary"
-      >
+      <OLButton variant="primary" onClick={handleEnable}>
         {t('turn_on')}
-      </Button>
+      </OLButton>
     )
   }
 }

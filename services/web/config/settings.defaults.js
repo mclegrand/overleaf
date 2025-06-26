@@ -1,4 +1,4 @@
-const Path = require('path')
+const Path = require('node:path')
 const { merge } = require('@overleaf/settings/merge')
 
 let defaultFeatures, siteUrl
@@ -225,10 +225,6 @@ module.exports = {
         '127.0.0.1'
       }:3003`,
     },
-    spelling: {
-      url: `http://${process.env.SPELLING_HOST || '127.0.0.1'}:3005`,
-      host: process.env.SPELLING_HOST,
-    },
     docstore: {
       url: `http://${process.env.DOCSTORE_HOST || '127.0.0.1'}:3016`,
       pubUrl: `http://${process.env.DOCSTORE_HOST || '127.0.0.1'}:3016`,
@@ -246,9 +242,18 @@ module.exports = {
       submissionBackendClass:
         process.env.CLSI_SUBMISSION_BACKEND_CLASS || 'n2d',
     },
+    clsiCache: {
+      instances: JSON.parse(process.env.CLSI_CACHE_INSTANCES || '[]'),
+    },
     project_history: {
       sendProjectStructureOps: true,
       url: `http://${process.env.PROJECT_HISTORY_HOST || '127.0.0.1'}:3054`,
+    },
+    historyBackupDeletion: {
+      enabled: false,
+      url: `http://${process.env.HISTORY_BACKUP_DELETION_HOST || '127.0.0.1'}:3101`,
+      user: process.env.HISTORY_BACKUP_DELETION_USER || 'staging',
+      pass: process.env.HISTORY_BACKUP_DELETION_PASS,
     },
     realTime: {
       url: `http://${process.env.REALTIME_HOST || '127.0.0.1'}:3026`,
@@ -272,6 +277,24 @@ module.exports = {
       url:
         process.env.HAVE_I_BEEN_PWNED_URL || 'https://api.pwnedpasswords.com',
       timeout: parseInt(process.env.HAVE_I_BEEN_PWNED_TIMEOUT, 10) || 5 * 1000,
+    },
+    v1_history: {
+      url:
+        process.env.V1_HISTORY_URL ||
+        `http://${process.env.V1_HISTORY_HOST || '127.0.0.1'}:${
+          process.env.V1_HISTORY_PORT || '3100'
+        }/api`,
+      urlForGitBridge: process.env.V1_HISTORY_URL_FOR_GIT_BRIDGE,
+      user: process.env.V1_HISTORY_USER || 'staging',
+      pass:
+        process.env.V1_HISTORY_PASS ||
+        process.env.V1_HISTORY_PASSWORD ||
+        'password',
+
+      buckets: {
+        globalBlobs: process.env.OVERLEAF_EDITOR_BLOBS_BUCKET,
+        projectBlobs: process.env.OVERLEAF_EDITOR_PROJECT_BLOBS_BUCKET,
+      },
     },
 
     // For legacy reasons, we need to populate the below objects.
@@ -407,6 +430,7 @@ module.exports = {
     },
   ],
 
+  disableChat: process.env.OVERLEAF_DISABLE_CHAT === 'true',
   enableSubscriptions: false,
   restrictedCountries: [],
   enableOnboardingEmails: process.env.ENABLE_ONBOARDING_EMAILS === 'true',
@@ -428,58 +452,111 @@ module.exports = {
   },
 
   // Spelling languages
+  // dic = available in client
+  // server: false = not available on server
   // ------------------
-  //
-  // You must have the corresponding aspell package installed to
-  // be able to use a language.
   languages: [
     { code: 'en', name: 'English' },
-    { code: 'en_US', name: 'English (American)' },
-    { code: 'en_GB', name: 'English (British)' },
-    { code: 'en_CA', name: 'English (Canadian)' },
-    { code: 'af', name: 'Afrikaans' },
-    { code: 'ar', name: 'Arabic' },
-    { code: 'gl', name: 'Galician' },
-    { code: 'eu', name: 'Basque' },
-    { code: 'br', name: 'Breton' },
-    { code: 'bg', name: 'Bulgarian' },
-    { code: 'ca', name: 'Catalan' },
-    { code: 'hr', name: 'Croatian' },
-    { code: 'cs', name: 'Czech' },
-    { code: 'da', name: 'Danish' },
-    { code: 'nl', name: 'Dutch' },
-    { code: 'eo', name: 'Esperanto' },
-    { code: 'et', name: 'Estonian' },
-    { code: 'fo', name: 'Faroese' },
-    { code: 'fr', name: 'French' },
-    { code: 'de', name: 'German' },
-    { code: 'el', name: 'Greek' },
-    { code: 'id', name: 'Indonesian' },
-    { code: 'ga', name: 'Irish' },
-    { code: 'it', name: 'Italian' },
-    { code: 'kk', name: 'Kazakh' },
+    { code: 'en_US', dic: 'en_US', name: 'English (American)' },
+    { code: 'en_GB', dic: 'en_GB', name: 'English (British)' },
+    { code: 'en_CA', dic: 'en_CA', name: 'English (Canadian)' },
+    {
+      code: 'en_AU',
+      dic: 'en_AU',
+      name: 'English (Australian)',
+      server: false,
+    },
+    {
+      code: 'en_ZA',
+      dic: 'en_ZA',
+      name: 'English (South African)',
+      server: false,
+    },
+    { code: 'af', dic: 'af_ZA', name: 'Afrikaans' },
+    { code: 'an', dic: 'an_ES', name: 'Aragonese', server: false },
+    { code: 'ar', dic: 'ar', name: 'Arabic' },
+    { code: 'be_BY', dic: 'be_BY', name: 'Belarusian', server: false },
+    { code: 'eu', dic: 'eu', name: 'Basque' },
+    { code: 'bn_BD', dic: 'bn_BD', name: 'Bengali', server: false },
+    { code: 'bs_BA', dic: 'bs_BA', name: 'Bosnian', server: false },
+    { code: 'br', dic: 'br_FR', name: 'Breton' },
+    { code: 'bg', dic: 'bg_BG', name: 'Bulgarian' },
+    { code: 'ca', dic: 'ca', name: 'Catalan' },
+    { code: 'hr', dic: 'hr_HR', name: 'Croatian' },
+    { code: 'cs', dic: 'cs_CZ', name: 'Czech' },
+    { code: 'da', dic: 'da_DK', name: 'Danish' },
+    { code: 'nl', dic: 'nl', name: 'Dutch' },
+    { code: 'dz', dic: 'dz', name: 'Dzongkha', server: false },
+    { code: 'eo', dic: 'eo', name: 'Esperanto' },
+    { code: 'et', dic: 'et_EE', name: 'Estonian' },
+    { code: 'fo', dic: 'fo', name: 'Faroese' },
+    { code: 'fr', dic: 'fr', name: 'French' },
+    { code: 'gl', dic: 'gl_ES', name: 'Galician' },
+    { code: 'de', dic: 'de_DE', name: 'German' },
+    { code: 'de_AT', dic: 'de_AT', name: 'German (Austria)', server: false },
+    {
+      code: 'de_CH',
+      dic: 'de_CH',
+      name: 'German (Switzerland)',
+      server: false,
+    },
+    { code: 'el', dic: 'el_GR', name: 'Greek' },
+    { code: 'gug_PY', dic: 'gug_PY', name: 'Guarani', server: false },
+    { code: 'gu_IN', dic: 'gu_IN', name: 'Gujarati', server: false },
+    { code: 'he_IL', dic: 'he_IL', name: 'Hebrew', server: false },
+    { code: 'hi_IN', dic: 'hi_IN', name: 'Hindi', server: false },
+    { code: 'hu_HU', dic: 'hu_HU', name: 'Hungarian', server: false },
+    { code: 'is_IS', dic: 'is_IS', name: 'Icelandic', server: false },
+    { code: 'id', dic: 'id_ID', name: 'Indonesian' },
+    { code: 'ga', dic: 'ga_IE', name: 'Irish' },
+    { code: 'it', dic: 'it_IT', name: 'Italian' },
+    { code: 'kk', dic: 'kk_KZ', name: 'Kazakh' },
+    { code: 'ko', dic: 'ko', name: 'Korean', server: false },
     { code: 'ku', name: 'Kurdish' },
-    { code: 'lv', name: 'Latvian' },
-    { code: 'lt', name: 'Lithuanian' },
+    { code: 'kmr', dic: 'kmr_Latn', name: 'Kurmanji', server: false },
+    { code: 'lv', dic: 'lv_LV', name: 'Latvian' },
+    { code: 'lt', dic: 'lt_LT', name: 'Lithuanian' },
+    { code: 'lo_LA', dic: 'lo_LA', name: 'Laotian', server: false },
+    { code: 'ml_IN', dic: 'ml_IN', name: 'Malayalam', server: false },
+    { code: 'mn_MN', dic: 'mn_MN', name: 'Mongolian', server: false },
     { code: 'nr', name: 'Ndebele' },
+    { code: 'ne_NP', dic: 'ne_NP', name: 'Nepali', server: false },
     { code: 'ns', name: 'Northern Sotho' },
     { code: 'no', name: 'Norwegian' },
-    { code: 'fa', name: 'Persian' },
-    { code: 'pl', name: 'Polish' },
-    { code: 'pt_BR', name: 'Portuguese (Brazilian)' },
-    { code: 'pt_PT', name: 'Portuguese (European)' },
+    { code: 'nb_NO', dic: 'nb_NO', name: 'Norwegian (Bokmål)', server: false },
+    { code: 'nn_NO', dic: 'nn_NO', name: 'Norwegian (Nynorsk)', server: false },
+    { code: 'oc_FR', dic: 'oc_FR', name: 'Occitan', server: false },
+    { code: 'fa', dic: 'fa_IR', name: 'Persian' },
+    { code: 'pl', dic: 'pl_PL', name: 'Polish' },
+    { code: 'pt_BR', dic: 'pt_BR', name: 'Portuguese (Brazilian)' },
+    {
+      code: 'pt_PT',
+      dic: 'pt_PT',
+      name: 'Portuguese (European)',
+    },
     { code: 'pa', name: 'Punjabi' },
-    { code: 'ro', name: 'Romanian' },
-    { code: 'ru', name: 'Russian' },
-    { code: 'sk', name: 'Slovak' },
-    { code: 'sl', name: 'Slovenian' },
+    { code: 'ro', dic: 'ro_RO', name: 'Romanian' },
+    { code: 'ru', dic: 'ru_RU', name: 'Russian' },
+    { code: 'gd_GB', dic: 'gd_GB', name: 'Scottish Gaelic', server: false },
+    { code: 'sr_RS', dic: 'sr_RS', name: 'Serbian', server: false },
+    { code: 'si_LK', dic: 'si_LK', name: 'Sinhala', server: false },
+    { code: 'sk', dic: 'sk_SK', name: 'Slovak' },
+    { code: 'sl', dic: 'sl_SI', name: 'Slovenian' },
     { code: 'st', name: 'Southern Sotho' },
-    { code: 'es', name: 'Spanish' },
-    { code: 'sv', name: 'Swedish' },
-    { code: 'tl', name: 'Tagalog' },
+    { code: 'es', dic: 'es_ES', name: 'Spanish' },
+    { code: 'sw_TZ', dic: 'sw_TZ', name: 'Swahili', server: false },
+    { code: 'sv', dic: 'sv_SE', name: 'Swedish' },
+    { code: 'tl', dic: 'tl', name: 'Tagalog' },
+    { code: 'te_IN', dic: 'te_IN', name: 'Telugu', server: false },
+    { code: 'th_TH', dic: 'th_TH', name: 'Thai', server: false },
+    { code: 'bo', dic: 'bo', name: 'Tibetan', server: false },
     { code: 'ts', name: 'Tsonga' },
     { code: 'tn', name: 'Tswana' },
+    { code: 'tr_TR', dic: 'tr_TR', name: 'Turkish', server: false },
+    { code: 'uk_UA', dic: 'uk_UA', name: 'Ukrainian', server: false },
     { code: 'hsb', name: 'Upper Sorbian' },
+    { code: 'uz_UZ', dic: 'uz_UZ', name: 'Uzbek', server: false },
+    { code: 'vi_VN', dic: 'vi_VN', name: 'Vietnamese', server: false },
     { code: 'cy', name: 'Welsh' },
     { code: 'xh', name: 'Xhosa' },
   ],
@@ -585,6 +662,11 @@ module.exports = {
   // Delay before closing the http server upon receiving a SIGTERM process signal.
   gracefulShutdownDelayInMs:
     parseInt(process.env.GRACEFUL_SHUTDOWN_DELAY_SECONDS ?? '5', 10) * seconds,
+
+  maxReconnectGracefullyIntervalMs: parseInt(
+    process.env.MAX_RECONNECT_GRACEFULLY_INTERVAL_MS ?? '30000',
+    10
+  ),
 
   // Expose the hostname in the `X-Served-By` response header
   exposeHostname: process.env.EXPOSE_HOSTNAME === 'true',
@@ -705,6 +787,10 @@ module.exports = {
       .split(',')
       .map(x => x.trim())
       .filter(x => x !== ''),
+    trustedUsersRegex: process.env.CAPTCHA_TRUSTED_USERS_REGEX
+      ? // Enforce matching of the entire input.
+        new RegExp(`^${process.env.CAPTCHA_TRUSTED_USERS_REGEX}$`)
+      : null,
     disabled: {
       invite: true,
       login: true,
@@ -723,6 +809,8 @@ module.exports = {
   reloadModuleViewsOnEachRequest: process.env.NODE_ENV === 'development',
 
   rateLimit: {
+    subnetRateLimiterDisabled:
+      process.env.SUBNET_RATE_LIMITER_DISABLED === 'true',
     autoCompile: {
       everyone: process.env.RATE_LIMIT_AUTO_COMPILE_EVERYONE || 100,
       standard: process.env.RATE_LIMIT_AUTO_COMPILE_STANDARD || 25,
@@ -805,6 +893,7 @@ module.exports = {
           'figcaption',
           'span',
           'source',
+          'track',
           'video',
           'del',
         ],
@@ -830,7 +919,7 @@ module.exports = {
           col: ['width'],
           figure: ['class', 'id', 'style'],
           figcaption: ['class', 'id', 'style'],
-          i: ['aria-hidden', 'aria-label', 'class', 'id'],
+          i: ['aria-hidden', 'aria-label', 'class', 'id', 'translate'],
           iframe: [
             'allowfullscreen',
             'frameborder',
@@ -855,6 +944,7 @@ module.exports = {
             'style',
           ],
           tr: ['class'],
+          track: ['src', 'kind', 'srcLang', 'label'],
           video: ['alt', 'class', 'controls', 'height', 'width'],
         },
       },
@@ -874,11 +964,11 @@ module.exports = {
     tprFileViewRefreshError: [],
     tprFileViewRefreshButton: [],
     tprFileViewNotOriginalImporter: [],
-    newFilePromotions: [],
     contactUsModal: [],
     editorToolbarButtons: [],
     sourceEditorExtensions: [],
     sourceEditorComponents: [],
+    pdfLogEntryHeaderActionComponents: [],
     pdfLogEntryComponents: [],
     pdfLogEntriesComponents: [],
     pdfPreviewPromotions: [],
@@ -886,7 +976,7 @@ module.exports = {
     sourceEditorCompletionSources: [],
     sourceEditorSymbolPalette: [],
     sourceEditorToolbarComponents: [],
-    editorPromotions: [],
+    mainEditorLayoutModals: [],
     langFeedbackLinkingWidgets: [],
     labsExperiments: [],
     integrationLinkingWidgets: [],
@@ -897,10 +987,22 @@ module.exports = {
     editorLeftMenuManageTemplate: [],
     oauth2Server: [],
     managedGroupSubscriptionEnrollmentNotification: [],
-    userNotifications: [],
     managedGroupEnrollmentInvite: [],
     ssoCertificateInfo: [],
     v1ImportDataScreen: [],
+    snapshotUtils: [],
+    usGovBanner: [],
+    offlineModeToolbarButtons: [],
+    settingsEntries: [],
+    autoCompleteExtensions: [],
+    sectionTitleGenerators: [],
+    toastGenerators: [],
+    editorSidebarComponents: [],
+    fileTreeToolbarComponents: [],
+    fullProjectSearchPanel: [],
+    integrationPanelComponents: [],
+    referenceSearchSetting: [],
+    errorLogsComponents: [],
   },
 
   moduleImportSequence: [
@@ -917,11 +1019,15 @@ module.exports = {
     reportPercentage: parseFloat(process.env.CSP_REPORT_PERCENTAGE) || 0,
     reportUri: process.env.CSP_REPORT_URI,
     exclude: [],
+    viewDirectives: {
+      'app/views/project/ide-react': [`img-src 'self' data: blob:`],
+    },
   },
 
   unsupportedBrowsers: {
     ie: '<=11',
-    safari: '<=13',
+    safari: '<=14',
+    firefox: '<=78',
   },
 
   // ID of the IEEE brand in the rails app

@@ -1,4 +1,3 @@
-import '../../helpers/bootstrap-3'
 import SplitTestBadge from '../../../../frontend/js/shared/components/split-test-badge'
 import { EditorProviders } from '../../helpers/editor-providers'
 
@@ -28,9 +27,10 @@ describe('split test badge', function () {
       </EditorProviders>
     )
 
-    cy.get('a.badge.alpha-badge[href="/alpha/participate"]').contains(
-      'This is an alpha feature'
-    )
+    cy.findByRole('link', { name: /this is an alpha feature/i })
+      .should('have.attr', 'href', '/alpha/participate')
+      .find('.badge')
+      .contains('α')
   })
 
   it('does not render the alpha badge when user is not assigned to the variant', function () {
@@ -86,9 +86,10 @@ describe('split test badge', function () {
       </EditorProviders>
     )
 
-    cy.get('a.badge.beta-badge[href="/beta/participate"]').contains(
-      'This is a beta feature'
-    )
+    cy.findByRole('link', { name: /this is a beta feature/i })
+      .should('have.attr', 'href', '/beta/participate')
+      .find('.badge')
+      .contains('β')
   })
 
   it('does not render the beta badge when user is not assigned to the variant', function () {
@@ -144,9 +145,9 @@ describe('split test badge', function () {
       </EditorProviders>
     )
 
-    cy.get('a.badge.info-badge[href="/feedback/form"]').contains(
-      'This is a new feature'
-    )
+    cy.findByRole('link', { name: /this is a new feature/i })
+      .should('have.attr', 'href', '/feedback/form')
+      .find('.info-badge')
   })
 
   it('does not render the info badge when user is not assigned to the variant', function () {
@@ -218,8 +219,10 @@ describe('split test badge', function () {
       </EditorProviders>
     )
 
-    cy.get('a.badge.info-badge[href="/beta/participate"]')
-      .contains('We are testing this new feature.')
-      .contains('Click to give feedback')
+    cy.findByRole('link', {
+      name: /we are testing this new feature.*click to give feedback/i,
+    })
+      .should('have.attr', 'href', '/beta/participate')
+      .find('.info-badge')
   })
 })

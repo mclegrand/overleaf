@@ -1,4 +1,10 @@
-// Headings
+// Typography
+
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility; /* stylelint-disable-line value-keyword-case */
+  -moz-osx-font-smoothing: grayscale;
+}
 
 // Headings
 h1,
@@ -57,13 +63,36 @@ h6,
 
 // Peformatted text, sample output, code, keyboard input elements
 // E.g.: Git authentication token
+pre {
+  @include body-base;
+}
+
 code,
 kbd,
-pre,
 samp {
-  @include body-base;
+  font-size: 1em;
 }
 
 .list-style-check-green {
   list-style-image: url('../../../../public/img/fa-check-green.svg');
+}
+
+.text-muted {
+  color: var(--content-disabled) !important;
+}
+
+.dm-mono {
+  @include font-mono;
+}
+
+@include media-breakpoint-up(lg) {
+  .text-center-only-desktop {
+    text-align: center;
+  }
+}
+
+@include media-breakpoint-down(lg) {
+  .text-center-only-mobile {
+    text-align: center;
+  }
 }

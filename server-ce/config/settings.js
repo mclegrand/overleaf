@@ -79,6 +79,7 @@ const settings = {
       host: process.env.OVERLEAF_REDIS_HOST || 'dockerhost',
       port: process.env.OVERLEAF_REDIS_PORT || '6379',
       password: process.env.OVERLEAF_REDIS_PASS || undefined,
+      tls: process.env.OVERLEAF_REDIS_TLS === 'true' ? {} : undefined,
       key_schema: {
         // document-updater
         blockingKey({ doc_id }) {
@@ -139,6 +140,7 @@ const settings = {
     api: redisConfig,
     pubsub: redisConfig,
     project_history: redisConfig,
+    references: redisConfig,
 
     project_history_migration: {
       host: redisConfig.host,
@@ -210,6 +212,11 @@ const settings = {
 
   csp: {
     enabled: process.env.OVERLEAF_CSP_ENABLED !== 'false',
+  },
+
+  rateLimit: {
+    subnetRateLimiterDisabled:
+      process.env.SUBNET_RATE_LIMITER_DISABLED !== 'false',
   },
 
   // These credentials are used for authenticating api requests
@@ -324,6 +331,14 @@ if (process.env.OVERLEAF_HEADER_EXTRAS != null) {
     e = error2
     console.error('could not parse OVERLEAF_HEADER_EXTRAS, not valid JSON')
   }
+}
+
+if (process.env.OVERLEAF_LOGIN_SUPPORT_TEXT != null) {
+  settings.nav.login_support_text = process.env.OVERLEAF_LOGIN_SUPPORT_TEXT
+}
+
+if (process.env.OVERLEAF_LOGIN_SUPPORT_TITLE != null) {
+  settings.nav.login_support_title = process.env.OVERLEAF_LOGIN_SUPPORT_TITLE
 }
 
 // Sending Email

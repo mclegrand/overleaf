@@ -1,6 +1,6 @@
 // Run babel on tests to allow support for import/export statements in Node
 require('@babel/register')({
-  extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.svg'],
+  extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs'],
   plugins: [['module-resolver', { alias: { '^@/(.+)': './frontend/js/\\1' } }]],
 })
 
@@ -65,8 +65,12 @@ globalThis.BroadcastChannel =
   global.BroadcastChannel =
   window.BroadcastChannel =
     class BroadcastChannel {
+      // Unused arguments left to document the signature of the stubbed function.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       addEventListener(type, listener) {}
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       removeEventListener(type, listener) {}
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       postMessage(message) {}
     }
 
@@ -85,10 +89,27 @@ globalThis.fetch =
   window.fetch =
     (url, ...options) => fetch(new URL(url, 'http://127.0.0.1'), ...options)
 
-// ignore CSS files
+// ignore style/image files
 const { addHook } = require('pirates')
-addHook(() => '', { exts: ['.css'], ignoreNodeModules: false })
+addHook(() => '', {
+  exts: ['.css', '.less', '.svg', '.png', '.gif', '.mp4'],
+  ignoreNodeModules: false,
+})
 
 globalThis.HTMLElement.prototype.scrollIntoView = () => {}
 
 globalThis.DOMParser = window.DOMParser
+
+// Polyfill for IndexedDB
+require('fake-indexeddb/auto')
+
+const fetchMock = require('fetch-mock').default
+
+fetchMock.spyGlobal()
+fetchMock.config.fetch = global.fetch
+fetchMock.config.Response = fetch.Response
+
+Object.defineProperty(navigator, 'onLine', {
+  configurable: true,
+  get: () => true,
+})

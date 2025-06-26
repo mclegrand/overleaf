@@ -1,4 +1,3 @@
-import '../../../../helpers/bootstrap-3'
 import FileTreeitemInner from '../../../../../../frontend/js/features/file-tree/components/file-tree-item/file-tree-item-inner'
 import FileTreeContextMenu from '../../../../../../frontend/js/features/file-tree/components/file-tree-context-menu'
 import { EditorProviders } from '../../../../helpers/editor-providers'
@@ -116,7 +115,7 @@ describe('<FileTreeitemInner />', function () {
         </EditorProviders>
       )
 
-      cy.findByRole('button', { name: 'Menu' }).click()
+      cy.findByRole('button', { name: 'Open bar.tex action menu' }).click()
       cy.findByRole('menuitem', { name: 'Rename' }).click()
       cy.findByRole('button', { name: 'bar.tex' }).should('not.exist')
       cy.findByRole('textbox')

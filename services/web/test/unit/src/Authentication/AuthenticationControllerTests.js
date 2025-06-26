@@ -6,7 +6,7 @@ const SandboxedModule = require('sandboxed-module')
 const tk = require('timekeeper')
 const MockRequest = require('../helpers/MockRequest')
 const MockResponse = require('../helpers/MockResponse')
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 const AuthenticationErrors = require('../../../../app/src/Features/Authentication/AuthenticationErrors')
 
 describe('AuthenticationController', function () {
@@ -94,7 +94,7 @@ describe('AuthenticationController', function () {
           },
         }),
         '../User/UserHandler': (this.UserHandler = {
-          setupLoginData: sinon.stub(),
+          populateTeamInvites: sinon.stub(),
         }),
         '../Analytics/AnalyticsManager': (this.AnalyticsManager = {
           recordEventForUserInBackground: sinon.stub(),
@@ -280,7 +280,7 @@ describe('AuthenticationController', function () {
       this.req.session.destroy = sinon.stub().yields(null)
       this.req.session.save = sinon.stub().yields(null)
       this.req.sessionStore = { generate: sinon.stub() }
-      this.AuthenticationController.finishLogin = sinon.stub()
+      this.AuthenticationController.promises.finishLogin = sinon.stub()
       this.passport.authenticate.yields(null, this.user, this.info)
       this.err = new Error('woops')
     })
@@ -315,16 +315,21 @@ describe('AuthenticationController', function () {
         delete this.req.session.postLoginRedirect
       })
 
-      it('should call finishLogin', function () {
+      it('should call finishLogin', function (done) {
+        this.AuthenticationController.promises.finishLogin.callsFake(() => {
+          this.AuthenticationController.promises.finishLogin.callCount.should.equal(
+            1
+          )
+          this.AuthenticationController.promises.finishLogin
+            .calledWith(this.user, this.req, this.res)
+            .should.equal(true)
+          done()
+        })
         this.AuthenticationController.passportLogin(
           this.req,
           this.res,
           this.next
         )
-        this.AuthenticationController.finishLogin.callCount.should.equal(1)
-        this.AuthenticationController.finishLogin
-          .calledWith(this.user)
-          .should.equal(true)
       })
     })
 
@@ -340,7 +345,9 @@ describe('AuthenticationController', function () {
           this.res,
           this.next
         )
-        this.AuthenticationController.finishLogin.callCount.should.equal(0)
+        this.AuthenticationController.promises.finishLogin.callCount.should.equal(
+          0
+        )
       })
 
       it('should not send a json response with redirect', function () {
@@ -549,7 +556,7 @@ describe('AuthenticationController', function () {
       })
 
       it('should not setup the user data in the background', function () {
-        this.UserHandler.setupLoginData.called.should.equal(false)
+        this.UserHandler.populateTeamInvites.called.should.equal(false)
       })
 
       it('should record a failed login', function () {
@@ -1127,7 +1134,7 @@ describe('AuthenticationController', function () {
       this.AuthenticationController._clearRedirectFromSession = sinon.stub()
       this.AuthenticationController._redirectToReconfirmPage = sinon.stub()
       this.UserSessionsManager.trackSession = sinon.stub()
-      this.UserHandler.setupLoginData = sinon.stub()
+      this.UserHandler.populateTeamInvites = sinon.stub()
       this.LoginRateLimiter.recordSuccessfulLogin = sinon.stub()
       this.AuthenticationController._recordSuccessfulLogin = sinon.stub()
       this.AnalyticsManager.recordEvent = sinon.stub()
@@ -1454,7 +1461,9 @@ describe('AuthenticationController', function () {
       })
 
       it('should setup the user data in the background', function () {
-        this.UserHandler.setupLoginData.calledWith(this.user).should.equal(true)
+        this.UserHandler.populateTeamInvites
+          .calledWith(this.user)
+          .should.equal(true)
       })
 
       it('should set res.session.justLoggedIn', function () {

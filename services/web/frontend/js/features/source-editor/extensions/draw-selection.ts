@@ -3,7 +3,6 @@ import { EditorView, layer } from '@codemirror/view'
 import { rectangleMarkerForRange } from '../utils/layer'
 import { updateHasMouseDownEffect } from './visual/selection'
 import browser from './browser'
-import { updateHasReviewPanelToggledEffect } from './changes/change-manager'
 
 /**
  * The built-in extension which draws the cursor and selection(s) in layers,
@@ -72,7 +71,7 @@ const cursorLayer = layer({
       updateHasMouseDownEffect(update)
     )
   },
-  mount(dom, view) {
+  mount(dom) {
     dom.style.animationDuration = '1200ms'
   },
   class: 'cm-cursorLayer',
@@ -91,13 +90,12 @@ const selectionLayer = layer({
     }
     return markers
   },
-  update(update, dom) {
+  update(update) {
     return (
       update.docChanged ||
       update.selectionSet ||
       update.viewportChanged ||
-      updateHasMouseDownEffect(update) ||
-      updateHasReviewPanelToggledEffect(update)
+      updateHasMouseDownEffect(update)
     )
   },
   class: 'cm-selectionLayer',

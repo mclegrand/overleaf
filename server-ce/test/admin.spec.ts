@@ -127,10 +127,12 @@ describe('admin panel', function () {
       testProjectName = `project-${uuid()}`
       deletedProjectName = `deleted-project-${uuid()}`
       login(user1)
-      cy.visit('/project')
-      createProject(testProjectName).then(id => (testProjectId = id))
-      cy.visit('/project')
-      createProject(deletedProjectName).then(id => (projectToDeleteId = id))
+      createProject(testProjectName, { open: false }).then(
+        id => (testProjectId = id)
+      )
+      createProject(deletedProjectName, { open: false }).then(
+        id => (projectToDeleteId = id)
+      )
     })
 
     describe('manage site', () => {
@@ -177,6 +179,21 @@ describe('admin panel', function () {
         cy.get('nav').findByText('Manage Users').click()
       })
 
+      it('displays expected tabs', () => {
+        const tabs = ['Users', 'License Usage']
+        cy.get('[role="tab"]').each((el, index) => {
+          cy.wrap(el).findByText(tabs[index]).click()
+        })
+        cy.get('[role="tab"]').should('have.length', tabs.length)
+      })
+
+      it('license usage tab', () => {
+        cy.get('a').contains('License Usage').click()
+        cy.findByText(
+          'An active user is one who has opened a project in this Server Pro instance in the last 12 months.'
+        )
+      })
+
       describe('create users', () => {
         beforeEach(() => {
           cy.get('a').contains('New User').click()
@@ -214,6 +231,7 @@ describe('admin panel', function () {
         cy.get('[role="tab"]').each((el, index) => {
           cy.wrap(el).findByText(tabs[index]).click()
         })
+        cy.get('[role="tab"]').should('have.length', tabs.length)
       })
 
       describe('user info tab', () => {
@@ -258,6 +276,21 @@ describe('admin panel', function () {
       })
     })
 
+    describe('project page', () => {
+      beforeEach(() => {
+        login(admin)
+        cy.visit(`/admin/project/${testProjectId}`)
+      })
+
+      it('displays expected tabs', () => {
+        const tabs = ['Project Info', 'Deleted Docs', 'Audit Log']
+        cy.get('[role="tab"]').each((el, index) => {
+          cy.wrap(el).findByText(tabs[index]).click()
+        })
+        cy.get('[role="tab"]').should('have.length', tabs.length)
+      })
+    })
+
     it('restore deleted projects', () => {
       login(user1)
       cy.visit('/project')
@@ -269,17 +302,17 @@ describe('admin panel', function () {
 
       cy.log('delete project')
       findProjectRow(deletedProjectName).within(() =>
-        cy.contains('Trash').click()
+        cy.findByRole('button', { name: 'Trash' }).click()
       )
       cy.get('button').contains('Confirm').click()
       cy.findByText(deletedProjectName).should('not.exist')
 
       cy.log('navigate to thrashed projects and delete the project')
-      cy.get('.project-list-sidebar-react').within(() => {
-        cy.findByText('Trashed Projects').click()
+      cy.get('.project-list-sidebar-scroll').within(() => {
+        cy.findByText('Trashed projects').click()
       })
       findProjectRow(deletedProjectName).within(() =>
-        cy.contains('Delete').click()
+        cy.findByRole('button', { name: 'Delete' }).click()
       )
       cy.get('button').contains('Confirm').click()
       cy.findByText(deletedProjectName).should('not.exist')
@@ -293,15 +326,15 @@ describe('admin panel', function () {
       cy.get('a').contains(deletedProjectName).click()
 
       cy.log('undelete the project')
-      cy.findByText('undelete').click()
-      cy.findByText('undelete').should('not.exist')
+      cy.findByText('Undelete').click()
+      cy.findByText('Undelete').should('not.exist')
       cy.url().should('contain', `/admin/project/${projectToDeleteId}`)
 
       cy.log('login as the user and verify the project is restored')
       login(user1)
       cy.visit('/project')
-      cy.get('.project-list-sidebar-react').within(() => {
-        cy.findByText('Trashed Projects').click()
+      cy.get('.project-list-sidebar-scroll').within(() => {
+        cy.findByText('Trashed projects').click()
       })
       cy.findByText(`${deletedProjectName} (Restored)`)
     })

@@ -43,21 +43,32 @@ async function deleteUser(userId, options) {
 
   try {
     const user = await User.findById(userId).exec()
-    logger.debug({ user }, 'deleting user')
-
+    logger.info({ userId }, 'deleting user')
     await ensureCanDeleteUser(user)
+    logger.info({ userId }, 'cleaning up user')
     await _cleanupUser(user)
+    logger.info({ userId }, 'firing deleteUser hook')
     await Modules.promises.hooks.fire('deleteUser', userId)
+    logger.info({ userId }, 'adding delete-account audit log entry')
     await UserAuditLogHandler.promises.addEntry(
       userId,
       'delete-account',
       options.deleterUser ? options.deleterUser._id : userId,
       options.ipAddress
     )
+    logger.info({ userId }, 'creating deleted user record')
     await _createDeletedUser(user, options)
+    logger.info({ userId }, 'deleting user projects')
     await ProjectDeleter.promises.deleteUsersProjects(user._id)
-    await _sendDeleteEmail(user)
+    if (options.skipEmail) {
+      logger.info({ userId }, 'skipping sending deletion email to user')
+    } else {
+      logger.info({ userId }, 'sending deletion email to user')
+      await _sendDeleteEmail(user, options.force)
+    }
+    logger.info({ userId }, 'deleting user record')
     await deleteMongoUser(user._id)
+    logger.info({ userId }, 'user deletion complete')
   } catch (error) {
     logger.warn({ error, userId }, 'something went wrong deleting the user')
     throw error
@@ -76,17 +87,29 @@ async function deleteMongoUser(userId) {
 }
 
 async function expireDeletedUser(userId) {
-  await Modules.promises.hooks.fire('expireDeletedUser', userId)
-  const deletedUser = await DeletedUser.findOne({
-    'deleterData.deletedUserId': userId,
-  }).exec()
-
-  await Feedback.deleteMany({ userId }).exec()
-  await OnboardingDataCollectionManager.deleteOnboardingDataCollection(userId)
-
-  deletedUser.user = undefined
-  deletedUser.deleterData.deleterIpAddress = undefined
-  await deletedUser.save()
+  logger.info({ userId }, 'expiring deleted user')
+  try {
+    logger.info({ userId }, 'firing expireDeletedUser hook')
+    await Modules.promises.hooks.fire('expireDeletedUser', userId)
+    logger.info({ userId }, 'removing deleted user feedback records')
+    await Feedback.deleteMany({ userId }).exec()
+    logger.info({ userId }, 'removing deleted user onboarding data')
+    await OnboardingDataCollectionManager.deleteOnboardingDataCollection(userId)
+    logger.info({ userId }, 'redacting PII from the deleted user record')
+    const deletedUser = await DeletedUser.findOne({
+      'deleterData.deletedUserId': userId,
+    }).exec()
+    deletedUser.user = undefined
+    deletedUser.deleterData.deleterIpAddress = undefined
+    await deletedUser.save()
+    logger.info({ userId }, 'deleted user expiry complete')
+  } catch (error) {
+    logger.warn(
+      { error, userId },
+      'something went wrong expiring the deleted user'
+    )
+    throw error
+  }
 }
 
 async function expireDeletedUsersAfterDuration() {
@@ -95,19 +118,33 @@ async function expireDeletedUsersAfterDuration() {
     'deleterData.deletedAt': {
       $lt: new Date(moment().subtract(DURATION, 'days')),
     },
-    user: {
-      $ne: null,
-    },
+    user: { $type: 'object' },
   }).exec()
 
   if (deletedUsers.length === 0) {
     return
   }
-
-  for (let i = 0; i < deletedUsers.length; i++) {
-    const deletedUserId = deletedUsers[i].deleterData.deletedUserId
-    await expireDeletedUser(deletedUserId)
-    await UserAuditLogEntry.deleteMany({ userId: deletedUserId }).exec()
+  logger.info(
+    { deletedUsers: deletedUsers.length, retentionPeriodInDays: DURATION },
+    'expiring batch of deleted users older than retention period'
+  )
+  try {
+    for (let i = 0; i < deletedUsers.length; i++) {
+      const deletedUserId = deletedUsers[i].deleterData.deletedUserId
+      await expireDeletedUser(deletedUserId)
+      logger.info({ deletedUserId }, 'removing deleted user audit log entries')
+      await UserAuditLogEntry.deleteMany({ userId: deletedUserId }).exec()
+    }
+    logger.info(
+      { deletedUsers: deletedUsers.length },
+      'batch of deleted users expired successfully'
+    )
+  } catch (error) {
+    logger.warn(
+      { error },
+      'something went wrong expiring batch of deleted users'
+    )
+    throw error
   }
 }
 
@@ -119,13 +156,24 @@ async function ensureCanDeleteUser(user) {
   }
 }
 
-async function _sendDeleteEmail(user) {
+async function _sendDeleteEmail(user, force) {
   const emailOptions = {
     to: user.email,
     action: 'account deleted',
     actionDescribed: 'your Overleaf account was deleted',
   }
-  await EmailHandler.promises.sendEmail('securityAlert', emailOptions)
+  try {
+    await EmailHandler.promises.sendEmail('securityAlert', emailOptions)
+  } catch (error) {
+    if (force) {
+      logger.error(
+        { error },
+        'error sending account deletion email notification'
+      )
+    } else {
+      throw error
+    }
+  }
 }
 
 async function _createDeletedUser(user, options) {
@@ -152,10 +200,23 @@ async function _createDeletedUser(user, options) {
 }
 
 async function _cleanupUser(user) {
+  const userId = user._id
+
+  logger.info({ userId }, '[cleanupUser] removing user sessions from Redis')
   await UserSessionsManager.promises.removeSessionsFromRedis(user)
+  logger.info({ userId }, '[cleanupUser] unsubscribing from newsletters')
   await NewsletterManager.promises.unsubscribe(user, { delete: true })
+  logger.info({ userId }, '[cleanupUser] cancelling subscription')
   await SubscriptionHandler.promises.cancelSubscription(user)
-  await InstitutionsAPI.promises.deleteAffiliations(user._id)
-  await SubscriptionUpdater.promises.removeUserFromAllGroups(user._id)
-  await UserMembershipsHandler.promises.removeUserFromAllEntities(user._id)
+  logger.info({ userId }, '[cleanupUser] deleting affiliations')
+  await InstitutionsAPI.promises.deleteAffiliations(userId)
+  logger.info({ userId }, '[cleanupUser] removing user from groups')
+  await SubscriptionUpdater.promises.removeUserFromAllGroups(userId)
+  logger.info({ userId }, '[cleanupUser] removing user from memberships')
+  await UserMembershipsHandler.promises.removeUserFromAllEntities(userId)
+  logger.info({ userId }, '[cleanupUser] removing personal access tokens')
+  await Modules.promises.hooks.fire('cleanupPersonalAccessTokens', userId, [
+    'collabratec',
+    'git_bridge',
+  ])
 }

@@ -1,4 +1,3 @@
-import '../../../helpers/bootstrap-3'
 import FileTreeRoot from '../../../../../frontend/js/features/file-tree/components/file-tree-root'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import { SocketIOMock } from '@/ide/connection/SocketIoShim'
@@ -47,7 +46,7 @@ describe('FileTree Delete Entity Flow', function () {
       )
 
       cy.findByRole('treeitem', { name: 'main.tex' }).click()
-      cy.findByRole('button', { name: 'Menu' }).click()
+      cy.findByRole('button', { name: 'Open main.tex action menu' }).click()
       cy.findByRole('menuitem', { name: 'Delete' }).click()
     })
 
@@ -56,12 +55,14 @@ describe('FileTree Delete Entity Flow', function () {
         'deleteDoc'
       )
 
-      // check that the confirmation modal is open
-      cy.findByText(
-        'Are you sure you want to permanently delete the following files?'
-      )
+      cy.findByRole('dialog').within(() => {
+        // check that the confirmation modal is open
+        cy.findByText(
+          'Are you sure you want to permanently delete the following files?'
+        )
 
-      cy.findByRole('button', { name: 'Delete' }).click()
+        cy.findByRole('button', { name: 'Delete' }).click()
+      })
 
       cy.wait('@deleteDoc')
 
@@ -91,12 +92,14 @@ describe('FileTree Delete Entity Flow', function () {
         'deleteDoc'
       )
 
-      // check that the confirmation modal is open
-      cy.findByText(
-        'Are you sure you want to permanently delete the following files?'
-      )
+      cy.findByRole('dialog').within(() => {
+        // check that the confirmation modal is open
+        cy.findByText(
+          'Are you sure you want to permanently delete the following files?'
+        )
 
-      cy.findByRole('button', { name: 'Delete' }).click()
+        cy.findByRole('button', { name: 'Delete' }).click()
+      })
 
       cy.then(() => {
         socket.emitToClient('removeEntity', '456def')
@@ -123,7 +126,9 @@ describe('FileTree Delete Entity Flow', function () {
         'deleteDoc'
       )
 
-      cy.findByRole('button', { name: 'Delete' }).click()
+      cy.findByRole('dialog').within(() => {
+        cy.findByRole('button', { name: 'Delete' }).click()
+      })
 
       // The modal should still be open, but the file should not be deleted
       cy.findByRole('treeitem', { name: 'main.tex', hidden: true })
@@ -195,7 +200,7 @@ describe('FileTree Delete Entity Flow', function () {
       // as a proxy to check that the child entity has been unselect we start
       // a delete and ensure the modal is displayed (the cancel button can be
       // selected) This is needed to make sure the test fail.
-      cy.findByRole('button', { name: 'Menu' }).click()
+      cy.findByRole('button', { name: 'Open main.tex action menu' }).click()
       cy.findByRole('menuitem', { name: 'Delete' }).click()
       cy.findByRole('button', { name: 'Cancel' })
     })
@@ -261,7 +266,9 @@ describe('FileTree Delete Entity Flow', function () {
         statusCode: 204,
       }).as('deleteFile')
 
-      cy.findByRole('button', { name: 'Delete' }).click()
+      cy.findByRole('dialog').within(() => {
+        cy.findByRole('button', { name: 'Delete' }).click()
+      })
 
       cy.then(() => {
         socket.emitToClient('removeEntity', '456def')

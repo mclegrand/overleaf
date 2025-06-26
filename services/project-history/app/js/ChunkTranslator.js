@@ -14,8 +14,7 @@ import {
 } from 'overleaf-editor-core'
 
 /**
- * @typedef {import('overleaf-editor-core/lib/types').RawEditOperation} RawEditOperation
- * @typedef {import('overleaf-editor-core/lib/types').TrackedChangeRawData} TrackedChangeRawData
+ * @import { RawEditOperation, TrackedChangeRawData } from 'overleaf-editor-core/lib/types'
  */
 
 export function convertToSummarizedUpdates(chunk, callback) {
@@ -50,13 +49,14 @@ export function convertToDiffUpdates(
   let file = null
   for (const change of chunk.chunk.history.changes) {
     // Because we're referencing by pathname, which can change, we
-    // want to get the first file in the range fromVersion:toVersion
+    // want to get the last file in the range fromVersion:toVersion
     // that has the pathname we want. Note that this might not exist yet
-    // at fromVersion, so we'll just settle for the first one we find
+    // at fromVersion, so we'll just settle for the last existing one we find
     // after that.
     if (fromVersion <= version && version <= toVersion) {
-      if (file == null) {
-        file = builder.getFile(pathname)
+      const currentFile = builder.getFile(pathname)
+      if (currentFile) {
+        file = currentFile
       }
     }
 
@@ -71,8 +71,9 @@ export function convertToDiffUpdates(
   // Versions act as fence posts, with updates taking us from one to another,
   // so we also need to check after the final update, when we're at the last version.
   if (fromVersion <= version && version <= toVersion) {
-    if (file == null) {
-      file = builder.getFile(pathname)
+    const currentFile = builder.getFile(pathname)
+    if (currentFile) {
+      file = currentFile
     }
   }
 
@@ -137,7 +138,7 @@ class UpdateSetBuilder {
     }
 
     for (const op of change.operations) {
-      this.applyOperation(op, timestamp, authors)
+      this.applyOperation(op, timestamp, authors, change.origin)
     }
 
     this.currentUpdate.pathnames = Array.from(this.currentUpdate.pathnames)
@@ -146,9 +147,9 @@ class UpdateSetBuilder {
     this.version += 1
   }
 
-  applyOperation(op, timestamp, authors) {
+  applyOperation(op, timestamp, authors, origin) {
     if (UpdateSetBuilder._isTextOperation(op)) {
-      this.applyTextOperation(op, timestamp, authors)
+      this.applyTextOperation(op, timestamp, authors, origin)
     } else if (UpdateSetBuilder._isRenameOperation(op)) {
       this.applyRenameOperation(op, timestamp, authors)
     } else if (UpdateSetBuilder._isRemoveFileOperation(op)) {
@@ -158,7 +159,7 @@ class UpdateSetBuilder {
     }
   }
 
-  applyTextOperation(operation, timestamp, authors) {
+  applyTextOperation(operation, timestamp, authors, origin) {
     const { pathname } = operation
     if (pathname === '') {
       // this shouldn't happen, but we continue to allow the user to see the history
@@ -180,7 +181,7 @@ class UpdateSetBuilder {
       return
     }
 
-    file.applyTextOperation(authors, timestamp, this.version, operation)
+    file.applyTextOperation(authors, timestamp, this.version, operation, origin)
     this.currentUpdate.pathnames.add(pathname)
   }
 
@@ -285,8 +286,8 @@ class File {
     this.operations = []
   }
 
-  applyTextOperation(authors, timestamp, version, operation) {
-    this.operations.push({ authors, timestamp, version, operation })
+  applyTextOperation(authors, timestamp, version, operation, origin) {
+    this.operations.push({ authors, timestamp, version, operation, origin })
   }
 
   rename(pathname) {
@@ -309,13 +310,12 @@ class File {
       let initialContent
       const updates = []
 
-      for (let operation of this.operations) {
-        if (!('textOperation' in operation.operation)) {
+      for (const operationInfo of this.operations) {
+        if (!('textOperation' in operationInfo.operation)) {
           // We only care about text operations
           continue
         }
-        let authors, ops, timestamp, version
-        ;({ authors, timestamp, version, operation } = operation)
+        const { authors, timestamp, version, operation } = operationInfo
         // Set the initialContent to the latest version we have before the diff
         // begins. 'version' here refers to the document version as we are
         // applying the updates. So we store the content *before* applying the
@@ -327,6 +327,7 @@ class File {
           )
         }
 
+        let ops
         ;({ content, ops } = this._convertTextOperation(
           content,
           operation,
@@ -335,7 +336,7 @@ class File {
 
         // We only need to return the updates between fromVersion and toVersion
         if (fromVersion <= version && version < toVersion) {
-          updates.push({
+          const update = {
             meta: {
               users: authors,
               start_ts: timestamp.getTime(),
@@ -343,7 +344,11 @@ class File {
             },
             v: version,
             op: ops,
-          })
+          }
+          if (operationInfo.origin) {
+            update.meta.origin = operationInfo.origin
+          }
+          updates.push(update)
         }
       }
 

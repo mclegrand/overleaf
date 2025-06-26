@@ -25,6 +25,10 @@ describe('AuthorizationHelper', function () {
             },
           },
         },
+        '../Project/ProjectGetter': (this.ProjectGetter = { promises: {} }),
+        '../SplitTests/SplitTestHandler': (this.SplitTestHandler = {
+          promises: {},
+        }),
       },
     })
   })

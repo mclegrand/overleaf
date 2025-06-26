@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/dom'
+import { screen } from '@testing-library/react'
 import { expect } from 'chai'
 import fetchMock from 'fetch-mock'
 import HelpMenu from '../../../../../frontend/js/features/editor-left-menu/components/help-menu'
@@ -14,7 +14,7 @@ describe('<HelpMenu />', function () {
   })
 
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   it('shows correct menu if `showSupport` is `true`', function () {
@@ -23,7 +23,7 @@ describe('<HelpMenu />', function () {
     renderWithEditorContext(<HelpMenu />)
 
     screen.getByRole('button', { name: 'Show Hotkeys' })
-    screen.getByRole('button', { name: 'Contact Us' })
+    screen.getByRole('button', { name: 'Contact us' })
     screen.getByRole('link', { name: 'Documentation' })
   })
 
@@ -33,7 +33,7 @@ describe('<HelpMenu />', function () {
     renderWithEditorContext(<HelpMenu />)
 
     screen.getByRole('button', { name: 'Show Hotkeys' })
-    expect(screen.queryByRole('button', { name: 'Contact Us' })).to.equal(null)
+    expect(screen.queryByRole('button', { name: 'Contact us' })).to.equal(null)
     expect(screen.queryByRole('link', { name: 'Documentation' })).to.equal(null)
   })
 })

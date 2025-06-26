@@ -1,4 +1,4 @@
-import { ShareDoc } from '../../../../../types/share-doc'
+import { ShareLatexOTShareDoc } from '../../../../../types/share-doc'
 import { EventEmitter } from 'events'
 
 export const docId = 'test-doc'
@@ -36,6 +36,9 @@ const defaultContent = mockDocContent(contentLines.join('\n'))
 const MAX_DOC_LENGTH = 2 * 1024 * 1024 // ol-maxDocLength
 
 class MockShareDoc extends EventEmitter {
+  otType = 'sharejs-text-ot' as const
+  snapshot = ''
+
   constructor(public text: string) {
     super()
   }
@@ -51,13 +54,21 @@ class MockShareDoc extends EventEmitter {
   del() {
     // do nothing
   }
+
+  submitOp() {
+    // do nothing
+  }
 }
 
-export const mockDoc = (content = defaultContent) => {
-  const mockShareJSDoc: ShareDoc = new MockShareDoc(content)
+export const mockDoc = (
+  content = defaultContent,
+  { rangesOptions = {} } = {}
+) => {
+  const mockShareJSDoc: ShareLatexOTShareDoc = new MockShareDoc(content)
 
   return {
     doc_id: docId,
+    getType: () => 'sharejs-text-ot',
     getSnapshot: () => {
       return content
     },
@@ -78,11 +89,31 @@ export const mockDoc = (content = defaultContent) => {
       comments: [],
       getIdSeed: () => '123',
       setIdSeed: () => {},
+      getTrackedDeletesLength: () => 0,
+      getDirtyState: () => ({
+        comment: {
+          moved: {},
+          removed: {},
+          added: {},
+        },
+        change: {
+          moved: {},
+          removed: {},
+          added: {},
+        },
+      }),
+      resetDirtyState: () => {},
+      removeCommentId: () => {},
+      ...rangesOptions,
     },
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    submitOp: (op: any) => {},
     setTrackChangesIdSeeds: () => {},
     getTrackingChanges: () => true,
-    setTrackingChanges: () => {},
+    setTrackChangesUserId: () => {},
     getInflightOp: () => null,
     getPendingOp: () => null,
+    hasBufferedOps: () => false,
+    leaveAndCleanUpPromise: () => false,
   }
 }

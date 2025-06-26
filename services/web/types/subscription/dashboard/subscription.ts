@@ -1,43 +1,52 @@
 import { CurrencyCode } from '../currency'
 import { Nullable } from '../../utils'
-import { Plan } from '../plan'
+import {
+  Plan,
+  AddOn,
+  PaymentProviderAddOn,
+  PendingPaymentProviderPlan,
+} from '../plan'
 import { User } from '../../user'
 
-type SubscriptionState = 'active' | 'canceled' | 'expired'
+export type SubscriptionState = 'active' | 'canceled' | 'expired' | 'paused'
 
-type Recurly = {
-  tax: number
+// when puchasing a new add-on in recurly, we only need to provide the code
+export type PurchasingAddOnCode = {
+  code: string
+}
+
+type PaymentProviderCoupon = {
+  code: string
+  name: string
+  description: string
+}
+
+type PaymentProviderRecord = {
   taxRate: number
   billingDetailsLink: string
   accountManagementLink: string
   additionalLicenses: number
+  addOns: PaymentProviderAddOn[]
   totalLicenses: number
   nextPaymentDueAt: string
+  nextPaymentDueDate: string
   currency: CurrencyCode
   state?: SubscriptionState
   trialEndsAtFormatted: Nullable<string>
-  trial_ends_at: Nullable<string>
-  activeCoupons: any[] // TODO: confirm type in array
-  account: {
-    email: string
-    // data via Recurly API
-    has_canceled_subscription: {
-      _: 'false' | 'true'
-      $: {
-        type: 'boolean'
-      }
-    }
-    has_past_due_invoice: {
-      _: 'false' | 'true'
-      $: {
-        type: 'boolean'
-      }
-    }
-  }
+  trialEndsAt: Nullable<string>
+  activeCoupons: PaymentProviderCoupon[]
+  accountEmail: string
+  hasPastDueInvoice: boolean
   displayPrice: string
-  currentPlanDisplayPrice?: string
+  planOnlyDisplayPrice: string
+  addOnDisplayPricesWithoutAdditionalLicense: Record<string, string>
   pendingAdditionalLicenses?: number
   pendingTotalLicenses?: number
+  pausedAt?: Nullable<string>
+  remainingPauseCycles?: Nullable<number>
+  isEligibleForPause: boolean
+  isEligibleForGroupPlan: boolean
+  isEligibleForDowngradeUpsell: boolean
 }
 
 export type GroupPolicy = {
@@ -55,20 +64,20 @@ export type Subscription = {
   membersLimit: number
   teamInvites: object[]
   planCode: string
-  recurlySubscription_id: string
   plan: Plan
-  pendingPlan?: Plan
+  pendingPlan?: PendingPaymentProviderPlan
+  addOns?: AddOn[]
 }
 
-export type RecurlySubscription = Subscription & {
-  recurly: Recurly
+export type PaidSubscription = Subscription & {
+  payment: PaymentProviderRecord
 }
 
 export type CustomSubscription = Subscription & {
   customAccount: boolean
 }
 
-export type GroupSubscription = RecurlySubscription & {
+export type GroupSubscription = PaidSubscription & {
   teamName: string
   teamNotice?: string
 }
@@ -91,4 +100,19 @@ export type MemberGroupSubscription = Omit<GroupSubscription, 'admin_id'> & {
   userIsGroupManager: boolean
   planLevelName: string
   admin_id: User
+}
+
+type PaymentProviderService = 'stripe-us' | 'stripe-uk' | 'recurly'
+
+export type PaymentProvider = {
+  service: PaymentProviderService
+  subscriptionId: string
+  state: SubscriptionState
+  trialStartedAt?: Nullable<Date>
+  trialEndsAt?: Nullable<Date>
+}
+
+export type SubscriptionRequesterData = {
+  id?: string
+  ip?: string
 }

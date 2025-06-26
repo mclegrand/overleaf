@@ -1,8 +1,9 @@
-import '../../../helpers/bootstrap-3'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import CodemirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
 import { mockScope } from '../helpers/mock-scope'
 import { TestContainer } from '../helpers/test-container'
+
+const menuIconsText = 'content_copyexpand_more'
 
 const mountEditor = (content = '') => {
   const scope = mockScope(content)
@@ -25,7 +26,6 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
   beforeEach(function () {
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
     cy.interceptEvents()
-    cy.interceptSpelling()
   })
 
   it('handles paste', function () {
@@ -37,8 +37,9 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.spy(clipboardData, 'getData').as('get-data')
     cy.get('@content').trigger('paste', { clipboardData })
+    cy.get('@content').type('{esc}')
 
-    cy.get('@content').should('have.text', 'foo')
+    cy.get('@content').should('have.text', 'foo' + menuIconsText)
     cy.get('@get-data').should('have.been.calledTwice')
     cy.get('@get-data').should('have.been.calledWithExactly', 'text/html')
     cy.get('@get-data').should('have.been.calledWithExactly', 'text/plain')
@@ -53,7 +54,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', ' foo bar')
+    cy.get('@content').should('have.text', ' foo bar' + menuIconsText)
     cy.get('.ol-cm-item').should('have.length', 2)
   })
 
@@ -66,7 +67,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', ' foo bar')
+    cy.get('@content').should('have.text', ' foo bar' + menuIconsText)
     cy.get('.ol-cm-item').should('have.length', 2)
   })
 
@@ -80,7 +81,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', ' foo  bar baz')
+    cy.get('@content').should('have.text', ' foo  bar baz' + menuIconsText)
     cy.get('.ol-cm-item').should('have.length', 4)
     cy.get('.cm-line').should('have.length', 6)
   })
@@ -95,7 +96,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', ' foo  bar baz')
+    cy.get('@content').should('have.text', ' foo  bar baz' + menuIconsText)
     cy.get('.ol-cm-item').should('have.length', 4)
     cy.get('.cm-line').should('have.length', 6)
   })
@@ -109,7 +110,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foo')
+    cy.get('@content').should('have.text', 'foo' + menuIconsText)
     cy.get('.ol-cm-item').should('have.length', 0)
   })
 
@@ -123,7 +124,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foobar')
+    cy.get('@content').should('have.text', 'foobar' + menuIconsText)
     cy.get('.table-generator-cell').should('have.length', 2)
   })
 
@@ -137,7 +138,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foobar')
+    cy.get('@content').should('have.text', 'foobar' + menuIconsText)
     cy.get('.table-generator-cell').should('have.length', 2)
     cy.get('.table-generator-cell-border-left').should('have.length', 1)
     cy.get('.table-generator-cell-border-right').should('have.length', 2)
@@ -155,7 +156,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foobar')
+    cy.get('@content').should('have.text', 'foobar' + menuIconsText)
     cy.get('.table-generator-cell').should('have.length', 2)
     cy.get('.table-generator-cell-border-left').should('have.length', 0)
     cy.get('.table-generator-cell-border-right').should('have.length', 0)
@@ -178,7 +179,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foobarfoobarfoobar')
+    cy.get('@content').should('have.text', 'foobarfoobarfoobar' + menuIconsText)
     cy.get('.table-generator-cell').should('have.length', 6)
     cy.get('.table-generator-cell-border-left').should('have.length', 3)
     cy.get('.table-generator-cell-border-right').should('have.length', 6)
@@ -196,7 +197,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foofoofoofoofoo')
+    cy.get('@content').should('have.text', 'foofoofoofoofoo' + menuIconsText)
     cy.get('.table-generator-cell').should('have.length', 5)
     cy.get('.table-generator-cell.alignment-left').should('have.length', 3)
     cy.get('.table-generator-cell.alignment-center').should('have.length', 1)
@@ -218,9 +219,46 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'testtesttesttesttesttesttest')
+    cy.get('@content').should(
+      'have.text',
+      'testtesttesttesttesttesttest' + menuIconsText
+    )
     cy.get('.table-generator-cell').should('have.length', 7)
     cy.get('.table-generator-cell[colspan="2"]').should('have.length', 2)
+  })
+
+  it('handles a pasted 1-row table with merged columns', function () {
+    mountEditor()
+
+    const data = [
+      `<table><tbody>`,
+      `<tr><td>test</td><td colspan="2">test</td></tr>`,
+      `</tbody></table>`,
+    ].join('')
+
+    const clipboardData = new DataTransfer()
+    clipboardData.setData('text/html', data)
+    cy.get('@content').trigger('paste', { clipboardData })
+
+    cy.get('@content').should('have.text', 'testtest' + menuIconsText)
+    cy.get('.table-generator-cell').should('have.length', 2)
+    cy.get('.table-generator-cell[colspan="2"]').should('have.length', 1)
+  })
+
+  it('handles a pasted table with a bordered merged column', function () {
+    mountEditor()
+
+    const data = [
+      `<table><tbody>`,
+      `<tr><td style="border-right:1px solid black;border-left:1px solid black;">test</td></tr>`,
+      `</tbody></table>`,
+    ].join('')
+
+    const clipboardData = new DataTransfer()
+    clipboardData.setData('text/html', data)
+    cy.get('@content').trigger('paste', { clipboardData })
+    cy.get('.table-generator-cell-border-right').should('have.length', 1)
+    cy.get('.table-generator-cell-border-left').should('have.length', 1)
   })
 
   it('handles a pasted table with merged rows', function () {
@@ -240,7 +278,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
 
     cy.get('@content').should(
       'have.text',
-      'testtesttest\\multirow{2}{*}{test}testtesttesttest'
+      'testtesttest\\multirow{2}{*}{test}testtesttesttest' + menuIconsText
     )
     cy.get('.table-generator-cell').should('have.length', 9)
   })
@@ -262,7 +300,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
 
     cy.get('@content').should(
       'have.text',
-      '\\multirow{2}{*}{test}testtesttesttesttest'
+      '\\multirow{2}{*}{test}testtesttesttesttest' + menuIconsText
     )
     cy.get('.table-generator-cell').should('have.length', 8)
     cy.get('.table-generator-cell[colspan="2"]').should('have.length', 1)
@@ -282,7 +320,10 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'testtesttesttesttesttest')
+    cy.get('@content').should(
+      'have.text',
+      'testtesttesttesttesttest' + menuIconsText
+    )
     cy.get('.table-generator-cell').should('have.length', 6)
     cy.get('.table-generator-cell[colspan]').should('have.length', 0)
   })
@@ -302,11 +343,11 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foofoobarfoobar')
+    cy.get('@content').should('have.text', 'foofoobarfoobar' + menuIconsText)
     cy.get('.table-generator-cell').should('have.length', 5)
     cy.get('.table-generator-cell[colspan="2"]').should('have.length', 1)
-    cy.get('.table-generator-cell-border-left').should('have.length', 2)
-    cy.get('.table-generator-cell-border-right').should('have.length', 4)
+    cy.get('.table-generator-cell-border-left').should('have.length', 3)
+    cy.get('.table-generator-cell-border-right').should('have.length', 5)
     cy.get('.table-generator-row-border-top').should('have.length', 5)
     cy.get('.table-generator-row-border-bottom').should('have.length', 2)
   })
@@ -321,7 +362,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foobarbaz')
+    cy.get('@content').should('have.text', 'foobarbaz' + menuIconsText)
     cy.findByText(/Sorry/).should('not.exist')
     cy.get('td b').should('have.length', 2)
     cy.get('td i').should('have.length', 2)
@@ -344,7 +385,10 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foobarbazbuzzupdown')
+    cy.get('@content').should(
+      'have.text',
+      'foobarbazbuzzupdown' + menuIconsText
+    )
     cy.findByText(/Sorry/).should('not.exist')
     cy.get('td b').should('have.length', 3)
     cy.get('td i').should('have.length', 3)
@@ -362,7 +406,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'A tablefoobar')
+    cy.get('@content').should('have.text', 'A tablefoobar' + menuIconsText)
     cy.get('.table-generator-cell').should('have.length', 2)
     cy.get('.ol-cm-command-caption').should('have.length', 1)
   })
@@ -377,7 +421,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', '{foo}')
+    cy.get('@content').should('have.text', '{foo}' + menuIconsText)
     cy.get('.ol-cm-command-href').should('have.length', 1)
 
     cy.get('.cm-line').eq(0).type('{leftArrow}')
@@ -399,7 +443,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
 
     cy.get('@content').should(
       'have.text',
-      'test \\textbf{foo}\\textbf{foo}test'
+      'test \\textbf{foo}\\textbf{foo}test' + menuIconsText
     )
     cy.get('.ol-cm-environment-verbatim').should('have.length', 10)
   })
@@ -413,13 +457,13 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'test footest')
+    cy.get('@content').should('have.text', 'test footest' + menuIconsText)
     cy.get('.ol-cm-environment-quote').should('have.length', 5)
 
     cy.get('.cm-line').eq(2).click()
     cy.get('@content').should(
       'have.text',
-      'test \\begin{quote}foo\\end{quote}test'
+      'test \\begin{quote}foo\\end{quote}test' + menuIconsText
     )
   })
 
@@ -438,7 +482,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'test foobarbaztest')
+    cy.get('@content').should('have.text', 'test foobarbaztest' + menuIconsText)
     cy.get('.cm-line').should('have.length', 7)
   })
 
@@ -460,7 +504,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
 
     cy.get('@content').should(
       'have.text',
-      'test foobarbaz foo foo foo foofootest'
+      'test foobarbaz foo foo foo foofootest' + menuIconsText
     )
     cy.get('.cm-line').should('have.length', 14)
   })
@@ -474,7 +518,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'test foo test')
+    cy.get('@content').should('have.text', 'test foo test' + menuIconsText)
     cy.get('.ol-cm-command-verb')
       .should('have.length', 1)
       .should('have.text', 'foo')
@@ -531,7 +575,10 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'footh bar2 baz woo woo woo')
+    cy.get('@content').should(
+      'have.text',
+      'footh bar2 baz woo woo woo' + menuIconsText
+    )
     cy.get('.ol-cm-command-textbf').should('have.length', 2)
     cy.get('.ol-cm-command-textit').should('have.length', 2)
     cy.get('.ol-cm-command-textsuperscript').should('have.length', 1)
@@ -548,7 +595,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foo foo foo')
+    cy.get('@content').should('have.text', 'foo foo foo' + menuIconsText)
     cy.get('.ol-cm-command-textbf').should('have.length', 2)
   })
 
@@ -561,7 +608,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foo foo')
+    cy.get('@content').should('have.text', 'foo foo' + menuIconsText)
     cy.get('.ol-cm-command-textit').should('have.length', 1)
   })
 
@@ -575,7 +622,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foo foo foo')
+    cy.get('@content').should('have.text', 'foo foo foo' + menuIconsText)
     cy.get('.ol-cm-command-textbf').should('have.length', 0)
   })
 
@@ -589,7 +636,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foo foo foo')
+    cy.get('@content').should('have.text', 'foo foo foo' + menuIconsText)
     cy.get('.ol-cm-command-textit').should('have.length', 0)
   })
 
@@ -621,7 +668,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foo bar')
+    cy.get('@content').should('have.text', 'foo bar' + menuIconsText)
   })
 
   it('does not remove a non-breaking space when a text node contains other content', function () {
@@ -633,7 +680,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foo bar')
+    cy.get('@content').should('have.text', 'foo bar' + menuIconsText)
   })
 
   it('removes all zero-width spaces', function () {
@@ -645,7 +692,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foobar')
+    cy.get('@content').should('have.text', 'foobar' + menuIconsText)
   })
 
   it('ignores HTML pasted from VS Code', function () {
@@ -670,7 +717,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foo & bar~baz')
+    cy.get('@content').should('have.text', 'foo & bar~baz' + menuIconsText)
     cy.get('.ol-cm-character').should('have.length', 2)
   })
 
@@ -685,7 +732,7 @@ describe('<CodeMirrorEditor/> paste HTML in Visual mode', function () {
 
     cy.get('@content').should(
       'have.text',
-      'foo & bar~baz \\verb|\\textbf{foo}|'
+      'foo & bar~baz \\verb|\\textbf{foo}|' + menuIconsText
     )
 
     cy.get('.cm-line').eq(0).type('{Enter}')
@@ -737,7 +784,7 @@ test test test</p>
     cy.get('.cm-line').should('have.length', 6)
     cy.get('@content').should(
       'have.text',
-      ' foo  testtest test test test test test test test'
+      ' foo  testtest test test test test test test test' + menuIconsText
     )
   })
 
@@ -750,7 +797,7 @@ test test test</p>
     clipboardData.setData('text/html', data)
     cy.get('@content').trigger('paste', { clipboardData })
 
-    cy.get('@content').should('have.text', 'foo test bar baz')
+    cy.get('@content').should('have.text', 'foo test bar baz' + menuIconsText)
   })
 
   it('treats a pasted image as a figure even if there is HTML', function () {

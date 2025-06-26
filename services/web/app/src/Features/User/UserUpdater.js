@@ -11,15 +11,21 @@ const EmailHandler = require('../Email/EmailHandler')
 const EmailHelper = require('../Helpers/EmailHelper')
 const Errors = require('../Errors/Errors')
 const NewsletterManager = require('../Newsletter/NewsletterManager')
-const RecurlyWrapper = require('../Subscription/RecurlyWrapper')
 const UserAuditLogHandler = require('./UserAuditLogHandler')
 const AnalyticsManager = require('../Analytics/AnalyticsManager')
 const SubscriptionLocator = require('../Subscription/SubscriptionLocator')
 const NotificationsBuilder = require('../Notifications/NotificationsBuilder')
 const _ = require('lodash')
 const Modules = require('../../infrastructure/Modules')
+const UserSessionsManager = require('./UserSessionsManager')
 
-async function _sendSecurityAlertPrimaryEmailChanged(userId, oldEmail, email) {
+async function _sendSecurityAlertPrimaryEmailChanged(
+  userId,
+  oldEmail,
+  email,
+  deleteOldEmail
+) {
+  // here
   // Send email to the following:
   // - the old primary
   // - the new primary
@@ -30,6 +36,11 @@ async function _sendSecurityAlertPrimaryEmailChanged(userId, oldEmail, email) {
   const emailOptions = {
     actionDescribed: `the primary email address on your account was changed to ${email}`,
     action: 'change of primary email address',
+    message: deleteOldEmail
+      ? [
+          `We also removed the previous primary email ${oldEmail} from the account.`,
+        ]
+      : [],
   }
 
   async function sendToRecipients(recipients) {
@@ -160,7 +171,8 @@ async function setDefaultEmailAddress(
   email,
   allowUnconfirmed,
   auditLog,
-  sendSecurityAlert
+  sendSecurityAlert,
+  deleteOldEmail = false
 ) {
   email = EmailHelper.parseEmail(email)
   if (email == null) {
@@ -211,11 +223,14 @@ async function setDefaultEmailAddress(
 
   if (sendSecurityAlert) {
     // no need to wait, errors are logged and not passed back
-    _sendSecurityAlertPrimaryEmailChanged(userId, oldEmail, email).catch(
-      err => {
-        logger.error({ err }, 'failed to send security alert email')
-      }
-    )
+    _sendSecurityAlertPrimaryEmailChanged(
+      userId,
+      oldEmail,
+      email,
+      deleteOldEmail
+    ).catch(err => {
+      logger.error({ err }, 'failed to send security alert email')
+    })
   }
 
   try {
@@ -236,7 +251,11 @@ async function setDefaultEmailAddress(
   }
 
   try {
-    await RecurlyWrapper.promises.updateAccountEmailAddress(user._id, email)
+    await Modules.promises.hooks.fire(
+      'updateAccountEmailAddress',
+      user._id,
+      email
+    )
   } catch (error) {
     // errors are ignored
   }
@@ -494,8 +513,42 @@ async function changeEmailAddress(userId, newEmail, auditLog) {
   await removeEmailAddress(userId, oldEmail, auditLog)
 }
 
-async function removeReconfirmFlag(userId) {
+/**
+ * @param {string} userId
+ * @param {{initiatorId: string, ip: string}} auditLog
+ * @returns {Promise<void>}
+ */
+async function removeReconfirmFlag(userId, auditLog) {
+  await UserAuditLogHandler.promises.addEntry(
+    userId.toString(),
+    'must-reset-password-unset',
+    auditLog.initiatorId,
+    auditLog.ip
+  )
   await updateUser(userId.toString(), { $set: { must_reconfirm: false } })
+}
+
+async function suspendUser(userId, auditLog = {}) {
+  const res = await updateUser(
+    { _id: userId, suspended: { $ne: true } },
+    { $set: { suspended: true } }
+  )
+  if (res.matchedCount !== 1) {
+    throw new Errors.NotFoundError('user id not found or already suspended')
+  }
+  await UserAuditLogHandler.promises.addEntry(
+    userId,
+    'account-suspension',
+    auditLog.initiatorId,
+    auditLog.ip,
+    auditLog.info || {}
+  )
+  await UserSessionsManager.promises.removeSessionsFromRedis({ _id: userId })
+  await Modules.promises.hooks.fire(
+    'removeDropbox',
+    userId,
+    'account-suspension'
+  )
 }
 
 function _securityAlertPrimaryEmailChangedExtraRecipients(
@@ -553,6 +606,7 @@ module.exports = {
   setDefaultEmailAddress: callbackify(setDefaultEmailAddress),
   migrateDefaultEmailAddress: callbackify(migrateDefaultEmailAddress),
   updateUser: callbackify(updateUser),
+  suspendUser: callbackify(suspendUser),
   promises: {
     addAffiliationForNewUser,
     addEmailAddress,
@@ -564,5 +618,6 @@ module.exports = {
     setDefaultEmailAddress,
     migrateDefaultEmailAddress,
     updateUser,
+    suspendUser,
   },
 }

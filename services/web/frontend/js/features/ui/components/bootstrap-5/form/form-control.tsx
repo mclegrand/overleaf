@@ -1,13 +1,14 @@
-import { forwardRef } from 'react'
-import { Form, FormControlProps } from 'react-bootstrap-5'
+import React, { forwardRef } from 'react'
+import { Form, FormControlProps as BS5FormControlProps } from 'react-bootstrap'
 import classnames from 'classnames'
 
-type OLFormControlProps = FormControlProps & {
+export type OLBS5FormControlProps = BS5FormControlProps & {
   prepend?: React.ReactNode
   append?: React.ReactNode
+  rows?: number
 }
 
-const FormControl = forwardRef<HTMLInputElement, OLFormControlProps>(
+const FormControl = forwardRef<HTMLInputElement, OLBS5FormControlProps>(
   ({ prepend, append, className, ...props }, ref) => {
     if (prepend || append) {
       const wrapperClassNames = classnames('form-control-wrapper', {
@@ -36,7 +37,7 @@ const FormControl = forwardRef<HTMLInputElement, OLFormControlProps>(
       )
     }
 
-    return <Form.Control className={className} {...props} />
+    return <Form.Control ref={ref} className={className} {...props} />
   }
 )
 FormControl.displayName = 'FormControl'

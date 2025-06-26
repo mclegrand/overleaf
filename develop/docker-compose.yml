@@ -1,6 +1,5 @@
 volumes:
   clsi-cache:
-  clsi-output:
   filestore-public-files:
   filestore-template-files:
   filestore-uploads:
@@ -8,7 +7,6 @@ volumes:
   mongo-data:
   redis-data:
   sharelatex-data:
-  spelling-cache:
   web-data:
   history-v1-buckets:
 
@@ -27,15 +25,16 @@ services:
     env_file:
       - dev.env
     environment:
-      - DOCKER_RUNNER=true
       - TEXLIVE_IMAGE=texlive-full # docker build texlive -t texlive-full
-      - COMPILES_HOST_DIR=${PWD}/compiles
+      - SANDBOXED_COMPILES=true
+      - SANDBOXED_COMPILES_HOST_DIR_COMPILES=${PWD}/compiles
+      - SANDBOXED_COMPILES_HOST_DIR_OUTPUT=${PWD}/output
     user: root
     volumes:
       - ${PWD}/compiles:/overleaf/services/clsi/compiles
+      - ${PWD}/output:/overleaf/services/clsi/output
       - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
       - clsi-cache:/overleaf/services/clsi/cache
-      - clsi-output:/overleaf/services/clsi/output
 
   contacts:
     build:
@@ -89,12 +88,20 @@ services:
         - history-v1-buckets:/buckets
 
   mongo:
-    image: mongo:5
+    image: mongo:6.0
     command: --replSet overleaf
     ports:
       - "127.0.0.1:27017:27017" # for debugging
     volumes:
       - mongo-data:/data/db
+      - ../bin/shared/mongodb-init-replica-set.js:/docker-entrypoint-initdb.d/mongodb-init-replica-set.js
+    environment:
+      MONGO_INITDB_DATABASE: sharelatex
+    extra_hosts:
+      # Required when using the automatic database setup for initializing the
+      # replica set. This override is not needed when running the setup after
+      # starting up mongo.
+      - mongo:127.0.0.1
 
   notifications:
     build:
@@ -124,15 +131,6 @@ services:
     volumes:
       - redis-data:/data
 
-  spelling:
-    build:
-      context: ..
-      dockerfile: services/spelling/Dockerfile
-    env_file:
-      - dev.env
-    volumes:
-      - spelling-cache:/overleaf/services/spelling/cache
-
   web:
     build:
       context: ..
@@ -146,7 +144,7 @@ services:
       - EMAIL_CONFIRMATION_DISABLED=true
       - NODE_ENV=development
       - OVERLEAF_ALLOW_PUBLIC_ACCESS=true
-    command: ["node", "app.js"]
+    command: ["node", "app.mjs"]
     volumes:
       - sharelatex-data:/var/lib/overleaf
       - web-data:/overleaf/services/web/data
@@ -163,13 +161,12 @@ services:
       - notifications
       - project-history
       - real-time
-      - spelling
 
   webpack:
     build:
       context: ..
       dockerfile: services/web/Dockerfile
-      target: dev
+      target: webpack
     command: ["npx", "webpack", "serve", "--config", "webpack.config.dev-env.js"]
     ports:
       - "127.0.0.1:80:3808"

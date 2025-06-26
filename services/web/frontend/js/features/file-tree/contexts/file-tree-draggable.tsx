@@ -14,13 +14,15 @@ import {
 import { useFileTreeActionable } from './file-tree-actionable'
 import { useFileTreeData } from '@/shared/context/file-tree-data-context'
 import { useFileTreeSelectable } from '../contexts/file-tree-selectable'
-import { useEditorContext } from '@/shared/context/editor-context'
 import { isAcceptableFile } from '@/features/file-tree/util/is-acceptable-file'
+import { FileTreeFindResult } from '@/features/ide-react/types/file-tree'
 
 const DRAGGABLE_TYPE = 'ENTITY'
-export const FileTreeDraggableProvider: FC<{
-  fileTreeContainer?: HTMLDivElement
-}> = ({ fileTreeContainer, children }) => {
+export const FileTreeDraggableProvider: FC<
+  React.PropsWithChildren<{
+    fileTreeContainer?: HTMLDivElement
+  }>
+> = ({ fileTreeContainer, children }) => {
   const options = useMemo(
     () => ({ rootElement: fileTreeContainer }),
     [fileTreeContainer]
@@ -48,8 +50,7 @@ type DropResult = {
 export function useDraggable(draggedEntityId: string) {
   const { t } = useTranslation()
 
-  const { permissionsLevel } = useEditorContext()
-  const { fileTreeData } = useFileTreeData()
+  const { fileTreeData, fileTreeReadOnly } = useFileTreeData()
   const { selectedEntityIds, isRootFolderSelected } = useFileTreeSelectable()
   const { finishMoving } = useFileTreeActionable()
 
@@ -73,7 +74,7 @@ export function useDraggable(draggedEntityId: string) {
       }
     },
     canDrag() {
-      return permissionsLevel !== 'readOnly' && isDraggable
+      return !fileTreeReadOnly && isDraggable
     },
     end(item: DragObject, monitor: DragSourceMonitor<DragObject, DropResult>) {
       if (monitor.didDrop()) {
@@ -173,7 +174,7 @@ function getDraggedTitle(
 }
 
 // Get all children folder ids of any of the dragged items.
-function getForbiddenFolderIds(draggedItems: Set<any>) {
+function getForbiddenFolderIds(draggedItems: Set<FileTreeFindResult>) {
   const draggedFoldersArray = Array.from(draggedItems)
     .filter(draggedItem => {
       return draggedItem.type === 'folder'

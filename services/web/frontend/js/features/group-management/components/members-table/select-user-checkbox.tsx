@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import type { User } from '../../../../../../types/group-management/user'
 import { useGroupMembersContext } from '../../context/group-members-context'
 import { useCallback } from 'react'
+import OLFormCheckbox from '@/features/ui/components/ol/ol-form-checkbox'
 
 type ManagedUsersSelectUserCheckboxProps = {
   user: User
@@ -15,7 +16,7 @@ export default function SelectUserCheckbox({
     useGroupMembersContext()
 
   const handleSelectUser = useCallback(
-    (event, user) => {
+    (event: React.ChangeEvent<HTMLInputElement>, user: User) => {
       if (event.target.checked) {
         selectUser(user)
       } else {
@@ -39,21 +40,15 @@ export default function SelectUserCheckbox({
 
   return (
     <td className="cell-checkbox">
-      {/* the next check will hide the `checkbox` but still show the `td` */}
+      {/* the next check will hide the `checkbox` but still show the `th` */}
       {user.enrollment?.managedBy ? null : (
-        <>
-          <label htmlFor={`select-user-${user.email}`} className="sr-only">
-            {t('select_user')}
-          </label>
-          <input
-            className="select-item"
-            id={`select-user-${user.email}`}
-            type="checkbox"
-            autoComplete="off"
-            checked={selected}
-            onChange={e => handleSelectUser(e, user)}
-          />
-        </>
+        <OLFormCheckbox
+          autoComplete="off"
+          checked={selected}
+          onChange={e => handleSelectUser(e, user)}
+          aria-label={t('select_user')}
+          data-testid="select-single-checkbox"
+        />
       )}
     </td>
   )

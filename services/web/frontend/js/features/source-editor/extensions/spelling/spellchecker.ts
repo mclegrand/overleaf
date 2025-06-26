@@ -1,23 +1,15 @@
 import { addMisspelledWords, misspelledWordsField } from './misspelled-words'
-import { ignoredWordsField, resetSpellChecker } from './ignored-words'
-import { LineTracker } from './line-tracker'
-import { cacheField, addWordToCache, WordCacheValue } from './cache'
+import { addLearnedWordEffect, removeLearnedWordEffect } from './learned-words'
+import { cacheField, addWordToCache } from './cache'
 import { WORD_REGEX } from './helpers'
 import OError from '@overleaf/o-error'
-import { spellCheckRequest } from './backend'
 import { EditorView, ViewUpdate } from '@codemirror/view'
-import { Line, Range, RangeValue } from '@codemirror/state'
-import { IgnoredWords } from '../../../dictionary/ignored-words'
-import {
-  getNormalTextSpansFromLine,
-  NormalTextSpan,
-} from '../../utils/tree-query'
+import { ChangeSet, Line, Range, RangeValue } from '@codemirror/state'
+import { getNormalTextSpansFromLine } from '../../utils/tree-query'
 import { waitForParser } from '../wait-for-parser'
 import { debugConsole } from '@/utils/debugging'
-
-const _log = (...args: any) => {
-  debugConsole.debug('[SpellChecker]: ', ...args)
-}
+import type { HunspellManager } from '../../hunspell/HunspellManager'
+import { captureException } from '@/infrastructure/error-reporter'
 
 /*
  * Spellchecker, handles updates, schedules spelling checks
@@ -26,44 +18,66 @@ export class SpellChecker {
   private abortController?: AbortController | null = null
   private timeout: number | null = null
   private firstCheck = true
-  private lineTracker: LineTracker | null = null
   private waitingForParser = false
   private firstCheckPending = false
+  private trackedChanges: ChangeSet
+  private destroyed = false
+  private readonly segmenter?: Intl.Segmenter
 
   // eslint-disable-next-line no-useless-constructor
-  constructor(private readonly language: string) {
-    this.language = language
+  constructor(
+    private readonly language: string,
+    private hunspellManager?: HunspellManager
+  ) {
+    debugConsole.log('SpellChecker', language, hunspellManager)
+    this.trackedChanges = ChangeSet.empty(0)
+
+    const locale = language.replace(/_/, '-')
+
+    try {
+      if (Intl.Segmenter) {
+        const supportedLocales = Intl.Segmenter.supportedLocalesOf([locale], {
+          localeMatcher: 'lookup',
+        })
+
+        if (supportedLocales.includes(locale)) {
+          this.segmenter = new Intl.Segmenter(locale, {
+            localeMatcher: 'lookup',
+            granularity: 'word',
+          })
+        }
+      }
+    } catch (error) {
+      // ignore, not supported for some reason
+      debugConsole.error(error)
+    }
+
+    if (this.segmenter) {
+      debugConsole.log(`Using Intl.Segmenter for ${locale}`)
+    } else {
+      debugConsole.warn(`Not using Intl.Segmenter for ${locale}`)
+    }
   }
 
   destroy() {
-    _log('destroy')
     this._clearPendingSpellCheck()
+    this.destroyed = true
   }
 
   _abortRequest() {
     if (this.abortController) {
-      _log('abort request')
       this.abortController.abort()
       this.abortController = null
     }
   }
 
   handleUpdate(update: ViewUpdate) {
-    if (!this.lineTracker) {
-      this.lineTracker = new LineTracker(update.state.doc)
-    }
     if (update.docChanged) {
-      this.lineTracker.applyUpdate(update)
+      this.trackedChanges = this.trackedChanges.compose(update.changes)
       this.scheduleSpellCheck(update.view)
     } else if (update.viewportChanged) {
+      this.trackedChanges = ChangeSet.empty(0)
       this.scheduleSpellCheck(update.view)
-    } else if (
-      update.transactions.some(tr => {
-        return tr.effects.some(effect => effect.is(resetSpellChecker))
-      })
-    ) {
-      this.lineTracker.resetAllLines()
-      this.spellCheckAsap(update.view)
     }
     // At the point that the spellchecker is initialized, the editor may not
     // yet be editable, and the parser may not be ready. Therefore, to do the
@@ -78,72 +92,144 @@ export class SpellChecker {
       update.state.facet(EditorView.editable)
     ) {
       this.firstCheckPending = true
-      _log('Scheduling initial spellcheck')
       this.spellCheckAsap(update.view)
+    } else {
+      for (const tr of update.transactions) {
+        for (const effect of tr.effects) {
+          if (effect.is(addLearnedWordEffect)) {
+            this.addWord(effect.value)
+              .then(() => {
+                update.view.state.field(cacheField, false)?.reset()
+                this.trackedChanges = ChangeSet.empty(0)
+                this.spellCheckAsap(update.view)
+              })
+              .catch(error => {
+                captureException(error)
+                debugConsole.error(error)
+              })
+          } else if (effect.is(removeLearnedWordEffect)) {
+            this.removeWord(effect.value)
+              .then(() => {
+                update.view.state.field(cacheField, false)?.reset()
+                this.trackedChanges = ChangeSet.empty(0)
+                this.spellCheckAsap(update.view)
+              })
+              .catch(error => {
+                captureException(error)
+                debugConsole.error(error)
+              })
+          }
+        }
+      }
     }
   }
 
   _performSpellCheck(view: EditorView) {
-    _log('Begin ---------------->')
     const wordsToCheck = this.getWordsToCheck(view)
     if (wordsToCheck.length === 0) {
+      this.trackedChanges = ChangeSet.empty(0)
       return
     }
-    _log(
-      '- words to check',
-      wordsToCheck.map(w => w.text)
-    )
     const cache = view.state.field(cacheField)
     const { knownMisspelledWords, unknownWords } = cache.checkWords(
       this.language,
       wordsToCheck
     )
-    const processResult = (
-      misspellings: { index: number; suggestions: string[] }[]
-    ) => {
-      this.lineTracker?.clearChangedLinesForWords(wordsToCheck)
+    const processResult = (misspellings: { index: number }[]) => {
+      this.trackedChanges = ChangeSet.empty(0)
+
       if (this.firstCheck) {
         this.firstCheck = false
         this.firstCheckPending = false
       }
-      const result = buildSpellCheckResult(
+      const { misspelledWords, cacheAdditions } = buildSpellCheckResult(
         knownMisspelledWords,
         unknownWords,
         misspellings
       )
-      _log('- result', result)
-      window.setTimeout(() => {
-        view.dispatch({
-          effects: compileEffects(result),
-        })
-      }, 0)
-      _log('<---------------- End')
+      view.dispatch({
+        effects: [
+          addMisspelledWords.of(misspelledWords),
+          ...cacheAdditions.map(([word, value]) => {
+            return addWordToCache.of({
+              lang: word.lang,
+              wordText: word.text,
+              value,
+            })
+          }),
+        ],
+      })
     }
-    _log('- before spellcheck request')
-    _log(
-      '  - unknownWords',
-      unknownWords.map(w => w.text)
-    )
-    _log(
-      '  - knownMisspelledWords',
-      knownMisspelledWords.map(w => w.text)
-    )
     if (unknownWords.length === 0) {
-      _log('- skip request')
       processResult([])
     } else {
       this._abortRequest()
       this.abortController = new AbortController()
-      spellCheckRequest(this.language, unknownWords, this.abortController)
-        .then(result => {
-          this.abortController = null
-          processResult(result.misspellings)
-        })
-        .catch(error => {
-          this.abortController = null
-          _log('>> error in spellcheck request', error)
-        })
+      if (this.hunspellManager) {
+        const signal = this.abortController.signal
+        this.hunspellManager.send(
+          {
+            type: 'spell',
+            words: unknownWords.map(word => word.text),
+          },
+          result => {
+            if (!signal.aborted) {
+              if ('error' in result) {
+                debugConsole.error(result.error)
+                captureException(
+                  new Error('Error running spellcheck for word'),
+                  { tags: { ol_spell_check_language: this.language } }
+                )
+              } else {
+                processResult(result.misspellings)
+              }
+            }
+          }
+        )
+      }
     }
+  }
+
+  suggest(word: string) {
+    return new Promise<{ suggestions: string[] }>((resolve, reject) => {
+      if (this.hunspellManager) {
+        this.hunspellManager.send({ type: 'suggest', word }, result => {
+          if ('error' in result) {
+            reject(new Error('Error finding spelling suggestions for word'))
+          } else {
+            resolve(result)
+          }
+        })
+      }
+    })
+  }
+
+  addWord(word: string) {
+    return new Promise<void>((resolve, reject) => {
+      if (this.hunspellManager) {
+        this.hunspellManager.send({ type: 'add_word', word }, result => {
+          if ('error' in result) {
+            reject(new Error('Error adding word to spellcheck'))
+          } else {
+            resolve()
+          }
+        })
+      }
+    })
+  }
+
+  removeWord(word: string) {
+    return new Promise<void>((resolve, reject) => {
+      if (this.hunspellManager) {
+        this.hunspellManager.send({ type: 'remove_word', word }, result => {
+          if ('error' in result) {
+            reject(new Error('Error removing word from spellcheck'))
+          } else {
+            resolve()
+          }
+        })
+      }
+    })
   }
 
   _spellCheckWhenParserReady(view: EditorView) {
@@ -152,10 +238,7 @@ export class SpellChecker {
     }
 
     this.waitingForParser = true
-    waitForParser(
-      view,
-      view => viewportRangeToCheck(this.firstCheck, view).to
-    ).then(() => {
+    waitForParser(view, view => view.viewport.to).then(() => {
       this.waitingForParser = false
       this._performSpellCheck(view)
     })
@@ -179,30 +262,55 @@ export class SpellChecker {
   }
 
   spellCheckAsap(view: EditorView) {
+    if (this.destroyed) {
+      debugConsole.warn(
+        'spellCheckAsap called after spellchecker was destroyed. Ignoring.'
+      )
+      return
+    }
     this._asyncSpellCheck(view, 0)
   }
 
   scheduleSpellCheck(view: EditorView) {
+    if (this.destroyed) {
+      debugConsole.warn(
+        'scheduleSpellCheck called after spellchecker was destroyed. Ignoring.'
+      )
+      return
+    }
     this._asyncSpellCheck(view, 1000)
   }
 
   getWordsToCheck(view: EditorView) {
-    const lang = this.language
-    const ignoredWords = view.state.field(ignoredWordsField)
-    _log('- ignored words', ignoredWords)
-    if (!this.lineTracker) {
-      this.lineTracker = new LineTracker(view.state.doc)
+    const wordsToCheck: Word[] = []
+
+    const { from, to } = view.viewport
+    const changedLineNumbers = new Set<number>()
+    if (!this.trackedChanges.empty) {
+      this.trackedChanges.iterChangedRanges((_fromA, _toA, fromB, toB) => {
+        if (fromB <= to && toB >= from) {
+          const fromLine = view.state.doc.lineAt(fromB).number
+          const toLine = view.state.doc.lineAt(toB).number
+          for (let i = fromLine; i <= toLine; i++) {
+            changedLineNumbers.add(i)
+          }
+        }
+      })
+    } else {
+      const fromLine = view.state.doc.lineAt(from).number
+      const toLine = view.state.doc.lineAt(to).number
+      for (let i = fromLine; i <= toLine; i++) {
+        changedLineNumbers.add(i)
+      }
     }
-    let wordsToCheck: Word[] = []
-    for (const line of viewportLinesToCheck(
-      this.lineTracker,
-      this.firstCheck,
-      view
-    )) {
-      wordsToCheck = wordsToCheck.concat(
-        getWordsFromLine(view, line, ignoredWords, lang)
+
+    for (const i of changedLineNumbers) {
+      const line = view.state.doc.line(i)
+      wordsToCheck.push(
+        ...getWordsFromLine(view, line, this.language, this.segmenter)
       )
     }
+
     return wordsToCheck
   }
 }
@@ -213,7 +321,6 @@ export class Word {
   public to: number
   public lineNumber: number
   public lang: string
-  public suggestions?: WordCacheValue
 
   constructor(options: {
     text: string
@@ -243,144 +350,75 @@ export class Word {
 export const buildSpellCheckResult = (
   knownMisspelledWords: Word[],
   unknownWords: Word[],
-  misspellings: { index: number; suggestions: string[] }[]
+  misspellings: { index: number }[]
 ) => {
-  const cacheAdditions: [Word, string[] | boolean][] = []
+  const cacheAdditions: [Word, boolean][] = []
+
   // Put known misspellings into cache
   const misspelledWords = misspellings.map(item => {
-    const word = { ...unknownWords[item.index] }
-    word.suggestions = item.suggestions
-    if (word.suggestions) {
-      cacheAdditions.push([word, word.suggestions])
+    const word = {
+      ...unknownWords[item.index],
     }
+    cacheAdditions.push([word, false])
     return word
   })
+
+  const misspelledWordsSet = new Set<string>(
+    misspelledWords.map(word => word.text)
+  )
+
   // if word was not misspelled, put it in the cache
   for (const word of unknownWords) {
-    if (!misspelledWords.find(mw => mw.text === word.text)) {
+    if (!misspelledWordsSet.has(word.text)) {
       cacheAdditions.push([word, true])
     }
   }
-  const finalMisspellings = misspelledWords.concat(knownMisspelledWords)
-  _log('- result')
-  _log(
-    '  - finalMisspellings',
-    finalMisspellings.map(w => w.text)
-  )
-  _log(
-    '  - cacheAdditions',
-    cacheAdditions.map(([w, v]) => `'${w.text}'=>${v}`)
-  )
+
   return {
     cacheAdditions,
-    misspelledWords: finalMisspellings,
+    misspelledWords: misspelledWords.concat(knownMisspelledWords),
   }
 }
 
-export const compileEffects = (results: {
-  cacheAdditions: [Word, string[] | boolean][]
-  misspelledWords: Word[]
-}) => {
-  const { cacheAdditions, misspelledWords } = results
-  return [
-    addMisspelledWords.of(misspelledWords),
-    ...cacheAdditions.map(([word, value]) => {
-      return addWordToCache.of({
-        lang: word.lang,
-        wordText: word.text,
-        value,
-      })
-    }),
-  ]
-}
-
-const viewportRangeToCheck = (firstCheck: boolean, view: EditorView) => {
-  const doc = view.state.doc
-  let { from, to } = view.viewport
-  let firstLineNumber = doc.lineAt(from).number
-  let lastLineNumber = doc.lineAt(to).number
-
-  /*
-   * On first check, we scan the viewport plus some padding on either side.
-   * Then on subsequent checks we just scan the viewport
-   */
-  if (firstCheck) {
-    const visibleLineCount = lastLineNumber - firstLineNumber + 1
-    const padding = Math.floor(visibleLineCount * 2)
-    firstLineNumber = Math.max(firstLineNumber - padding, 1)
-    lastLineNumber = Math.min(lastLineNumber + padding, doc.lines)
-    from = doc.line(firstLineNumber).from
-    to = doc.line(lastLineNumber).to
-  }
-
-  return { from, to, firstLineNumber, lastLineNumber }
-}
-
-export const viewportLinesToCheck = (
-  lineTracker: LineTracker,
-  firstCheck: boolean,
-  view: EditorView
-) => {
-  const { firstLineNumber, lastLineNumber } = viewportRangeToCheck(
-    firstCheck,
-    view
-  )
-  _log('- viewport lines', firstLineNumber, lastLineNumber)
-  const lines = []
-  for (
-    let lineNumber = firstLineNumber;
-    lineNumber <= lastLineNumber;
-    lineNumber++
-  ) {
-    if (!lineTracker.lineHasChanged(lineNumber)) {
-      continue
-    }
-    lines.push(view.state.doc.line(lineNumber))
-  }
-  _log(
-    '- lines to check',
-    lines.map(l => l.number)
-  )
-  return lines
-}
-
-export const getWordsFromLine = (
+export function* getWordsFromLine(
   view: EditorView,
   line: Line,
-  ignoredWords: IgnoredWords,
-  lang: string
-): Word[] => {
-  const lineNumber = line.number
-  const normalTextSpans: Array<NormalTextSpan> = getNormalTextSpansFromLine(
-    view,
-    line
-  )
-  const words: Word[] = []
-  let regexResult
-  normalTextSpans.forEach(span => {
-    WORD_REGEX.lastIndex = 0 // reset global stateful regexp for this usage
-    while ((regexResult = WORD_REGEX.exec(span.text))) {
-      let word = regexResult[0]
-      if (word.startsWith("'")) {
-        word = word.slice(1)
-      }
-      if (word.endsWith("'")) {
-        word = word.slice(0, -1)
-      }
-      if (!ignoredWords.has(word)) {
-        words.push(
-          new Word({
+  lang: string,
+  segmenter?: Intl.Segmenter
+) {
+  for (const span of getNormalTextSpansFromLine(view, line)) {
+    if (segmenter) {
+      for (const value of segmenter.segment(span.text)) {
+        if (value.isWordLike) {
+          const word = value.segment
+          const from = span.from + value.index
+          yield new Word({
             text: word,
-            from: span.from + regexResult.index,
-            to: span.from + regexResult.index + word.length,
-            lineNumber,
+            from,
+            to: from + word.length,
+            lineNumber: line.number,
             lang,
           })
-        )
+        }
+      }
+    } else {
+      for (const match of span.text.matchAll(WORD_REGEX)) {
+        let word = match[0].replace(/'+$/, '')
+        let from = span.from + match.index
+        while (word.startsWith("'")) {
+          word = word.slice(1)
+          from++
+        }
+        yield new Word({
+          text: word,
+          from,
+          to: from + word.length,
+          lineNumber: line.number,
+          lang,
+        })
       }
     }
-  })
-  return words
+  }
 }
 
 export type Mark = Range<RangeValue & { spec: { word: Word } }>

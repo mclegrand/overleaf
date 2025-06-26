@@ -1,3 +1,8 @@
+import {
+  SubscriptionState,
+  PaymentProvider,
+} from '../../subscription/dashboard/subscription'
+
 type SubscriptionBase = {
   featuresPageURL: string
 }
@@ -8,6 +13,10 @@ export type FreePlanSubscription = {
 
 type FreeSubscription = FreePlanSubscription
 
+type RecurlyStatus = {
+  state: SubscriptionState
+}
+
 type PaidSubscriptionBase = {
   plan: {
     name: string
@@ -15,6 +24,8 @@ type PaidSubscriptionBase = {
   subscription: {
     teamName?: string
     name: string
+    recurlyStatus?: RecurlyStatus
+    paymentProvider?: PaymentProvider
   }
 } & SubscriptionBase
 
@@ -37,4 +48,11 @@ type PaidSubscription =
   | GroupPlanSubscription
   | CommonsPlanSubscription
 
-export type Subscription = FreeSubscription | PaidSubscription
+export type StandaloneAiAddOnSubscription = {
+  type: 'standalone-ai-add-on'
+}
+
+export type Subscription =
+  | FreeSubscription
+  | PaidSubscription
+  | StandaloneAiAddOnSubscription

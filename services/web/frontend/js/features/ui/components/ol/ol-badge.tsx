@@ -1,40 +1,17 @@
-import { Label } from 'react-bootstrap'
 import Badge from '@/features/ui/components/bootstrap-5/badge'
-import BS3Badge from '@/shared/components/badge'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
 
-type OLBadgeProps = React.ComponentProps<typeof Badge> & {
-  bs3Props?: {
-    bsStyle?: React.ComponentProps<typeof Label>['bsStyle'] | null
-  }
-}
+function OLBadge(props: React.ComponentProps<typeof Badge>) {
+  let { bg, text, ...rest } = props
 
-function OLBadge(props: OLBadgeProps) {
-  const { bs3Props, ...rest } = props
-
-  let bs3BadgeProps: React.ComponentProps<typeof BS3Badge> = {
-    prepend: rest.prepend,
-    children: rest.children,
-    className: rest.className,
-    bsStyle: rest.bg,
+  // For warning badges, use a light background by default. We still want the
+  // Bootstrap warning colour to be dark for text though, so make an
+  // adjustment here
+  if (bg === 'warning') {
+    bg = 'warning-light-bg'
+    text = 'warning'
   }
 
-  if (bs3Props) {
-    const { bsStyle, ...restBs3Props } = bs3Props
-
-    bs3BadgeProps = {
-      ...bs3BadgeProps,
-      ...restBs3Props,
-      bsStyle: 'bsStyle' in bs3Props ? bsStyle : rest.bg,
-    }
-  }
-
-  return (
-    <BootstrapVersionSwitcher
-      bs3={<BS3Badge {...bs3BadgeProps} />}
-      bs5={<Badge {...rest} />}
-    />
-  )
+  return <Badge bg={bg} text={text} {...rest} />
 }
 
 export default OLBadge

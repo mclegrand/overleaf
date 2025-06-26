@@ -1,18 +1,25 @@
 import { UserId } from '../../../../../types/user'
 import { PublicAccessLevel } from '../../../../../types/public-access-level'
-import type * as ReviewPanel from '@/features/source-editor/context/review-panel/types/review-panel-state'
+import { ProjectSnapshot } from '@/infrastructure/project-snapshot'
+import { Tag } from '../../../../../app/src/Features/Tags/types'
 
 export type ProjectContextMember = {
   _id: UserId
-  privileges: 'readOnly' | 'readAndWrite'
+  privileges: 'readOnly' | 'readAndWrite' | 'review'
   email: string
+  first_name: string
+  last_name: string
+  pendingEditor?: boolean
+  pendingReviewer?: boolean
 }
 
 export type ProjectContextValue = {
   _id: string
   name: string
   rootDocId?: string
+  mainBibliographyDocId?: string
   compiler: string
+  imageName: string
   members: ProjectContextMember[]
   invites: ProjectContextMember[]
   features: {
@@ -32,13 +39,17 @@ export type ProjectContextValue = {
   owner: {
     _id: UserId
     email: string
+    first_name: string
+    last_name: string
+    privileges: string
+    signUpDate: string
   }
-  tags: {
-    _id: string
-    name: string
-    color?: string
-  }[]
-  trackChangesState: ReviewPanel.Value<'trackChangesState'>
+  tags: Tag[]
+  // TODO: Remove __guests__ and boolean options when we have converted
+  // all projects to the current format.
+  trackChangesState: boolean | Record<UserId | '__guests__', boolean>
+  projectSnapshot: ProjectSnapshot
+  joinedOnce: boolean
 }
 
 export type ProjectContextUpdateValue = Partial<ProjectContextValue>

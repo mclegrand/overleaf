@@ -9,10 +9,11 @@ import getMeta from '../../../../utils/meta'
 import { InsertFigureDropdown } from './insert-figure-dropdown'
 import { useTranslation } from 'react-i18next'
 import { MathDropdown } from './math-dropdown'
-import { TableInserterDropdown } from './table-inserter-dropdown'
+import { TableDropdown } from './table-dropdown'
+import { LegacyTableDropdown } from './table-inserter-dropdown-legacy'
 import { withinFormattingCommand } from '@/features/source-editor/utils/tree-operations/formatting'
-
-const isMac = /Mac/.test(window.navigator?.platform)
+import { isSplitTestEnabled } from '@/utils/splitTestUtils'
+import { isMac } from '@/shared/utils/os'
 
 export const ToolbarItems: FC<{
   state: EditorState
@@ -28,16 +29,22 @@ export const ToolbarItems: FC<{
   listDepth,
 }) {
   const { t } = useTranslation()
-  const { toggleSymbolPalette, showSymbolPalette } = useEditorContext()
+  const { toggleSymbolPalette, showSymbolPalette, writefullInstance } =
+    useEditorContext()
   const isActive = withinFormattingCommand(state)
 
   const symbolPaletteAvailable = getMeta('ol-symbolPaletteAvailable')
   const showGroup = (group: string) => !overflowed || overflowed.has(group)
 
+  const wfRebrandEnabled = isSplitTestEnabled('overleaf-assist-bundle')
+
   return (
     <>
       {showGroup('group-history') && (
-        <div className="ol-cm-toolbar-button-group">
+        <div
+          className="ol-cm-toolbar-button-group"
+          aria-label={t('toolbar_undo_redo_actions')}
+        >
           <ToolbarButton
             id="toolbar-undo"
             label={t('toolbar_undo')}
@@ -49,7 +56,7 @@ export const ToolbarItems: FC<{
             id="toolbar-redo"
             label={t('toolbar_redo')}
             command={redo}
-            icon="repeat"
+            icon="redo"
             shortcut={isMac ? '⇧⌘Z' : 'Ctrl+Y'}
           />
         </div>
@@ -60,18 +67,22 @@ export const ToolbarItems: FC<{
             <div
               className="ol-cm-toolbar-button-group"
               data-overflow="group-section"
+              aria-label={t('toolbar_text_formatting')}
             >
               <SectionHeadingDropdown />
             </div>
           )}
           {showGroup('group-format') && (
-            <div className="ol-cm-toolbar-button-group">
+            <div
+              className="ol-cm-toolbar-button-group"
+              aria-label={t('toolbar_text_style')}
+            >
               <ToolbarButton
                 id="toolbar-format-bold"
                 label={t('toolbar_format_bold')}
                 command={commands.toggleBold}
                 active={isActive('\\textbf')}
-                icon="bold"
+                icon="format_bold"
                 shortcut={isMac ? '⌘B' : 'Ctrl+B'}
               />
               <ToolbarButton
@@ -79,7 +90,7 @@ export const ToolbarItems: FC<{
                 label={t('toolbar_format_italic')}
                 command={commands.toggleItalic}
                 active={isActive('\\textit')}
-                icon="italic"
+                icon="format_italic"
                 shortcut={isMac ? '⌘I' : 'Ctrl+I'}
               />
             </div>
@@ -88,6 +99,7 @@ export const ToolbarItems: FC<{
             <div
               className="ol-cm-toolbar-button-group"
               data-overflow="group-math"
+              aria-label={t('toolbar_insert_math_and_symbols')}
             >
               <MathDropdown />
               {symbolPaletteAvailable && (
@@ -107,51 +119,64 @@ export const ToolbarItems: FC<{
             <div
               className="ol-cm-toolbar-button-group"
               data-overflow="group-misc"
+              aria-label={t('toolbar_insert_misc')}
             >
               <ToolbarButton
                 id="toolbar-href"
                 label={t('toolbar_insert_link')}
                 command={commands.wrapInHref}
-                icon="link"
+                icon="add_link"
+              />
+              <ToolbarButton
+                id="toolbar-add-comment"
+                label={t('add_comment')}
+                disabled={state.selection.main.empty}
+                command={commands.addComment}
+                icon="add_comment"
               />
               <ToolbarButton
                 id="toolbar-ref"
                 label={t('toolbar_insert_cross_reference')}
                 command={commands.insertRef}
-                icon="tag"
+                icon="sell"
               />
               <ToolbarButton
                 id="toolbar-cite"
                 label={t('toolbar_insert_citation')}
                 command={commands.insertCite}
-                icon="book"
+                icon="book_5"
               />
               <InsertFigureDropdown />
-              <TableInserterDropdown />
+              {wfRebrandEnabled && writefullInstance ? (
+                <TableDropdown />
+              ) : (
+                <LegacyTableDropdown />
+              )}
             </div>
           )}
           {showGroup('group-list') && (
             <div
               className="ol-cm-toolbar-button-group"
               data-overflow="group-list"
+              aria-label={t('toolbar_list_indentation')}
             >
               <ToolbarButton
                 id="toolbar-bullet-list"
                 label={t('toolbar_bullet_list')}
                 command={commands.toggleBulletList}
-                icon="list-ul"
+                icon="format_list_bulleted"
               />
               <ToolbarButton
                 id="toolbar-numbered-list"
                 label={t('toolbar_numbered_list')}
                 command={commands.toggleNumberedList}
-                icon="list-ol"
+                icon="format_list_numbered"
               />
               <ToolbarButton
                 id="toolbar-format-indent-decrease"
                 label={t('toolbar_decrease_indent')}
                 command={commands.indentDecrease}
-                icon="outdent"
+                icon="format_indent_decrease"
                 shortcut={visual ? (isMac ? '⌘[' : 'Ctrl+[') : undefined}
                 disabled={listDepth < 2}
               />
@@ -159,7 +184,7 @@ export const ToolbarItems: FC<{
                 id="toolbar-format-indent-increase"
                 label={t('toolbar_increase_indent')}
                 command={commands.indentIncrease}
-                icon="indent"
+                icon="format_indent_increase"
                 shortcut={visual ? (isMac ? '⌘]' : 'Ctrl+]') : undefined}
                 disabled={listDepth < 1}
               />

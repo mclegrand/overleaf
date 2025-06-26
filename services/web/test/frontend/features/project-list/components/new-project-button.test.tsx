@@ -7,7 +7,7 @@ import getMeta from '@/utils/meta'
 
 describe('<NewProjectButton />', function () {
   beforeEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   describe('for every user (affiliated and non-affiliated)', function () {
@@ -15,7 +15,7 @@ describe('<NewProjectButton />', function () {
       Object.assign(getMeta('ol-ExposedSettings'), {
         templateLinks: [
           {
-            name: 'Academic Journal',
+            name: 'Journal articles',
             url: '/gallery/tagged/academic-journal',
           },
           {
@@ -28,47 +28,47 @@ describe('<NewProjectButton />', function () {
       renderWithProjectListContext(<NewProjectButton id="test" />)
 
       const newProjectButton = screen.getByRole('button', {
-        name: 'New Project',
+        name: 'New project',
       })
       fireEvent.click(newProjectButton)
     })
 
     it('shows the correct dropdown menu', function () {
       // static menu
-      screen.getByText('Blank Project')
-      screen.getByText('Example Project')
-      screen.getByText('Upload Project')
+      screen.getByText('Blank project')
+      screen.getByText('Example project')
+      screen.getByText('Upload project')
       screen.getByText('Import from GitHub')
 
       // static text
       screen.getByText('Templates')
 
       // dynamic menu based on templateLinks
-      screen.getByText('Academic Journal')
+      screen.getByText('Journal articles')
       screen.getByText('View All')
     })
 
-    it('open new project modal when clicking at Blank Project', function () {
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Blank Project' }))
+    it('open new project modal when clicking at Blank project', function () {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Blank project' }))
 
       screen.getByPlaceholderText('Project Name')
     })
 
-    it('open new project modal when clicking at Example Project', function () {
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Example Project' }))
+    it('open new project modal when clicking at Example project', function () {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Example project' }))
 
       screen.getByPlaceholderText('Project Name')
     })
 
     it('close the new project modal when clicking at the top right "x" button', function () {
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Blank Project' }))
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Blank project' }))
       fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
       expect(screen.queryByRole('dialog')).to.be.null
     })
 
     it('close the new project modal when clicking at the Cancel button', function () {
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Blank Project' }))
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Blank project' }))
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
       expect(screen.queryByRole('dialog')).to.be.null
@@ -80,7 +80,7 @@ describe('<NewProjectButton />', function () {
       Object.assign(getMeta('ol-ExposedSettings'), {
         templateLinks: [
           {
-            name: 'Academic Journal',
+            name: 'Journal articles',
             url: '/gallery/tagged/academic-journal',
           },
           {
@@ -102,14 +102,14 @@ describe('<NewProjectButton />', function () {
       renderWithProjectListContext(<NewProjectButton id="test" />)
 
       const newProjectButton = screen.getByRole('button', {
-        name: 'New Project',
+        name: 'New project',
       })
 
       fireEvent.click(newProjectButton)
       // static menu
-      screen.getByText('Blank Project')
-      screen.getByText('Example Project')
-      screen.getByText('Upload Project')
+      screen.getByText('Blank project')
+      screen.getByText('Example project')
+      screen.getByText('Upload project')
       screen.getByText('Import from GitHub')
 
       // static text for institution templates
@@ -117,7 +117,7 @@ describe('<NewProjectButton />', function () {
 
       // dynamic menu based on portalTemplates
       const affiliationTemplate = screen.getByRole('menuitem', {
-        name: 'Affiliation 1',
+        name: 'Affiliation 1 Template',
       })
       expect(affiliationTemplate.getAttribute('href')).to.equal(
         '/edu/test-new-template#templates'
@@ -127,7 +127,7 @@ describe('<NewProjectButton />', function () {
       screen.getByText('Templates')
 
       // dynamic menu based on templateLinks
-      screen.getByText('Academic Journal')
+      screen.getByText('Journal articles')
       screen.getByText('View All')
     })
   })

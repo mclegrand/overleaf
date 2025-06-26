@@ -7,7 +7,7 @@ const Change = require('./change')
 const Snapshot = require('./snapshot')
 
 /**
- * @typedef {import("./types").BlobStore} BlobStore
+ * @import { BlobStore, ReadonlyBlobStore } from "./types"
  */
 
 class History {
@@ -85,7 +85,7 @@ class History {
    * If this History contains any File objects, load them.
    *
    * @param {string} kind see {File#load}
-   * @param {BlobStore} blobStore
+   * @param {ReadonlyBlobStore} blobStore
    * @return {Promise<void>}
    */
   async loadFiles(kind, blobStore) {
@@ -109,7 +109,7 @@ class History {
    * @param {BlobStore} blobStore
    * @param {number} [concurrency] applies separately to files, changes and
    *                               operations
-   * @return {Promise.<Object>}
+   * @return {Promise<import('overleaf-editor-core/lib/types').RawHistory>}
    */
   async store(blobStore, concurrency) {
     assert.maybe.number(concurrency, 'bad concurrency')

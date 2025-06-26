@@ -1,43 +1,44 @@
-import NewProjectButton from '../../js/features/project-list/components/new-project-button'
-import { ProjectListProvider } from '../../js/features/project-list/context/project-list-context'
+import NewProjectButton from '@/features/project-list/components/new-project-button'
+import { ProjectListProvider } from '@/features/project-list/context/project-list-context'
 import useFetchMock from '../hooks/use-fetch-mock'
 import getMeta from '@/utils/meta'
+import { SplitTestProvider } from '@/shared/context/split-test-context'
 
 const templateLinks = [
   {
-    name: 'Academic Journal',
+    name: 'Journal articles',
     url: '/gallery/tagged/academic-journal',
   },
   {
-    name: 'Book',
+    name: 'Books',
     url: '/gallery/tagged/book',
   },
   {
-    name: 'Formal Letter',
+    name: 'Formal letters',
     url: '/gallery/tagged/formal-letter',
   },
   {
-    name: 'Homework Assignment',
+    name: 'Assignments',
     url: '/gallery/tagged/homework',
   },
   {
-    name: 'Poster',
+    name: 'Posters',
     url: '/gallery/tagged/poster',
   },
   {
-    name: 'Presentation',
+    name: 'Presentations',
     url: '/gallery/tagged/presentation',
   },
   {
-    name: 'Project / Lab Report',
+    name: 'Reports',
     url: '/gallery/tagged/report',
   },
   {
-    name: 'Résumé / CV ',
+    name: 'CVs and résumés',
     url: '/gallery/tagged/cv',
   },
   {
-    name: 'Thesis',
+    name: 'Theses',
     url: '/gallery/tagged/thesis',
   },
   {
@@ -66,7 +67,9 @@ export const Success = () => {
 
   return (
     <ProjectListProvider>
-      <NewProjectButton id="new-project-button-story" />
+      <SplitTestProvider>
+        <NewProjectButton id="new-project-button-story" />
+      </SplitTestProvider>
     </ProjectListProvider>
   )
 }
@@ -91,12 +94,14 @@ export const Error = () => {
 
   return (
     <ProjectListProvider>
-      <NewProjectButton id="new-project-button-story" />
+      <SplitTestProvider>
+        <NewProjectButton id="new-project-button-story" />
+      </SplitTestProvider>
     </ProjectListProvider>
   )
 }
 
 export default {
-  title: 'Project List / New Project Button',
+  title: 'Project List / New project Button',
   component: NewProjectButton,
 }

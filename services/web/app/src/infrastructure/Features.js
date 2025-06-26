@@ -19,6 +19,8 @@ const trackChangesModuleAvailable =
  * @property {boolean | undefined} enableGithubSync
  * @property {boolean | undefined} enableGitBridge
  * @property {boolean | undefined} enableHomepage
+ * @property {boolean | undefined} enableProjectHistoryBlobs
+ * @property {boolean | undefined} disableFilestore
  * @property {boolean | undefined} enableSaml
  * @property {boolean | undefined} ldap
  * @property {boolean | undefined} oauth
@@ -58,6 +60,8 @@ const Features = {
         )
       case 'registration':
         return Boolean(Settings.overleaf)
+      case 'chat':
+        return Boolean(Settings.disableChat) === false
       case 'github-sync':
         return Boolean(Settings.enableGithubSync)
       case 'git-bridge':
@@ -69,8 +73,6 @@ const Features = {
       case 'affiliations':
       case 'analytics':
         return Boolean(_.get(Settings, ['apis', 'v1', 'url']))
-      case 'overleaf-integration':
-        return Boolean(Settings.overleaf)
       case 'references':
         return Boolean(_.get(Settings, ['apis', 'references', 'url']))
       case 'saml':
@@ -86,6 +88,10 @@ const Features = {
           _.get(Settings, ['apis', 'linkedUrlProxy', 'url']) &&
             Settings.enabledLinkedFileTypes.includes('url')
         )
+      case 'project-history-blobs':
+        return Boolean(Settings.enableProjectHistoryBlobs)
+      case 'filestore':
+        return Boolean(Settings.disableFilestore) === false
       case 'support':
         return supportModuleAvailable
       case 'symbol-palette':

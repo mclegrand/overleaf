@@ -1,78 +1,50 @@
-import { useRef, useEffect, ReactNode } from 'react'
-import { Dropdown } from 'react-bootstrap'
-import DropdownToggleWithTooltip from '../../../../../shared/components/dropdown/dropdown-toggle-with-tooltip'
-import DropdownMenuWithRef from '../../../../../shared/components/dropdown/dropdown-menu-with-ref'
+import React, { ReactNode } from 'react'
+import {
+  Dropdown,
+  DropdownMenu,
+  DropdownToggle,
+} from '@/features/ui/components/bootstrap-5/dropdown-menu'
+import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
 
-type DropdownMenuProps = {
+type ActionDropdownProps = {
   id: string
   children: React.ReactNode
-  parentSelector?: string
   isOpened: boolean
   iconTag: ReactNode
-  toolTipDescription: string
+  tooltipDescription: string
   setIsOpened: (isOpened: boolean) => void
 }
 
-function ActionsDropdown({
-  id,
-  children,
-  parentSelector,
-  isOpened,
-  iconTag,
-  setIsOpened,
-  toolTipDescription,
-}: DropdownMenuProps) {
-  const menuRef = useRef<HTMLElement>()
-
-  // handle the placement of the dropdown above or below the toggle button
-  useEffect(() => {
-    if (menuRef.current && parentSelector) {
-      const parent = menuRef.current.closest(parentSelector)
-
-      if (!parent) {
-        return
-      }
-
-      const parentBottom = parent.getBoundingClientRect().bottom
-      const { top, height } = menuRef.current.getBoundingClientRect()
-
-      if (top + height > parentBottom) {
-        menuRef.current.style.bottom = '100%'
-        menuRef.current.style.top = 'auto'
-      } else {
-        menuRef.current.style.bottom = 'auto'
-        menuRef.current.style.top = '100%'
-      }
-    }
-  })
-
+function ActionsDropdown(props: ActionDropdownProps) {
+  const { id, children, isOpened, iconTag, setIsOpened, tooltipDescription } =
+    props
   return (
     <Dropdown
-      id={`history-version-dropdown-${id}`}
-      pullRight
-      open={isOpened}
+      align="end"
+      className="float-end"
+      show={isOpened}
       onToggle={open => setIsOpened(open)}
-      className="pull-right"
     >
-      <DropdownToggleWithTooltip
-        bsRole="toggle"
-        className="history-version-dropdown-menu-btn"
-        isOpened={isOpened}
-        tooltipProps={{
-          id,
-          description: toolTipDescription,
-          overlayProps: { placement: 'bottom', trigger: ['hover'] },
-        }}
+      <OLTooltip
+        id={`history-version-dropdown-${id}`}
+        description={tooltipDescription}
+        overlayProps={{ placement: 'bottom' }}
+        hidden={isOpened}
       >
-        {iconTag}
-      </DropdownToggleWithTooltip>
-      <DropdownMenuWithRef
-        bsRole="menu"
-        className="history-version-dropdown-menu"
-        menuRef={menuRef}
-      >
+        {/* OverlayTrigger won't fire unless the child is a non-react html element (e.g div, span) */}
+        <span>
+          <DropdownToggle
+            id={`history-version-dropdown-toggle-${id}`}
+            className="history-version-dropdown-menu-btn"
+            as="button"
+          >
+            {iconTag}
+          </DropdownToggle>
+        </span>
+      </OLTooltip>
+      <DropdownMenu className="history-version-dropdown-menu">
         {children}
-      </DropdownMenuWithRef>
+      </DropdownMenu>
     </Dropdown>
   )
 }

@@ -5,7 +5,6 @@ import { useSSOContext, SSOSubscription } from '../context/sso-context'
 import { SSOLinkingWidget } from './linking/sso-widget'
 import getMeta from '../../../utils/meta'
 import { useBroadcastUser } from '@/shared/hooks/user-channel/use-broadcast-user'
-import { useFeatureFlag } from '@/shared/context/split-test-context'
 import OLNotification from '@/features/ui/components/ol/ol-notification'
 
 const availableIntegrationLinkingWidgets = importOverleafModules(
@@ -23,6 +22,7 @@ function LinkingSection() {
   const { t } = useTranslation()
   const { subscriptions } = useSSOContext()
   const ssoErrorMessage = getMeta('ol-ssoErrorMessage')
+  const cannotUseAi = getMeta('ol-cannot-use-ai')
   const projectSyncSuccessMessage = getMeta('ol-projectSyncSuccessMessage')
 
   // hide linking widgets in CI
@@ -44,27 +44,13 @@ function LinkingSection() {
   const renderSyncSection =
     getMeta('ol-isSaas') || getMeta('ol-gitBridgeEnabled')
 
-  const showPersonalAccessTokenComponents =
-    getMeta('ol-showPersonalAccessToken') ||
-    getMeta('ol-optionalPersonalAccessToken')
+  const allIntegrationLinkingWidgets = integrationLinkingWidgets.concat(
+    oauth2ServerComponents
+  )
 
-  const allIntegrationLinkingWidgets = showPersonalAccessTokenComponents
-    ? integrationLinkingWidgets.concat(oauth2ServerComponents)
-    : integrationLinkingWidgets
-
-  // currently the only thing that is in the langFeedback section is writefull,
-  // which is behind a split test. we should hide this section if the user is not in the split test
-  // todo: remove split test check, and split test context after gradual rollout is complete
-  const hasWritefullOauthPromotion = useFeatureFlag('writefull-oauth-promotion')
-
-  // even if they arent in the split test, if they have it enabled let them toggle it off
-  const user = getMeta('ol-user')
-  const shouldLoadWritefull =
-    (hasWritefullOauthPromotion || user.writefull?.enabled === true) &&
-    !window.writefull // check if the writefull extension is installed, in which case we dont handle the integration
-
+  // since we only have Writefull here currently, we should hide the whole section if they cant use ai
   const haslangFeedbackLinkingWidgets =
-    langFeedbackLinkingWidgets.length && shouldLoadWritefull
+    langFeedbackLinkingWidgets.length && !cannotUseAi
   const hasIntegrationLinkingSection =
     renderSyncSection && allIntegrationLinkingWidgets.length
   const hasReferencesLinkingSection = referenceLinkingWidgets.length
@@ -104,9 +90,7 @@ function LinkingSection() {
       <p className="small">{t('linked_accounts_explained')}</p>
       {haslangFeedbackLinkingWidgets ? (
         <>
-          <h3 id="language-feedback" className="text-capitalize">
-            {t('language_feedback')}
-          </h3>
+          <h3 id="language-feedback">{t('ai_features')}</h3>
           <div className="settings-widgets-container">
             {langFeedbackLinkingWidgets.map(
               ({ import: { default: widget }, path }, widgetIndex) => (
@@ -122,9 +106,7 @@ function LinkingSection() {
       ) : null}
       {hasIntegrationLinkingSection ? (
         <>
-          <h3 id="project-sync" className="text-capitalize">
-            {t('project_synchronisation')}
-          </h3>
+          <h3 id="project-sync">{t('project_synchronisation')}</h3>
           {projectSyncSuccessMessage ? (
             <OLNotification
               type="success"
@@ -133,7 +115,7 @@ function LinkingSection() {
           ) : null}
           <div className="settings-widgets-container">
             {allIntegrationLinkingWidgets.map(
-              ({ import: importObject, path }, widgetIndex) => (
+              ({ import: importObject }, widgetIndex) => (
                 <ModuleLinkingWidget
                   key={Object.keys(importObject)[0]}
                   ModuleComponent={Object.values(importObject)[0]}
@@ -148,12 +130,10 @@ function LinkingSection() {
       ) : null}
       {hasReferencesLinkingSection ? (
         <>
-          <h3 id="references" className="text-capitalize">
-            {t('reference_managers')}
-          </h3>
+          <h3 id="references">{t('reference_managers')}</h3>
           <div className="settings-widgets-container">
             {referenceLinkingWidgets.map(
-              ({ import: importObject, path }, widgetIndex) => (
+              ({ import: importObject }, widgetIndex) => (
                 <ModuleLinkingWidget
                   key={Object.keys(importObject)[0]}
                   ModuleComponent={Object.values(importObject)[0]}
@@ -166,9 +146,7 @@ function LinkingSection() {
       ) : null}
       {hasSSOLinkingSection ? (
         <>
-          <h3 id="linked-accounts" className="text-capitalize">
-            {t('linked_accounts')}
-          </h3>
+          <h3 id="linked-accounts">{t('linked_accounts')}</h3>
           {ssoErrorMessage ? (
             <OLNotification
               type="error"

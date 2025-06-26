@@ -5,6 +5,9 @@ const settings = require('@overleaf/settings')
 // backward-compatible (can be instantiated with string as argument instead
 // of object)
 class BackwardCompatibleError extends OError {
+  /**
+   * @param {string | { message: string, info?: Object }} messageOrOptions
+   */
   constructor(messageOrOptions) {
     if (typeof messageOrOptions === 'string') {
       super(messageOrOptions)
@@ -38,9 +41,13 @@ class ServiceNotConfiguredError extends BackwardCompatibleError {}
 
 class TooManyRequestsError extends BackwardCompatibleError {}
 
+class ResourceGoneError extends BackwardCompatibleError {}
+
 class DuplicateNameError extends OError {}
 
 class InvalidNameError extends BackwardCompatibleError {}
+
+class IndeterminateInvoiceError extends OError {}
 
 class UnsupportedFileTypeError extends BackwardCompatibleError {}
 
@@ -67,6 +74,12 @@ class InvalidError extends BackwardCompatibleError {}
 class NotInV2Error extends BackwardCompatibleError {}
 
 class SLInV2Error extends BackwardCompatibleError {}
+
+class SAMLCommonsUnavailable extends OError {
+  get i18nKey() {
+    return 'saml_commons_unavailable'
+  }
+}
 
 class SAMLIdentityExistsError extends OError {
   get i18nKey() {
@@ -135,6 +148,24 @@ class SAMLMissingSignatureError extends SAMLAuthenticationError {
   }
 }
 
+class SAMLInvalidUserIdentifierError extends SAMLAuthenticationError {
+  get i18nKey() {
+    return 'saml_authentication_required_error'
+  }
+}
+
+class SAMLInvalidUserAttributeError extends SAMLAuthenticationError {
+  get i18nKey() {
+    return 'saml_authentication_required_error'
+  }
+}
+
+class SAMLMissingUserIdentifierError extends SAMLAuthenticationError {
+  get i18nKey() {
+    return 'saml_missing_user_attribute'
+  }
+}
+
 class SAMLInvalidResponseError extends SAMLAuthenticationError {}
 
 class SAMLResponseAlreadyProcessedError extends SAMLInvalidResponseError {
@@ -187,6 +218,8 @@ class SAMLSessionDataMissing extends BackwardCompatibleError {
     }
   }
 }
+
+class SAMLProviderRequesterError extends SAMLAuthenticationError {}
 
 class ThirdPartyIdentityExistsError extends BackwardCompatibleError {
   constructor(arg) {
@@ -265,6 +298,24 @@ class InvalidInstitutionalEmailError extends OError {
   }
 }
 
+class NonDeletableEntityError extends OError {
+  get i18nKey() {
+    return 'non_deletable_entity'
+  }
+}
+
+class FoundConnectedClientsError extends OError {
+  constructor(nConnectedClients) {
+    super(`found ${nConnectedClients} remaining connected clients`)
+  }
+}
+
+class ConcurrentLoadingOfDocsDetectedError extends OError {
+  constructor() {
+    super('concurrent loading of docs detected')
+  }
+}
+
 module.exports = {
   OError,
   BackwardCompatibleError,
@@ -272,6 +323,7 @@ module.exports = {
   ForbiddenError,
   ServiceNotConfiguredError,
   TooManyRequestsError,
+  ResourceGoneError,
   DuplicateNameError,
   InvalidNameError,
   UnsupportedFileTypeError,
@@ -283,10 +335,12 @@ module.exports = {
   UnconfirmedEmailError,
   EmailExistsError,
   InvalidError,
+  IndeterminateInvoiceError,
   NotInV2Error,
   OutputFileFetchFailedError,
   SAMLAssertionAudienceMismatch,
   SAMLAuthenticationRequiredError,
+  SAMLCommonsUnavailable,
   SAMLIdentityExistsError,
   SAMLAlreadyLinkedError,
   SAMLEmailNotAffiliatedError,
@@ -296,8 +350,12 @@ module.exports = {
   SAMLGroupSSOLoginIdentityMismatchError,
   SAMLGroupSSOLoginIdentityNotFoundError,
   SAMLGroupSSODisabledError,
+  SAMLInvalidUserAttributeError,
+  SAMLInvalidUserIdentifierError,
   SAMLInvalidSignatureError,
+  SAMLMissingUserIdentifierError,
   SAMLMissingSignatureError,
+  SAMLProviderRequesterError,
   SAMLInvalidResponseError,
   SAMLLoginFailureError,
   SAMLEmailNotRecognizedError,
@@ -315,4 +373,7 @@ module.exports = {
   AffiliationError,
   InvalidEmailError,
   InvalidInstitutionalEmailError,
+  NonDeletableEntityError,
+  FoundConnectedClientsError,
+  ConcurrentLoadingOfDocsDetectedError,
 }

@@ -1,7 +1,7 @@
 // Metrics must be initialized before importing anything else
 require('@overleaf/metrics/initialize')
 
-const Events = require('events')
+const Events = require('node:events')
 const Metrics = require('@overleaf/metrics')
 const Settings = require('@overleaf/settings')
 const logger = require('@overleaf/logger')
@@ -50,6 +50,14 @@ app.param('doc_id', function (req, res, next, docId) {
 app.get('/project/:project_id/doc-deleted', HttpController.getAllDeletedDocs)
 app.get('/project/:project_id/doc', HttpController.getAllDocs)
 app.get('/project/:project_id/ranges', HttpController.getAllRanges)
+app.get(
+  '/project/:project_id/comment-thread-ids',
+  HttpController.getCommentThreadIds
+)
+app.get(
+  '/project/:project_id/tracked-changes-user-ids',
+  HttpController.getTrackedChangesUserIds
+)
 app.get('/project/:project_id/has-ranges', HttpController.projectHasRanges)
 app.get('/project/:project_id/doc/:doc_id', HttpController.getDoc)
 app.get('/project/:project_id/doc/:doc_id/deleted', HttpController.isDocDeleted)
@@ -88,14 +96,17 @@ app.get('/status', (req, res) => res.send('docstore is alive'))
 
 app.use(handleValidationErrors())
 app.use(function (error, req, res, next) {
-  logger.error({ err: error, req }, 'request errored')
   if (error instanceof Errors.NotFoundError) {
+    logger.warn({ req }, 'not found')
     res.sendStatus(404)
   } else if (error instanceof Errors.DocModifiedError) {
+    logger.warn({ req }, 'conflict: doc modified')
     res.sendStatus(409)
   } else if (error instanceof Errors.DocVersionDecrementedError) {
+    logger.warn({ req }, 'conflict: doc version decremented')
     res.sendStatus(409)
   } else {
+    logger.error({ err: error, req }, 'request errored')
     res.status(500).send('Oops, something went wrong')
   }
 })

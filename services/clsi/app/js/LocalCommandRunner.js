@@ -12,8 +12,8 @@
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
 let CommandRunner
-const { spawn } = require('child_process')
-const { promisify } = require('util')
+const { spawn } = require('node:child_process')
+const { promisify } = require('node:util')
 const _ = require('lodash')
 const logger = require('@overleaf/logger')
 
@@ -98,6 +98,10 @@ module.exports = CommandRunner = {
       return callback(err)
     }
     return callback()
+  },
+
+  canRunSyncTeXInOutputDir() {
+    return true
   },
 }
 

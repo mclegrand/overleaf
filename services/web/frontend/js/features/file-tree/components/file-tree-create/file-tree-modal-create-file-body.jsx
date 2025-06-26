@@ -35,11 +35,11 @@ export default function FileTreeModalCreateFileBody() {
     <table>
       <tbody>
         <tr>
-          <td className="modal-new-file--list">
+          <td className="modal-new-file-list">
             <ul className="list-unstyled">
               <FileTreeModalCreateFileMode
                 mode="doc"
-                icon="file"
+                icon="description"
                 label={t('new_file')}
               />
 
@@ -53,7 +53,7 @@ export default function FileTreeModalCreateFileBody() {
                 hasLinkedProjectOutputFileFeature) && (
                 <FileTreeModalCreateFileMode
                   mode="project"
-                  icon="folder-open"
+                  icon="folder_open"
                   label={t('from_another_project')}
                 />
               )}
@@ -75,7 +75,7 @@ export default function FileTreeModalCreateFileBody() {
           </td>
 
           <td
-            className={`modal-new-file--body modal-new-file--body-${newFileCreateMode}`}
+            className={`modal-new-file-body modal-new-file-body-${newFileCreateMode}`}
           >
             {newFileCreateMode === 'doc' && (
               <FileTreeCreateNameProvider initialName="name.tex">

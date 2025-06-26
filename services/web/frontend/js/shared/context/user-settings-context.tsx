@@ -9,8 +9,11 @@ import {
   useEffect,
 } from 'react'
 
-import { UserSettings } from '../../../../types/user-settings'
+import { UserSettings, Keybindings } from '../../../../types/user-settings'
 import getMeta from '@/utils/meta'
+import useScopeValue from '@/shared/hooks/use-scope-value'
+import { userStyles } from '../utils/styles'
+import { canUseNewEditor } from '@/features/ide-redesign/utils/new-editor-utils'
 
 const defaultSettings: UserSettings = {
   pdfViewer: 'pdfjs',
@@ -24,6 +27,9 @@ const defaultSettings: UserSettings = {
   fontFamily: 'monaco',
   lineHeight: 'normal',
   mathPreview: true,
+  referencesSearchMode: 'advanced',
+  enableNewEditor: true,
+  breadcrumbs: true,
 }
 
 type UserSettingsContextValue = {
@@ -33,14 +39,39 @@ type UserSettingsContextValue = {
   >
 }
 
+type ScopeSettings = {
+  overallTheme: 'light' | 'dark'
+  keybindings: Keybindings
+  fontSize: number
+  fontFamily: string
+  lineHeight: number
+  isNewEditor: boolean
+}
+
 export const UserSettingsContext = createContext<
   UserSettingsContextValue | undefined
 >(undefined)
 
-export const UserSettingsProvider: FC = ({ children }) => {
-  const [userSettings, setUserSettings] = useState<
-    UserSettingsContextValue['userSettings']
-  >(() => getMeta('ol-userSettings') || defaultSettings)
+export const UserSettingsProvider: FC<React.PropsWithChildren> = ({
+  children,
+}) => {
+  const [userSettings, setUserSettings] = useState<UserSettings>(
+    () => getMeta('ol-userSettings') || defaultSettings
+  )
+
+  // update the global scope 'settings' value, for extensions
+  const [, setScopeSettings] = useScopeValue<ScopeSettings>('settings')
+  useEffect(() => {
+    const { fontFamily, lineHeight } = userStyles(userSettings)
+    setScopeSettings({
+      overallTheme: userSettings.overallTheme === 'light-' ? 'light' : 'dark',
+      keybindings: userSettings.mode === 'none' ? 'default' : userSettings.mode,
+      fontFamily,
+      lineHeight,
+      fontSize: userSettings.fontSize,
+      isNewEditor: canUseNewEditor() && userSettings.enableNewEditor,
+    })
+  }, [setScopeSettings, userSettings])
 
   const value = useMemo<UserSettingsContextValue>(
     () => ({
@@ -49,13 +80,6 @@ export const UserSettingsProvider: FC = ({ children }) => {
     }),
     [userSettings, setUserSettings]
   )
-
-  // Fire an event to inform non-React code of settings changes
-  useEffect(() => {
-    window.dispatchEvent(
-      new CustomEvent('settings:change', { detail: userSettings })
-    )
-  }, [userSettings])
 
   return (
     <UserSettingsContext.Provider value={value}>

@@ -4,20 +4,26 @@ import { enablePdfCaching } from './pdf-caching-flags'
 import { debugConsole } from '@/utils/debugging'
 import { dirname, findEntityByPath } from '@/features/file-tree/util/path'
 import '@/utils/readable-stream-async-iterator-polyfill'
+import { EDITOR_SESSION_ID } from '@/features/pdf-preview/util/metrics'
 
 // Warnings that may disappear after a second LaTeX pass
 const TRANSIENT_WARNING_REGEX = /^(Reference|Citation).+undefined on input line/
 
 const MAX_LOG_SIZE = 1024 * 1024 // 1MB
+const MAX_BIB_LOG_SIZE_PER_FILE = MAX_LOG_SIZE
 
 export function handleOutputFiles(outputFiles, projectId, data) {
   const outputFile = outputFiles.get('output.pdf')
   if (!outputFile) return null
 
+  outputFile.editorId = outputFile.editorId || EDITOR_SESSION_ID
+  outputFile.clsiCacheShard = data.clsiCacheShard || 'cache'
+
   // build the URL for viewing the PDF in the preview UI
-  const params = new URLSearchParams({
-    compileGroup: data.compileGroup,
-  })
+  const params = new URLSearchParams()
+  if (data.compileGroup) {
+    params.set('compileGroup', data.compileGroup)
+  }
 
   if (data.clsiServerId) {
     params.set('clsiserverid', data.clsiServerId)
@@ -33,10 +39,14 @@ export function handleOutputFiles(outputFiles, projectId, data) {
     data.pdfDownloadDomain
   )}?${params}`
 
-  // build the URL for downloading the PDF
-  params.set('popupDownload', 'true') // save PDF download as file
+  if (data.fromCache) {
+    outputFile.pdfDownloadUrl = outputFile.downloadURL
+  } else {
+    // build the URL for downloading the PDF
+    params.set('popupDownload', 'true') // save PDF download as file
 
-  outputFile.pdfDownloadUrl = `/download/project/${projectId}/build/${outputFile.build}/output/output.pdf?${params}`
+    outputFile.pdfDownloadUrl = `/download/project/${projectId}/build/${outputFile.build}/output/output.pdf?${params}`
+  }
 
   return outputFile
 }
@@ -77,31 +87,11 @@ export const handleLogFiles = async (outputFiles, data, signal) => {
   const logFile = outputFiles.get('output.log')
 
   if (logFile) {
-    try {
-      const logFileAbortController = new AbortController()
-
-      // abort fetching the log file if the main signal is aborted
-      signal.addEventListener('abort', () => {
-        logFileAbortController.abort()
-      })
-
-      const response = await fetch(buildURL(logFile, data.pdfDownloadDomain), {
-        signal: logFileAbortController.signal,
-      })
-
-      result.log = ''
-
-      const reader = response.body.pipeThrough(new TextDecoderStream())
-      for await (const chunk of reader) {
-        result.log += chunk
-        if (result.log.length > MAX_LOG_SIZE) {
-          logFileAbortController.abort()
-        }
-      }
-    } catch (e) {
-      debugConsole.warn(e) // ignore failure to fetch the log file, but log a warning
-    }
-
+    result.log = await fetchFileWithSizeLimit(
+      buildURL(logFile, data.pdfDownloadDomain),
+      signal,
+      MAX_LOG_SIZE
+    )
     try {
       let { errors, warnings, typesetting } = HumanReadableLogs.parse(
         result.log,
@@ -129,23 +119,18 @@ export const handleLogFiles = async (outputFiles, data, signal) => {
     }
   }
   for (const blgFile of blgFiles) {
+    const log = await fetchFileWithSizeLimit(
+      buildURL(blgFile, data.pdfDownloadDomain),
+      signal,
+      MAX_BIB_LOG_SIZE_PER_FILE
+    )
     try {
-      const response = await fetch(buildURL(blgFile, data.pdfDownloadDomain), {
-        signal,
-      })
-
-      const log = await response.text()
-
-      try {
-        const { errors, warnings } = new BibLogParser(log, {
-          maxErrors: 100,
-        }).parse()
-        accumulateResults({ errors, warnings }, 'BibTeX:')
-      } catch (e) {
-        // BibLog parsing errors are ignored
-      }
+      const { errors, warnings } = new BibLogParser(log, {
+        maxErrors: 100,
+      }).parse()
+      accumulateResults({ errors, warnings }, 'BibTeX:')
     } catch (e) {
-      debugConsole.warn(e) // ignore failure to fetch/parse the log file, but log a warning
+      // BibLog parsing errors are ignored
     }
   }
 
@@ -183,6 +168,7 @@ export function buildLogEntryAnnotations(entries, fileTreeData, rootDocId) {
           text: entry.message,
           source: 'compile', // NOTE: this is used in Ace for filtering the annotations
           ruleId: entry.ruleId,
+          command: entry.command,
         }
 
         // set firstOnLine for the first non-typesetting annotation on a line
@@ -258,4 +244,34 @@ function normalizeFilePath(path, rootDocDirname) {
 
 function isTransientWarning(warning) {
   return TRANSIENT_WARNING_REGEX.test(warning.message)
+}
+
+async function fetchFileWithSizeLimit(url, signal, maxSize) {
+  let result = ''
+  try {
+    const abortController = new AbortController()
+    // abort fetching the log file if the main signal is aborted
+    signal.addEventListener('abort', () => {
+      abortController.abort()
+    })
+
+    const response = await fetch(url, {
+      signal: abortController.signal,
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch log file')
+    }
+
+    const reader = response.body.pipeThrough(new TextDecoderStream())
+    for await (const chunk of reader) {
+      result += chunk
+      if (result.length > maxSize) {
+        abortController.abort()
+      }
+    }
+  } catch (e) {
+    debugConsole.warn(e) // ignore failure to fetch the log file, but log a warning
+  }
+  return result
 }

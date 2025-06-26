@@ -1,11 +1,10 @@
 import { memo, useCallback } from 'react'
 import { EditorView } from '@codemirror/view'
-import { useCodeMirrorViewContext } from '../codemirror-editor'
-import { Button } from 'react-bootstrap'
+import { useCodeMirrorViewContext } from '../codemirror-context'
 import classnames from 'classnames'
-import Tooltip from '../../../../shared/components/tooltip'
 import { emitToolbarEvent } from '../../extensions/toolbar/utils/analytics'
-import Icon from '../../../../shared/components/icon'
+import MaterialIcon from '@/shared/components/material-icon'
+import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
 
 export const ToolbarButton = memo<{
   id: string
@@ -32,12 +31,12 @@ export const ToolbarButton = memo<{
 }) {
   const view = useCodeMirrorViewContext()
 
-  const handleMouseDown = useCallback(event => {
+  const handleMouseDown = useCallback((event: React.MouseEvent) => {
     event.preventDefault()
   }, [])
 
   const handleClick = useCallback(
-    event => {
+    (event: React.MouseEvent) => {
       emitToolbarEvent(view, id)
       if (command) {
         event.preventDefault()
@@ -49,18 +48,23 @@ export const ToolbarButton = memo<{
   )
 
   const button = (
-    <Button
-      className={classnames('ol-cm-toolbar-button', className, { hidden })}
+    <button
+      className={classnames('ol-cm-toolbar-button', className, {
+        active,
+        hidden,
+      })}
       aria-label={label}
       onMouseDown={handleMouseDown}
       onClick={!disabled ? handleClick : undefined}
-      bsStyle={null}
-      active={active}
       aria-disabled={disabled}
       type="button"
     >
-      {textIcon ? icon : <Icon type={icon} fw accessibilityLabel={label} />}
-    </Button>
+      {textIcon ? (
+        icon
+      ) : (
+        <MaterialIcon type={icon} accessibilityLabel={label} />
+      )}
+    </button>
   )
 
   if (!label) {
@@ -75,12 +79,12 @@ export const ToolbarButton = memo<{
   )
 
   return (
-    <Tooltip
+    <OLTooltip
       id={id}
       description={description}
       overlayProps={{ placement: 'bottom' }}
     >
       {button}
-    </Tooltip>
+    </OLTooltip>
   )
 })

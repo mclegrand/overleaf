@@ -1,0 +1,36 @@
+import { useTranslation } from 'react-i18next'
+import OLIconButton from '@/features/ui/components/ol/ol-icon-button'
+import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
+import { useLayoutContext } from '@/shared/context/layout-context'
+import { useCallback } from 'react'
+import { useEditorAnalytics } from '@/shared/hooks/use-editor-analytics'
+
+export default function ShowHistoryButton() {
+  const { t } = useTranslation()
+  const { view, setView } = useLayoutContext()
+  const { sendEvent } = useEditorAnalytics()
+
+  const toggleHistoryOpen = useCallback(() => {
+    const action = view === 'history' ? 'close' : 'open'
+    sendEvent('navigation-clicked-history', { action })
+
+    setView(view === 'history' ? 'editor' : 'history')
+  }, [view, setView, sendEvent])
+
+  return (
+    <div className="ide-redesign-toolbar-button-container">
+      <OLTooltip
+        id="tooltip-open-history"
+        description={t('history')}
+        overlayProps={{ delay: 0, placement: 'bottom' }}
+      >
+        <OLIconButton
+          icon="history"
+          className="ide-redesign-toolbar-button-subdued ide-redesign-toolbar-button-icon"
+          onClick={toggleHistoryOpen}
+          accessibilityLabel={t('history')}
+        />
+      </OLTooltip>
+    </div>
+  )
+}

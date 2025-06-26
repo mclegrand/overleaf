@@ -13,7 +13,6 @@ import javax.servlet.*;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import org.apache.commons.codec.binary.Base64;
-import uk.ac.ic.wlgitbridge.application.config.Oauth2;
 import uk.ac.ic.wlgitbridge.bridge.snapshot.SnapshotApi;
 import uk.ac.ic.wlgitbridge.util.Instance;
 import uk.ac.ic.wlgitbridge.util.Log;
@@ -28,13 +27,13 @@ public class Oauth2Filter implements Filter {
 
   private final SnapshotApi snapshotApi;
 
-  private final Oauth2 oauth2;
+  private final String oauth2Server;
 
   private final boolean isUserPasswordEnabled;
 
-  public Oauth2Filter(SnapshotApi snapshotApi, Oauth2 oauth2, boolean isUserPasswordEnabled) {
+  public Oauth2Filter(SnapshotApi snapshotApi, String oauth2Server, boolean isUserPasswordEnabled) {
     this.snapshotApi = snapshotApi;
-    this.oauth2 = oauth2;
+    this.oauth2Server = oauth2Server;
     this.isUserPasswordEnabled = isUserPasswordEnabled;
   }
 
@@ -46,10 +45,15 @@ public class Oauth2Filter implements Filter {
    *
    * So, for projects that need auth, we return 401. Git will swallow this
    * and prompt the user for user/pass, and then make a brand new request.
+   *
    * @param servletRequest
+   *
    * @param servletResponse
+   *
    * @param filterChain
+   *
    * @throws IOException
+   *
    * @throws ServletException
    */
   @Override
@@ -103,7 +107,7 @@ public class Oauth2Filter implements Filter {
       // fail later (for example, in the unlikely event that the token
       // expired between the two requests). In that case, JGit will
       // return a 401 without a custom error message.
-      int statusCode = checkAccessToken(oauth2, password, getClientIp(request));
+      int statusCode = checkAccessToken(this.oauth2Server, password, getClientIp(request));
       if (statusCode == 429) {
         handleRateLimit(projectId, username, request, response);
         return;
@@ -116,21 +120,9 @@ public class Oauth2Filter implements Filter {
       }
       cred.setAccessToken(password);
     } else if (this.isUserPasswordEnabled) {
-      String accessToken = null;
-      try {
-        accessToken = doPasswordGrantFlow(username, password, getClientIp(request));
-      } catch (TokenResponseException e) {
-        int statusCode = e.getStatusCode();
-        if (statusCode == 429) {
-          handleRateLimit(projectId, username, request, response);
-        } else if (statusCode == 400 || statusCode == 401) {
-          handleNeedAuthorization(projectId, username, request, response);
-        } else {
-          handleUnknownOauthServerError(projectId, statusCode, request, response);
-        }
-        return;
-      }
-      cred.setAccessToken(accessToken);
+      // password auth has been deprecated for git-bridge
+      handlePasswordAuthenticationDeprecation(projectId, username, request, response);
+      return;
     } else {
       handleNeedAuthorization(projectId, username, request, response);
       return;
@@ -245,10 +237,9 @@ public class Oauth2Filter implements Filter {
             "your Overleaf Account Settings."));
   }
 
-  private int checkAccessToken(Oauth2 oauth2, String accessToken, String clientIp)
+  private int checkAccessToken(String oauth2Server, String accessToken, String clientIp)
       throws IOException {
-    GenericUrl url =
-        new GenericUrl(oauth2.getOauth2Server() + "/oauth/token/info?client_ip=" + clientIp);
+    GenericUrl url = new GenericUrl(oauth2Server + "/oauth/token/info?client_ip=" + clientIp);
     HttpRequest request = Instance.httpRequestFactory.buildGetRequest(url);
     HttpHeaders headers = new HttpHeaders();
     headers.setAuthorization("Bearer " + accessToken);
@@ -269,6 +260,27 @@ public class Oauth2Filter implements Filter {
         statusCode,
         getClientIp(request));
     sendResponse(response, 500, Arrays.asList("Unexpected server error. Please try again later."));
+  }
+
+  private void handlePasswordAuthenticationDeprecation(
+      String projectId, String username, HttpServletRequest request, HttpServletResponse response)
+      throws IOException {
+    if (username.contains("@")) {
+      Log.info("[{}] Password authentication deprecated, ip={}", projectId, getClientIp(request));
+      sendResponse(
+          response,
+          403,
+          Arrays.asList(
+              "Overleaf now only supports Git authentication tokens to access git. See: https://www.overleaf.com/learn/how-to/Git_integration_authentication_tokens"));
+    } else {
+      Log.info("[{}] Wrong git URL format, ip={}", projectId, getClientIp(request));
+      sendResponse(
+          response,
+          403,
+          Arrays.asList(
+              "Overleaf now only supports Git authentication tokens to access git. See: https://www.overleaf.com/learn/how-to/Git_integration_authentication_tokens",
+              "Please make sure your Git URL is correctly formatted. For example: https://git@git.overleaf.com/<YOUR_PROJECT_ID> or https://git:<AUTHENTICATION_TOKEN>@git.overleaf.com/<YOUR_PROJECT_ID>"));
+    }
   }
 
   /*
@@ -316,25 +328,5 @@ public class Oauth2Filter implements Filter {
     String username = split[0];
     String password = split[1];
     return new BasicAuthCredentials(username, password);
-  }
-
-  /*
-   * Perform a password grant flow with the OAuth server and return an access token.
-   *
-   * The access token is null if the password grant flow was unsuccessful.
-   */
-  private String doPasswordGrantFlow(String username, String password, String clientIp)
-      throws IOException {
-    return new PasswordTokenRequest(
-            Instance.httpTransport,
-            Instance.jsonFactory,
-            new GenericUrl(oauth2.getOauth2Server() + "/oauth/token?client_ip=" + clientIp),
-            username,
-            password)
-        .setClientAuthentication(
-            new ClientParametersAuthentication(
-                oauth2.getOauth2ClientID(), oauth2.getOauth2ClientSecret()))
-        .execute()
-        .getAccessToken();
   }
 }

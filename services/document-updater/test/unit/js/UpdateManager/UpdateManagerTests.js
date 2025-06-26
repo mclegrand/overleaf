@@ -1,5 +1,4 @@
-// @ts-check
-
+const { createHash } = require('node:crypto')
 const sinon = require('sinon')
 const { expect } = require('chai')
 const SandboxedModule = require('sandboxed-module')
@@ -332,6 +331,7 @@ describe('UpdateManager', function () {
         pathname: this.pathname,
         projectHistoryId: this.projectHistoryId,
         historyRangesSupport: false,
+        type: 'sharejs-text-ot',
       })
       this.RangesManager.applyUpdate.returns({
         newRanges: this.updated_ranges,
@@ -399,7 +399,9 @@ describe('UpdateManager', function () {
           this.historyUpdates,
           this.pathname,
           this.projectHistoryId,
-          this.lines
+          this.lines,
+          this.ranges,
+          this.updatedDocLines
         )
       })
 
@@ -501,6 +503,7 @@ describe('UpdateManager', function () {
           pathname: this.pathname,
           projectHistoryId: this.projectHistoryId,
           historyRangesSupport: true,
+          type: 'sharejs-text-ot',
         })
         await this.UpdateManager.promises.applyUpdate(
           this.project_id,
@@ -526,6 +529,7 @@ describe('UpdateManager', function () {
   describe('_adjustHistoryUpdatesMetadata', function () {
     beforeEach(function () {
       this.lines = ['some', 'test', 'data']
+      this.updatedDocLines = ['after', 'updates']
       this.historyUpdates = [
         {
           v: 42,
@@ -570,6 +574,7 @@ describe('UpdateManager', function () {
         this.pathname,
         this.projectHistoryId,
         this.lines,
+        this.updatedDocLines,
         this.ranges,
         false
       )
@@ -632,6 +637,7 @@ describe('UpdateManager', function () {
         this.projectHistoryId,
         this.lines,
         this.ranges,
+        this.updatedDocLines,
         true
       )
       this.historyUpdates.should.deep.equal([
@@ -685,6 +691,7 @@ describe('UpdateManager', function () {
           meta: {
             pathname: this.pathname,
             doc_length: 21, // 23 - 'so'
+            doc_hash: stringHash(this.updatedDocLines.join('\n')),
             history_doc_length: 28, // 30 - 'so'
           },
         },
@@ -699,6 +706,7 @@ describe('UpdateManager', function () {
         this.projectHistoryId,
         [],
         {},
+        ['foobar'],
         false
       )
       this.historyUpdates.should.deep.equal([
@@ -822,3 +830,9 @@ describe('UpdateManager', function () {
     })
   })
 })
+
+function stringHash(s) {
+  const hash = createHash('sha1')
+  hash.update(s)
+  return hash.digest('hex')
+}

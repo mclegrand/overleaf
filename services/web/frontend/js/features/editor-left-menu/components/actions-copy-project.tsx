@@ -28,13 +28,7 @@ export default function ActionsCopyProject() {
 
   return (
     <>
-      <LeftMenuButton
-        onClick={handleShowModal}
-        icon={{
-          type: 'copy',
-          fw: true,
-        }}
-      >
+      <LeftMenuButton onClick={handleShowModal} icon="file_copy">
         {t('copy_project')}
       </LeftMenuButton>
       <EditorCloneProjectModalWrapper

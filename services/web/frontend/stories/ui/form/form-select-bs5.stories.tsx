@@ -1,14 +1,11 @@
-import { Form, FormSelectProps } from 'react-bootstrap-5'
+import { Form, FormSelectProps } from 'react-bootstrap'
 import type { Meta, StoryObj } from '@storybook/react'
 import FormGroup from '@/features/ui/components/bootstrap-5/form/form-group'
 import FormText from '@/features/ui/components/bootstrap-5/form/form-text'
 
 const meta: Meta<FormSelectProps> = {
-  title: 'Shared / Components / Bootstrap 5 / Form / Select',
+  title: 'Shared / Components / Form / Select',
   component: Form.Select,
-  parameters: {
-    bootstrap5: true,
-  },
 }
 export default meta
 
@@ -70,7 +67,7 @@ export const Info: Story = {
             <option value="2">Two</option>
             <option value="3">Three</option>
           </Form.Select>
-          <FormText isInfo>Info</FormText>
+          <FormText type="info">Info</FormText>
         </FormGroup>
         <hr />
         <FormGroup controlId="id-2">
@@ -81,7 +78,7 @@ export const Info: Story = {
             <option value="2">Two</option>
             <option value="3">Three</option>
           </Form.Select>
-          <FormText isInfo>Info</FormText>
+          <FormText type="info">Info</FormText>
         </FormGroup>
         <hr />
         <FormGroup controlId="id-3">
@@ -92,7 +89,7 @@ export const Info: Story = {
             <option value="2">Two</option>
             <option value="3">Three</option>
           </Form.Select>
-          <FormText isInfo>Info</FormText>
+          <FormText type="info">Info</FormText>
         </FormGroup>
       </>
     )
@@ -111,7 +108,7 @@ export const Error: Story = {
             <option value="2">Two</option>
             <option value="3">Three</option>
           </Form.Select>
-          <FormText isError>Error</FormText>
+          <FormText type="error">Error</FormText>
         </FormGroup>
         <hr />
         <FormGroup controlId="id-2">
@@ -122,7 +119,7 @@ export const Error: Story = {
             <option value="2">Two</option>
             <option value="3">Three</option>
           </Form.Select>
-          <FormText isError>Error</FormText>
+          <FormText type="error">Error</FormText>
         </FormGroup>
         <hr />
         <FormGroup controlId="id-3">
@@ -133,7 +130,7 @@ export const Error: Story = {
             <option value="2">Two</option>
             <option value="3">Three</option>
           </Form.Select>
-          <FormText isError>Error</FormText>
+          <FormText type="error">Error</FormText>
         </FormGroup>
       </>
     )
@@ -152,7 +149,7 @@ export const Warning: Story = {
             <option value="2">Two</option>
             <option value="3">Three</option>
           </Form.Select>
-          <FormText isWarning>Warning</FormText>
+          <FormText type="warning">Warning</FormText>
         </FormGroup>
         <hr />
         <FormGroup controlId="id-2">
@@ -163,7 +160,7 @@ export const Warning: Story = {
             <option value="2">Two</option>
             <option value="3">Three</option>
           </Form.Select>
-          <FormText isWarning>Warning</FormText>
+          <FormText type="warning">Warning</FormText>
         </FormGroup>
         <hr />
         <FormGroup controlId="id-3">
@@ -174,7 +171,7 @@ export const Warning: Story = {
             <option value="2">Two</option>
             <option value="3">Three</option>
           </Form.Select>
-          <FormText isWarning>Warning</FormText>
+          <FormText type="warning">Warning</FormText>
         </FormGroup>
       </>
     )
@@ -193,7 +190,7 @@ export const Success: Story = {
             <option value="2">Two</option>
             <option value="3">Three</option>
           </Form.Select>
-          <FormText isSuccess>Success</FormText>
+          <FormText type="success">Success</FormText>
         </FormGroup>
         <hr />
         <FormGroup controlId="id-2">
@@ -204,7 +201,7 @@ export const Success: Story = {
             <option value="2">Two</option>
             <option value="3">Three</option>
           </Form.Select>
-          <FormText isSuccess>Success</FormText>
+          <FormText type="success">Success</FormText>
         </FormGroup>
         <hr />
         <FormGroup controlId="id-3">
@@ -215,7 +212,7 @@ export const Success: Story = {
             <option value="2">Two</option>
             <option value="3">Three</option>
           </Form.Select>
-          <FormText isSuccess>Success</FormText>
+          <FormText type="success">Success</FormText>
         </FormGroup>
       </>
     )

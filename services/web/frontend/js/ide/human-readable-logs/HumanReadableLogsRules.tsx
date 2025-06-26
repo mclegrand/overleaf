@@ -16,6 +16,7 @@ interface Rule {
     details?: [string]
   ) => string | [string, JSX.Element]
   package?: string
+  highlightCommand?: (contentDetails: string[]) => string | undefined
 }
 
 const rules: Rule[] = [
@@ -77,6 +78,9 @@ const rules: Rule[] = [
         ]
       }
       return currentTitle
+    },
+    highlightCommand(contentDetails) {
+      return contentDetails[0]
     },
   },
   {
@@ -279,6 +283,11 @@ const errors: Rule[] = [
   {
     ruleId: 'hint_cannot_be_used_in_preamble',
     regexToMatch: /^LaTeX error: Cannot be used in preamble/,
+    package: 'LaTeX',
+  },
+  {
+    ruleId: 'hint_unicode_character',
+    regexToMatch: /^LaTeX Error: Unicode character /,
     package: 'LaTeX',
   },
   {

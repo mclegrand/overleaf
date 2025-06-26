@@ -44,8 +44,9 @@
   .navbar-nav {
     > li {
       display: inline-flex;
+      flex-shrink: 0;
 
-      > a,
+      > .nav-link,
       > .dropdown-toggle {
         display: block;
         color: var(--navbar-link-color);
@@ -69,7 +70,7 @@
         }
       }
 
-      &.subdued > a,
+      &.subdued > .nav-link,
       &.subdued > .dropdown-toggle {
         border: 0;
         color: var(--navbar-subdued-color);
@@ -83,10 +84,25 @@
           background-color: var(--navbar-subdued-hover-bg);
         }
       }
+
+      &.primary > .nav-link {
+        color: var(--navbar-primary-color);
+        background-color: var(--navbar-primary-bg);
+        border-color: var(--navbar-primary-border-color);
+
+        &.show,
+        &:hover,
+        &:focus {
+          background-color: var(--navbar-primary-hover-bg);
+          border-color: var(--navbar-primary-hover-border-color);
+        }
+      }
     }
   }
 
   .navbar-toggler {
+    --bs-navbar-toggler-padding-x: var(--spacing-04);
+
     color: var(--navbar-link-color);
     border-radius: var(--border-radius-base);
     border-width: 0;
@@ -96,6 +112,12 @@
       color: var(--navbar-toggler-expanded-color);
       background-color: var(--navbar-toggler-expanded-bg);
       transition: 0.2s ease-in;
+    }
+
+    & .material-symbols {
+      font-size: inherit;
+      font-weight: bold;
+      vertical-align: middle;
     }
   }
 
@@ -127,9 +149,11 @@
         display: block;
 
         > a,
-        > .dropdown-toggle {
+        > .dropdown-toggle,
+        > .nav-link {
           margin: 0;
-          padding: var(--spacing-05) var(--navbar-padding-h);
+          padding-top: var(--spacing-05);
+          padding-bottom: var(--spacing-05);
           width: 100%;
           text-align: left;
           border-radius: 0;
@@ -188,7 +212,8 @@
   }
 }
 
-.website-redesign-navbar {
+.website-redesign-navbar,
+.website-redesign .navbar-default {
   --navbar-title-color: var(--content-primary);
   --navbar-title-color-hover: var(--content-secondary);
   --navbar-brand-image-url: url('../../../../public/img/ol-brand/overleaf-black.svg');

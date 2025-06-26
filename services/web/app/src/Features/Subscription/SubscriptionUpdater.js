@@ -10,7 +10,40 @@ const { DeletedSubscription } = require('../../models/DeletedSubscription')
 const logger = require('@overleaf/logger')
 const Features = require('../../infrastructure/Features')
 const UserAuditLogHandler = require('../User/UserAuditLogHandler')
+const UserUpdater = require('../User/UserUpdater')
+const AccountMappingHelper = require('../Analytics/AccountMappingHelper')
 const { SSOConfig } = require('../../models/SSOConfig')
+const mongoose = require('../../infrastructure/Mongoose')
+const Modules = require('../../infrastructure/Modules')
+
+/**
+ * @typedef {import('../../../../types/subscription/dashboard/subscription').Subscription} Subscription
+ * @typedef {import('../../../../types/subscription/dashboard/subscription').PaymentProvider} PaymentProvider
+ * @typedef {import('../../../../types/group-management/group-audit-log').GroupAuditLog} GroupAuditLog
+ * @import { AddOn } from '../../../../types/subscription/plan'
+ */
+
+/**
+ *
+ * @param {GroupAuditLog} auditLog
+ */
+async function subscriptionUpdateWithAuditLog(dbFilter, dbUpdate, auditLog) {
+  const session = await mongoose.startSession()
+
+  try {
+    await session.withTransaction(async () => {
+      await Subscription.updateOne(dbFilter, dbUpdate, { session }).exec()
+
+      await Modules.promises.hooks.fire(
+        'addGroupAuditLogEntry',
+        auditLog,
+        session
+      )
+    })
+  } finally {
+    await session.endSession()
+  }
+}
 
 /**
  * Change the admin of the given subscription.
@@ -50,7 +83,7 @@ async function syncSubscription(
   let subscription =
     await SubscriptionLocator.promises.getUsersSubscription(adminUserId)
   if (subscription == null) {
-    subscription = await _createNewSubscription(adminUserId)
+    subscription = await createNewSubscription(adminUserId)
   }
   await updateSubscriptionFromRecurly(
     recurlySubscription,
@@ -59,7 +92,7 @@ async function syncSubscription(
   )
 }
 
-async function addUserToGroup(subscriptionId, userId) {
+async function addUserToGroup(subscriptionId, userId, auditLog) {
   await UserAuditLogHandler.promises.addEntry(
     userId,
     'join-group-subscription',
@@ -67,10 +100,18 @@ async function addUserToGroup(subscriptionId, userId) {
     undefined,
     { subscriptionId }
   )
-  await Subscription.updateOne(
+
+  await subscriptionUpdateWithAuditLog(
     { _id: subscriptionId },
-    { $addToSet: { member_ids: userId } }
-  ).exec()
+    { $addToSet: { member_ids: userId } },
+    {
+      initiatorId: auditLog?.initiatorId,
+      ipAddress: auditLog?.ipAddress,
+      groupId: subscriptionId,
+      operation: 'join-group',
+    }
+  )
+
   await FeaturesUpdater.promises.refreshFeatures(userId, 'add-to-group')
   await _sendUserGroupPlanCodeUserProperty(userId)
   await _sendSubscriptionEvent(
@@ -80,7 +121,7 @@ async function addUserToGroup(subscriptionId, userId) {
   )
 }
 
-async function removeUserFromGroup(subscriptionId, userId) {
+async function removeUserFromGroup(subscriptionId, userId, auditLog) {
   await UserAuditLogHandler.promises.addEntry(
     userId,
     'leave-group-subscription',
@@ -88,10 +129,37 @@ async function removeUserFromGroup(subscriptionId, userId) {
     undefined,
     { subscriptionId }
   )
+
+  await subscriptionUpdateWithAuditLog(
+    { _id: subscriptionId },
+    { $pull: { member_ids: userId } },
+    {
+      initiatorId: auditLog?.initiatorId,
+      ipAddress: auditLog?.ipAddress,
+      groupId: subscriptionId,
+      operation: 'leave-group',
+      info: { userIdRemoved: userId },
+    }
+  )
+
   await Subscription.updateOne(
     { _id: subscriptionId },
     { $pull: { member_ids: userId } }
   ).exec()
+
+  const subscription = await Subscription.findById(subscriptionId)
+  if (subscription.managedUsersEnabled) {
+    await UserUpdater.promises.updateUser(
+      { _id: userId },
+      {
+        $unset: {
+          'enrollment.managedBy': 1,
+          'enrollment.enrolledAt': 1,
+        },
+      }
+    )
+  }
+
   await FeaturesUpdater.promises.refreshFeatures(
     userId,
     'remove-user-from-group'
@@ -159,7 +227,7 @@ async function deleteSubscription(subscription, deleterData) {
   await Subscription.deleteOne({ _id: subscription._id }).exec()
 
   // 4. refresh users features
-  await _scheduleRefreshFeatures(subscription)
+  await scheduleRefreshFeatures(subscription)
 }
 
 async function restoreSubscription(subscriptionId) {
@@ -200,7 +268,11 @@ async function refreshUsersFeatures(subscription) {
   }
 }
 
-async function _scheduleRefreshFeatures(subscription) {
+/**
+ *
+ * @param {Subscription} subscription
+ */
+async function scheduleRefreshFeatures(subscription) {
   const userIds = [subscription.admin_id].concat(subscription.member_ids || [])
   for (const userId of userIds) {
     await FeaturesUpdater.promises.scheduleRefreshFeatures(
@@ -225,7 +297,13 @@ async function createDeletedSubscription(subscription, deleterData) {
   await DeletedSubscription.findOneAndUpdate(filter, data, options).exec()
 }
 
-async function _createNewSubscription(adminUserId) {
+/**
+ * Creates a new subscription for the given admin user.
+ *
+ * @param {string} adminUserId
+ * @returns {Promise<Subscription>}
+ */
+async function createNewSubscription(adminUserId) {
   const subscription = new Subscription({
     admin_id: adminUserId,
     manager_ids: [adminUserId],
@@ -241,7 +319,7 @@ async function _deleteAndReplaceSubscriptionFromRecurly(
 ) {
   const adminUserId = subscription.admin_id
   await deleteSubscription(subscription, requesterData)
-  const newSubscription = await _createNewSubscription(adminUserId)
+  const newSubscription = await createNewSubscription(adminUserId)
   await updateSubscriptionFromRecurly(
     recurlySubscription,
     newSubscription,
@@ -255,38 +333,7 @@ async function updateSubscriptionFromRecurly(
   requesterData
 ) {
   if (recurlySubscription.state === 'expired') {
-    const hasManagedUsersFeature =
-      Features.hasFeature('saas') && subscription?.managedUsersEnabled
-
-    // If a payment lapses and if the group is managed or has group SSO, as a temporary measure we need to
-    // make sure that the group continues as-is and no destructive actions are taken.
-    if (hasManagedUsersFeature) {
-      logger.warn(
-        { subscriptionId: subscription._id },
-        'expired subscription has managedUsers feature enabled, skipping deletion'
-      )
-    } else {
-      let hasGroupSSOEnabled = false
-      if (subscription?.ssoConfig) {
-        const ssoConfig = await SSOConfig.findOne({
-          _id: subscription.ssoConfig._id || subscription.ssoConfig,
-        })
-          .lean()
-          .exec()
-        if (ssoConfig.enabled) {
-          hasGroupSSOEnabled = true
-        }
-      }
-
-      if (hasGroupSSOEnabled) {
-        logger.warn(
-          { subscriptionId: subscription._id },
-          'expired subscription has groupSSO feature enabled, skipping deletion'
-        )
-      } else {
-        await deleteSubscription(subscription, requesterData)
-      }
-    }
+    await handleExpiredSubscription(subscription, requesterData)
     return
   }
   const updatedPlanCode = recurlySubscription.plan.plan_code
@@ -305,8 +352,17 @@ async function updateSubscriptionFromRecurly(
     return
   }
 
+  const addOns = recurlySubscription?.subscription_add_ons?.map(addOn => {
+    return {
+      addOnCode: addOn.add_on_code,
+      quantity: addOn.quantity,
+      unitAmountInCents: addOn.unit_amount_in_cents,
+    }
+  })
+
   subscription.recurlySubscription_id = recurlySubscription.uuid
   subscription.planCode = updatedPlanCode
+  subscription.addOns = addOns || []
   subscription.recurlyStatus = {
     state: recurlySubscription.state,
     trialStartedAt: recurlySubscription.trial_started_at,
@@ -336,7 +392,17 @@ async function updateSubscriptionFromRecurly(
     }
   }
   await subscription.save()
-  await _scheduleRefreshFeatures(subscription)
+
+  const accountMapping =
+    AccountMappingHelper.generateSubscriptionToRecurlyMapping(
+      subscription._id,
+      subscription.recurlySubscription_id
+    )
+  if (accountMapping) {
+    AnalyticsManager.registerAccountMapping(accountMapping)
+  }
+
+  await scheduleRefreshFeatures(subscription)
 }
 
 async function _sendUserGroupPlanCodeUserProperty(userId) {
@@ -365,6 +431,41 @@ async function _sendUserGroupPlanCodeUserProperty(userId) {
       { err: error },
       `Failed to update group-subscription-plan-code property for user ${userId}`
     )
+  }
+}
+
+async function handleExpiredSubscription(subscription, requesterData) {
+  const hasManagedUsersFeature =
+    Features.hasFeature('saas') && subscription?.managedUsersEnabled
+
+  // If a payment lapses and if the group is managed or has group SSO, as a temporary measure we need to
+  // make sure that the group continues as-is and no destructive actions are taken.
+  if (hasManagedUsersFeature) {
+    logger.warn(
+      { subscriptionId: subscription._id },
+      'expired subscription has managedUsers feature enabled, skipping deletion'
+    )
+  } else {
+    let hasGroupSSOEnabled = false
+    if (subscription?.ssoConfig) {
+      const ssoConfig = await SSOConfig.findOne({
+        _id: subscription.ssoConfig._id || subscription.ssoConfig,
+      })
+        .lean()
+        .exec()
+      if (ssoConfig.enabled) {
+        hasGroupSSOEnabled = true
+      }
+    }
+
+    if (hasGroupSSOEnabled) {
+      logger.warn(
+        { subscriptionId: subscription._id },
+        'expired subscription has groupSSO feature enabled, skipping deletion'
+      )
+    } else {
+      await deleteSubscription(subscription, requesterData)
+    }
   }
 }
 
@@ -405,9 +506,57 @@ async function _sendSubscriptionEventForAllMembers(subscriptionId, event) {
   }
 }
 
+/**
+ * Sets the plan code and addon state to revert the plan to in case of failed upgrades, or clears the last restore point if it was used/ voided
+ * @param {ObjectId} subscriptionId the mongo ID of the subscription to set the restore point for
+ * @param {string} planCode the plan code to revert to
+ * @param {Array<AddOn>} addOns the addOns to revert to
+ * @param {Boolean} consumed whether the restore point was used to revert a subscription
+ */
+async function setRestorePoint(subscriptionId, planCode, addOns, consumed) {
+  const update = {
+    $set: {
+      'lastSuccesfulSubscription.planCode': planCode,
+      'lastSuccesfulSubscription.addOns': addOns,
+    },
+  }
+
+  if (consumed) {
+    update.$inc = { timesRevertedDueToFailedPayment: 1 }
+  }
+
+  await Subscription.updateOne({ _id: subscriptionId }, update).exec()
+}
+
+/**
+ * Clears the restore point for a given subscription, and signals that the subscription was sucessfully reverted.
+ *
+ * @async
+ * @function setSubscriptionWasReverted
+ * @param {ObjectId} subscriptionId the mongo ID of the subscription to set the restore point for
+ * @returns {Promise<void>} Resolves when the restore point has been cleared.
+ */
+async function setSubscriptionWasReverted(subscriptionId) {
+  // consume the backup and flag that the subscription was reverted due to failed payment
+  await setRestorePoint(subscriptionId, null, null, true)
+}
+
+/**
+ * Clears the restore point for a given subscription, and signals that the subscription was not reverted.
+ *
+ * @async
+ * @function voidRestorePoint
+ * @param {string} subscriptionId - The unique identifier of the subscription.
+ * @returns {Promise<void>} Resolves when the restore point has been cleared.
+ */
+async function voidRestorePoint(subscriptionId) {
+  await setRestorePoint(subscriptionId, null, null, false)
+}
+
 module.exports = {
   updateAdmin: callbackify(updateAdmin),
   syncSubscription: callbackify(syncSubscription),
+  createNewSubscription: callbackify(createNewSubscription),
   deleteSubscription: callbackify(deleteSubscription),
   createDeletedSubscription: callbackify(createDeletedSubscription),
   addUserToGroup: callbackify(addUserToGroup),
@@ -417,9 +566,14 @@ module.exports = {
   deleteWithV1Id: callbackify(deleteWithV1Id),
   restoreSubscription: callbackify(restoreSubscription),
   updateSubscriptionFromRecurly: callbackify(updateSubscriptionFromRecurly),
+  scheduleRefreshFeatures: callbackify(scheduleRefreshFeatures),
+  setSubscriptionRestorePoint: callbackify(setRestorePoint),
+  setSubscriptionWasReverted: callbackify(setSubscriptionWasReverted),
+  voidRestorePoint: callbackify(voidRestorePoint),
   promises: {
     updateAdmin,
     syncSubscription,
+    createNewSubscription,
     addUserToGroup,
     refreshUsersFeatures,
     removeUserFromGroup,
@@ -429,5 +583,10 @@ module.exports = {
     deleteWithV1Id,
     restoreSubscription,
     updateSubscriptionFromRecurly,
+    scheduleRefreshFeatures,
+    setRestorePoint,
+    setSubscriptionWasReverted,
+    voidRestorePoint,
+    handleExpiredSubscription,
   },
 }

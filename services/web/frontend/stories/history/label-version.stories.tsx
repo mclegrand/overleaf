@@ -49,17 +49,19 @@ export default {
     setActiveDropdownItem: () => {},
     closeDropdownForItem: () => {},
   },
-  argTypes: disableControlsOf(
-    'labels',
-    'version',
-    'currentUserId',
-    'projectId',
-    'setSelection',
-    'dropdownOpen',
-    'dropdownActive',
-    'setActiveDropdownItem',
-    'closeDropdownForItem'
-  ),
+  argTypes: {
+    ...disableControlsOf(
+      'labels',
+      'version',
+      'currentUserId',
+      'projectId',
+      'setSelection',
+      'dropdownOpen',
+      'dropdownActive',
+      'setActiveDropdownItem',
+      'closeDropdownForItem'
+    ),
+  },
   decorators: [
     ScopeDecorator,
     (Story: React.ComponentType) => (

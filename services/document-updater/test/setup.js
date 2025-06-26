@@ -31,8 +31,14 @@ SandboxedModule.configure({
   requires: {
     '@overleaf/logger': stubs.logger,
     'mongodb-legacy': require('mongodb-legacy'), // for ObjectId comparisons
+    'overleaf-editor-core': require('overleaf-editor-core'), // does not play nice with sandbox
   },
   globals: { Buffer, JSON, Math, console, process },
+  sourceTransformers: {
+    removeNodePrefix: function (source) {
+      return source.replace(/require\(['"]node:/g, "require('")
+    },
+  },
 })
 
 // Mocha hooks

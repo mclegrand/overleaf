@@ -1,21 +1,28 @@
 import { Trans } from 'react-i18next'
-import { RecurlySubscription } from '../../../../../../../../types/subscription/dashboard/subscription'
+import { PaidSubscription } from '../../../../../../../../types/subscription/dashboard/subscription'
 
 type SubscriptionRemainderProps = {
-  subscription: RecurlySubscription
+  subscription: PaidSubscription
+  hideTime?: boolean
 }
 
-function SubscriptionRemainder({ subscription }: SubscriptionRemainderProps) {
+function SubscriptionRemainder({
+  subscription,
+  hideTime,
+}: SubscriptionRemainderProps) {
   const stillInATrial =
-    subscription.recurly.trialEndsAtFormatted &&
-    subscription.recurly.trial_ends_at &&
-    new Date(subscription.recurly.trial_ends_at).getTime() > Date.now()
+    subscription.payment.trialEndsAtFormatted &&
+    subscription.payment.trialEndsAt &&
+    new Date(subscription.payment.trialEndsAt).getTime() > Date.now()
 
+  const terminationDate = hideTime
+    ? subscription.payment.nextPaymentDueDate
+    : subscription.payment.nextPaymentDueAt
   return stillInATrial ? (
     <Trans
       i18nKey="subscription_will_remain_active_until_end_of_trial_period_x"
       values={{
-        terminationDate: subscription.recurly.nextPaymentDueAt,
+        terminationDate,
       }}
       shouldUnescape
       tOptions={{ interpolation: { escapeValue: true } }}
@@ -28,7 +35,7 @@ function SubscriptionRemainder({ subscription }: SubscriptionRemainderProps) {
     <Trans
       i18nKey="subscription_will_remain_active_until_end_of_billing_period_x"
       values={{
-        terminationDate: subscription.recurly.nextPaymentDueAt,
+        terminationDate,
       }}
       shouldUnescape
       tOptions={{ interpolation: { escapeValue: true } }}

@@ -100,9 +100,84 @@ const importChanges = {
   ],
 }
 
+const getChanges = {
+  'x-swagger-router-controller': 'projects',
+  operationId: 'getChanges',
+  tags: ['Project'],
+  description: 'Get changes applied to a project',
+  parameters: [
+    {
+      name: 'project_id',
+      in: 'path',
+      description: 'project id',
+      required: true,
+      type: 'string',
+    },
+    {
+      name: 'since',
+      in: 'query',
+      description: 'start version',
+      required: false,
+      type: 'number',
+    },
+  ],
+  responses: {
+    200: {
+      description: 'Success',
+      schema: {
+        type: 'array',
+        items: {
+          $ref: '#/definitions/Change',
+        },
+      },
+    },
+  },
+  security: [
+    {
+      basic: [],
+    },
+  ],
+}
+
+const flushChanges = {
+  'x-swagger-router-controller': 'project_import',
+  operationId: 'flushChanges',
+  tags: ['ProjectImport'],
+  description: 'Flush project changes from buffer to the chunk store.',
+  parameters: [
+    {
+      name: 'project_id',
+      in: 'path',
+      description: 'project id',
+      required: true,
+      type: 'string',
+    },
+  ],
+  responses: {
+    200: {
+      description: 'Success',
+      schema: {
+        $ref: '#/definitions/Project',
+      },
+    },
+    404: {
+      description: 'Not Found',
+      schema: {
+        $ref: '#/definitions/Error',
+      },
+    },
+  },
+  security: [
+    {
+      basic: [],
+    },
+  ],
+}
+
 exports.paths = {
   '/projects/{project_id}/import': { post: importSnapshot },
   '/projects/{project_id}/legacy_import': { post: importSnapshot },
-  '/projects/{project_id}/changes': { post: importChanges },
+  '/projects/{project_id}/changes': { get: getChanges, post: importChanges },
   '/projects/{project_id}/legacy_changes': { post: importChanges },
+  '/projects/{project_id}/flush': { post: flushChanges },
 }

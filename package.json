@@ -3,9 +3,12 @@
   "private": true,
   "dependencies": {
     "patch-package": "^8.0.0",
+    "fs-extra": "^11.2.0",
     "simple-git": "^3.27.0"
   },
   "devDependencies": {
+    "@types/chai": "^4.3.0",
+    "@types/chai-as-promised": "^7.1.8",
     "@types/mocha": "^10.0.6",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
@@ -20,8 +23,26 @@
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-prettier": "^4.0.0",
     "eslint-plugin-promise": "^6.0.0",
+    "eslint-plugin-unicorn": "^56.0.0",
     "prettier": "3.3.3",
     "typescript": "^5.5.4"
+  },
+  "overrides": {
+    "cross-env": {
+      "cross-spawn": "^7.0.6"
+    },
+    "fetch-mock": {
+      "path-to-regexp": "3.3.0"
+    },
+    "google-gax": {
+      "protobufjs": "^7.2.5"
+    },
+    "swagger-tools": {
+      "body-parser": "1.20.3",
+      "multer": "2.0.1",
+      "path-to-regexp": "3.3.0",
+      "qs": "6.13.0"
+    }
   },
   "scripts": {
     "format": "prettier --list-different $PWD/'**/*.js'",
@@ -36,6 +57,7 @@
     "services/analytics",
     "services/chat",
     "services/clsi",
+    "services/clsi-cache",
     "services/clsi-perf",
     "services/contacts",
     "services/docstore",
@@ -50,11 +72,11 @@
     "services/project-history",
     "services/real-time",
     "services/references",
-    "services/spelling",
     "services/templates",
     "services/third-party-datastore",
     "services/third-party-references",
     "services/tpdsworker",
-    "services/web"
+    "services/web",
+    "tools/saas-e2e"
   ]
 }

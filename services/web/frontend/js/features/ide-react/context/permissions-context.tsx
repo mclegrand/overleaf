@@ -9,6 +9,7 @@ import {
 import useScopeValue from '@/shared/hooks/use-scope-value'
 import { DeepReadonly } from '../../../../../types/utils'
 import useViewerPermissions from '@/shared/hooks/use-viewer-permissions'
+import { useProjectContext } from '@/shared/context/project-context'
 
 export const PermissionsContext = createContext<Permissions | undefined>(
   undefined
@@ -17,37 +18,70 @@ export const PermissionsContext = createContext<Permissions | undefined>(
 const permissionsMap: DeepReadonly<Record<PermissionsLevel, Permissions>> = {
   readOnly: {
     read: true,
+    comment: true,
+    resolveOwnComments: false,
+    resolveAllComments: false,
+    trackedWrite: false,
     write: false,
     admin: false,
+    labelVersion: false,
+  },
+  review: {
+    read: true,
     comment: true,
+    resolveOwnComments: true,
+    resolveAllComments: false,
+    trackedWrite: true,
+    write: false,
+    admin: false,
+    labelVersion: true,
   },
   readAndWrite: {
     read: true,
+    comment: true,
+    resolveOwnComments: true,
+    resolveAllComments: true,
+    trackedWrite: true,
     write: true,
     admin: false,
-    comment: true,
+    labelVersion: true,
   },
   owner: {
     read: true,
+    comment: true,
+    resolveOwnComments: true,
+    resolveAllComments: true,
+    trackedWrite: true,
     write: true,
     admin: true,
-    comment: true,
+    labelVersion: true,
   },
 }
 
 const anonymousPermissionsMap: typeof permissionsMap = {
   readOnly: { ...permissionsMap.readOnly, comment: false },
   readAndWrite: { ...permissionsMap.readAndWrite, comment: false },
+  review: { ...permissionsMap.review, comment: false },
   owner: { ...permissionsMap.owner, comment: false },
 }
 
 const linkSharingWarningPermissionsMap: typeof permissionsMap = {
   readOnly: { ...permissionsMap.readOnly, comment: false },
   readAndWrite: permissionsMap.readAndWrite,
+  review: permissionsMap.review,
   owner: permissionsMap.owner,
 }
 
-export const PermissionsProvider: React.FC = ({ children }) => {
+const noTrackChangesPermissionsMap: typeof permissionsMap = {
+  readOnly: permissionsMap.readOnly,
+  readAndWrite: permissionsMap.readAndWrite,
+  review: { ...permissionsMap.review, trackedWrite: false },
+  owner: permissionsMap.owner,
+}
+
+export const PermissionsProvider: React.FC<React.PropsWithChildren> = ({
+  children,
+}) => {
   const [permissions, setPermissions] =
     useScopeValue<Readonly<Permissions>>('permissions')
   const { connectionState } = useConnectionContext()
@@ -56,18 +90,27 @@ export const PermissionsProvider: React.FC = ({ children }) => {
   }
   const hasViewerPermissions = useViewerPermissions()
   const anonymous = getMeta('ol-anonymous')
+  const project = useProjectContext()
 
   useEffect(() => {
     let activePermissionsMap
     if (hasViewerPermissions) {
       activePermissionsMap = linkSharingWarningPermissionsMap
+    } else if (anonymous) {
+      activePermissionsMap = anonymousPermissionsMap
+    } else if (!project.features.trackChanges) {
+      activePermissionsMap = noTrackChangesPermissionsMap
     } else {
-      activePermissionsMap = anonymous
-        ? anonymousPermissionsMap
-        : permissionsMap
+      activePermissionsMap = permissionsMap
     }
     setPermissions(activePermissionsMap[permissionsLevel])
-  }, [anonymous, permissionsLevel, setPermissions, hasViewerPermissions])
+  }, [
+    anonymous,
+    permissionsLevel,
+    setPermissions,
+    hasViewerPermissions,
+    project.features.trackChanges,
+  ])
 
   useEffect(() => {
     if (connectionState.forceDisconnected) {

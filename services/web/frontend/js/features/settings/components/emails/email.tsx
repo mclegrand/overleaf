@@ -1,10 +1,9 @@
 import { useTranslation } from 'react-i18next'
 import { UserEmailData } from '../../../../../../types/user-email'
-import ResendConfirmationEmailButton from './resend-confirmation-email-button'
 import { ssoAvailableForInstitution } from '../../utils/sso'
 import OLBadge from '@/features/ui/components/ol/ol-badge'
-import { isBootstrap5 } from '@/features/utils/bootstrap-5'
-import classnames from 'classnames'
+import ResendConfirmationCodeModal from '@/features/settings/components/emails/resend-confirmation-code-modal'
+import { useUserEmailsContext } from '@/features/settings/context/user-email-context'
 
 type EmailProps = {
   userEmailData: UserEmailData
@@ -12,7 +11,11 @@ type EmailProps = {
 
 function Email({ userEmailData }: EmailProps) {
   const { t } = useTranslation()
-
+  const {
+    state,
+    setLoading: setUserEmailsContextLoading,
+    getEmails,
+  } = useUserEmailsContext()
   const ssoAvailable = ssoAvailableForInstitution(
     userEmailData.affiliation?.institution || null
   )
@@ -29,18 +32,21 @@ function Email({ userEmailData }: EmailProps) {
       {userEmailData.email}
       {!userEmailData.confirmedAt && (
         <div className="small">
-          <strong>
-            {t('unconfirmed')}.
-            {!ssoAvailable && <span> {t('please_check_your_inbox')}.</span>}
-          </strong>
+          <strong>{t('unconfirmed')}.</strong>
           <br />
           {!ssoAvailable && (
-            <ResendConfirmationEmailButton email={userEmailData.email} />
+            <ResendConfirmationCodeModal
+              email={userEmailData.email}
+              setGroupLoading={setUserEmailsContextLoading}
+              groupLoading={state.isLoading}
+              onSuccess={getEmails}
+              triggerVariant="link"
+            />
           )}
         </div>
       )}
       {hasBadges && (
-        <div className={classnames({ small: !isBootstrap5() })}>
+        <div>
           {isPrimary && (
             <>
               <OLBadge bg="info">Primary</OLBadge>{' '}

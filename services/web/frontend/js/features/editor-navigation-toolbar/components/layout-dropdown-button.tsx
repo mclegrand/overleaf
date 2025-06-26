@@ -1,10 +1,13 @@
-import { memo, ReactNode, useCallback } from 'react'
-import { Dropdown, MenuItem, MenuItemProps } from 'react-bootstrap'
+import { memo, useCallback, forwardRef } from 'react'
+import { Spinner } from 'react-bootstrap'
+import {
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownToggle,
+  DropdownToggleCustom,
+} from '@/features/ui/components/bootstrap-5/dropdown-menu'
 import { Trans, useTranslation } from 'react-i18next'
-import Tooltip from '../../../shared/components/tooltip'
-import Icon from '../../../shared/components/icon'
-import IconChecked from '../../../shared/components/icon-checked'
-import ControlledDropdown from '../../../shared/components/controlled-dropdown'
 import {
   IdeLayout,
   IdeView,
@@ -13,36 +16,10 @@ import {
 import * as eventTracking from '../../../infrastructure/event-tracking'
 import useEventListener from '../../../shared/hooks/use-event-listener'
 import { DetachRole } from '@/shared/context/detach-context'
+import MaterialIcon from '@/shared/components/material-icon'
+import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
 
-function IconPlaceholder() {
-  return <Icon type="" fw />
-}
-
-function IconRefresh() {
-  return <Icon type="refresh" fw spin />
-}
-
-function IconLayout() {
-  return <Icon type="columns" fw />
-}
-
-function IconSplit() {
-  return <Icon type="columns" fw />
-}
-
-function IconDetach() {
-  return <Icon type="window-restore" fw />
-}
-
-function IconEditorOnly() {
-  return <Icon type="code" fw />
-}
-
-function IconPdfOnly() {
-  return <Icon type="file-pdf-o" fw />
-}
-
-function IconCheckmark({
+const isActiveDropdownItem = ({
   iconFor,
   pdfLayout,
   view,
@@ -52,70 +29,72 @@ function IconCheckmark({
   pdfLayout: IdeLayout
   view: IdeView | null
   detachRole?: DetachRole
-}) {
+}) => {
   if (detachRole === 'detacher' || view === 'history') {
-    return <IconPlaceholder />
+    return false
   }
   if (
     iconFor === 'editorOnly' &&
     pdfLayout === 'flat' &&
     (view === 'editor' || view === 'file')
   ) {
-    return <IconChecked />
+    return true
   } else if (iconFor === 'pdfOnly' && pdfLayout === 'flat' && view === 'pdf') {
-    return <IconChecked />
+    return true
   } else if (iconFor === 'sideBySide' && pdfLayout === 'sideBySide') {
-    return <IconChecked />
+    return true
   }
-  // return empty icon for placeholder
-  return <IconPlaceholder />
+  return false
 }
 
-function LayoutMenuItem({
-  checkmark,
-  icon,
-  text,
+function EnhancedDropdownItem({
+  active,
   ...props
-}: {
-  checkmark: ReactNode
-  icon: ReactNode
-  text: string | ReactNode
-} & MenuItemProps) {
+}: React.ComponentProps<typeof DropdownItem>) {
   return (
-    <MenuItem {...props}>
-      <div className="layout-menu-item">
-        <div className="layout-menu-item-start">
-          <div>{checkmark}</div>
-          <div>{icon}</div>
-          <div>{text}</div>
-        </div>
-      </div>
-    </MenuItem>
+    <DropdownItem
+      active={active}
+      aria-current={active}
+      trailingIcon={active ? 'check' : null}
+      {...props}
+    />
   )
 }
 
-function DetachDisabled() {
+const LayoutDropdownToggleButton = forwardRef<
+  HTMLButtonElement,
+  {
+    onClick: (e: React.MouseEvent<HTMLButtonElement>) => void
+  }
+>(({ onClick, ...props }, ref) => {
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    eventTracking.sendMB('navigation-clicked-layout')
+    onClick(e)
+  }
+
+  return <DropdownToggleCustom {...props} ref={ref} onClick={handleClick} />
+})
+LayoutDropdownToggleButton.displayName = 'LayoutDropdownToggleButton'
+
+function BS5DetachDisabled() {
   const { t } = useTranslation()
 
   return (
-    <Tooltip
+    <OLTooltip
       id="detach-disabled"
       description={t('your_browser_does_not_support_this_feature')}
       overlayProps={{ placement: 'left' }}
     >
-      <LayoutMenuItem
-        disabled
-        checkmark={<IconPlaceholder />}
-        icon={<IconDetach />}
-        text={t('pdf_in_separate_tab')}
-      />
-    </Tooltip>
+      <span>
+        <EnhancedDropdownItem disabled leadingIcon="select_window">
+          {t('pdf_in_separate_tab')}
+        </EnhancedDropdownItem>
+      </span>
+    </OLTooltip>
   )
 }
 
 function LayoutDropdownButton() {
-  const { t } = useTranslation()
-
   const {
     reattach,
     detach,
@@ -154,9 +133,42 @@ function LayoutDropdownButton() {
     [changeLayout, handleReattach]
   )
 
-  const processing = !detachIsLinked && detachRole === 'detacher'
+  return (
+    <LayoutDropdownButtonUi
+      processing={!detachIsLinked && detachRole === 'detacher'}
+      handleChangeLayout={handleChangeLayout}
+      handleDetach={handleDetach}
+      detachIsLinked={detachIsLinked}
+      detachRole={detachRole}
+      pdfLayout={pdfLayout}
+      view={view}
+      detachable={'BroadcastChannel' in window}
+    />
+  )
+}
 
-  // bsStyle is required for Dropdown.Toggle, but we will override style
+type LayoutDropdownButtonUiProps = {
+  processing: boolean
+  handleChangeLayout: (newLayout: IdeLayout, newView?: IdeView) => void
+  handleDetach: () => void
+  detachIsLinked: boolean
+  detachRole: DetachRole
+  pdfLayout: IdeLayout
+  view: IdeView | null
+  detachable: boolean
+}
+
+export const LayoutDropdownButtonUi = ({
+  processing,
+  handleChangeLayout,
+  handleDetach,
+  detachIsLinked,
+  detachRole,
+  view,
+  pdfLayout,
+  detachable,
+}: LayoutDropdownButtonUiProps) => {
+  const { t } = useTranslation()
   return (
     <>
       {processing && (
@@ -164,97 +176,108 @@ function LayoutDropdownButton() {
           {t('layout_processing')}
         </div>
       )}
-      <ControlledDropdown
-        id="layout-dropdown"
-        onMainButtonClick={() => {
-          eventTracking.sendMB('navigation-clicked-layout')
-        }}
-        className="toolbar-item layout-dropdown"
-        pullRight
-      >
-        <Dropdown.Toggle className="btn-full-height" bsStyle="link">
-          {processing ? <IconRefresh /> : <IconLayout />}
+      <Dropdown className="toolbar-item layout-dropdown" align="end">
+        <DropdownToggle
+          id="layout-dropdown-btn"
+          className="btn-full-height"
+          as={LayoutDropdownToggleButton}
+        >
+          {processing ? (
+            <Spinner
+              animation="border"
+              aria-hidden="true"
+              size="sm"
+              role="status"
+            />
+          ) : (
+            <MaterialIcon type="dock_to_right" className="align-middle" />
+          )}
           <span className="toolbar-label">{t('layout')}</span>
-        </Dropdown.Toggle>
-        <Dropdown.Menu className="layout-dropdown-list">
-          <LayoutMenuItem
-            onSelect={() => handleChangeLayout('sideBySide')}
-            checkmark={
-              <IconCheckmark
-                iconFor="sideBySide"
-                pdfLayout={pdfLayout}
-                view={view}
-                detachRole={detachRole}
-              />
-            }
-            icon={<IconSplit />}
-            text={t('editor_and_pdf')}
-          />
+        </DropdownToggle>
+        <DropdownMenu>
+          <EnhancedDropdownItem
+            onClick={() => handleChangeLayout('sideBySide')}
+            active={isActiveDropdownItem({
+              iconFor: 'sideBySide',
+              pdfLayout,
+              view,
+              detachRole,
+            })}
+            leadingIcon="dock_to_right"
+          >
+            {t('editor_and_pdf')}
+          </EnhancedDropdownItem>
 
-          <LayoutMenuItem
-            onSelect={() => handleChangeLayout('flat', 'editor')}
-            checkmark={
-              <IconCheckmark
-                iconFor="editorOnly"
-                pdfLayout={pdfLayout}
-                view={view}
-                detachRole={detachRole}
-              />
-            }
-            icon={<IconEditorOnly />}
-            text={
+          <EnhancedDropdownItem
+            onClick={() => handleChangeLayout('flat', 'editor')}
+            active={isActiveDropdownItem({
+              iconFor: 'editorOnly',
+              pdfLayout,
+              view,
+              detachRole,
+            })}
+            leadingIcon="code"
+          >
+            <div className="d-flex flex-column">
               <Trans
                 i18nKey="editor_only_hide_pdf"
                 components={[
                   <span key="editor_only_hide_pdf" className="subdued" />,
                 ]}
               />
-            }
-          />
+            </div>
+          </EnhancedDropdownItem>
 
-          <LayoutMenuItem
-            onSelect={() => handleChangeLayout('flat', 'pdf')}
-            checkmark={
-              <IconCheckmark
-                iconFor="pdfOnly"
-                pdfLayout={pdfLayout}
-                view={view}
-                detachRole={detachRole}
-              />
-            }
-            icon={<IconPdfOnly />}
-            text={
+          <EnhancedDropdownItem
+            onClick={() => handleChangeLayout('flat', 'pdf')}
+            active={isActiveDropdownItem({
+              iconFor: 'pdfOnly',
+              pdfLayout,
+              view,
+              detachRole,
+            })}
+            leadingIcon="picture_as_pdf"
+          >
+            <div className="d-flex flex-column">
               <Trans
                 i18nKey="pdf_only_hide_editor"
                 components={[
                   <span key="pdf_only_hide_editor" className="subdued" />,
                 ]}
               />
-            }
-          />
+            </div>
+          </EnhancedDropdownItem>
 
-          {'BroadcastChannel' in window ? (
-            <LayoutMenuItem
-              onSelect={() => handleDetach()}
-              checkmark={
+          {detachable ? (
+            <EnhancedDropdownItem
+              onClick={() => handleDetach()}
+              active={detachRole === 'detacher' && detachIsLinked}
+              trailingIcon={
                 detachRole === 'detacher' ? (
                   detachIsLinked ? (
-                    <IconChecked />
+                    'check'
                   ) : (
-                    <IconRefresh />
+                    <span className="spinner-container">
+                      <Spinner
+                        animation="border"
+                        aria-hidden="true"
+                        size="sm"
+                        role="status"
+                      />
+                      <span className="visually-hidden">{t('loading')}</span>
+                    </span>
                   )
-                ) : (
-                  <IconPlaceholder />
-                )
+                ) : null
               }
-              icon={<IconDetach />}
-              text={t('pdf_in_separate_tab')}
-            />
+              leadingIcon="select_window"
+            >
+              {t('pdf_in_separate_tab')}
+            </EnhancedDropdownItem>
           ) : (
-            <DetachDisabled />
+            <BS5DetachDisabled />
           )}
-        </Dropdown.Menu>
-      </ControlledDropdown>
+        </DropdownMenu>
+      </Dropdown>
     </>
   )
 }
