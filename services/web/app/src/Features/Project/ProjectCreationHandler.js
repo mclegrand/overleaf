@@ -111,7 +111,8 @@ async function createGitProject(ownerId, projectLink) {
   const regexGithub = /^git@github\.com:(.+?)\/(.+?)\.git$/;
   const regexGitlab = /^git@gitlab\.com:(.+?)\/(.+?)\.git$/;
   const regexGitlabTP = /^git@gitlab\.enst\.fr:(.+?)\/(.+?)\/(.+?)\.git$/;
-  const regex = regexGithub | regexGitlab | regexGitlabTP;
+  const regex = /^git@[^:]+:([^/]+)\/([^.]+)\.git$/ 
+  //regexGithub | regexGitlab | regexGitlabTP;
   const match = projectLink.match(regex);
 
   if (match) {
