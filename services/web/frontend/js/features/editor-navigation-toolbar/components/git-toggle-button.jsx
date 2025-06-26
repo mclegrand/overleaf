@@ -30,13 +30,28 @@ function Modal({
 }) {
   const [activeTab, setActiveTab] = useState('commit')
   const [selectedCommit, setSelectedCommit] = useState('')
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [onClose])
+
 
   if (!isOpen) return null
 
   return (
     <div className="modal-overlay">
-        <button onClick={onClose} className="modal-close-button">X</button>
+
         <div className="modal-content">
+          <button onClick={onClose} className="modal-close-button">X</button>
           <h2 style={{ fontFamily: 'sans-serif', fontWeight: 500 }}>Git Menu</h2>
           
           {/* Tabs */}
@@ -46,7 +61,7 @@ function Modal({
               style={{ 
                 padding: '10px 20px', 
                 border: 'none', 
-                backgroundColor: activeTab === 'commit' ? '#007bff' : 'transparent',
+                backgroundColor: activeTab === 'commit' ? '#45a444' : 'transparent',
                 color: activeTab === 'commit' ? 'white' : 'black',
                 cursor: 'pointer'
               }}
@@ -58,7 +73,7 @@ function Modal({
               style={{ 
                 padding: '10px 20px', 
                 border: 'none', 
-                backgroundColor: activeTab === 'rollback' ? '#007bff' : 'transparent',
+                backgroundColor: activeTab === 'rollback' ? '#45a444' : 'transparent',
                 color: activeTab === 'rollback' ? 'white' : 'black',
                 cursor: 'pointer'
               }}
@@ -70,7 +85,7 @@ function Modal({
               style={{ 
                 padding: '10px 20px', 
                 border: 'none', 
-                backgroundColor: activeTab === 'branches' ? '#007bff' : 'transparent',
+                backgroundColor: activeTab === 'branches' ? '#45a444' : 'transparent',
                 color: activeTab === 'branches' ? 'white' : 'black',
                 cursor: 'pointer'
               }}
