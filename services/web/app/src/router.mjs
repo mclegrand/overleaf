@@ -1,4 +1,3 @@
-<<<<<<< HEAD:services/web/app/src/router.mjs
 import AdminController from './Features/ServerAdmin/AdminController.js'
 import ErrorController from './Features/Errors/ErrorController.js'
 import Features from './infrastructure/Features.js'
@@ -38,51 +37,8 @@ import PasswordResetRouter from './Features/PasswordReset/PasswordResetRouter.mj
 import StaticPagesRouter from './Features/StaticPages/StaticPagesRouter.mjs'
 import ChatController from './Features/Chat/ChatController.js'
 import Modules from './infrastructure/Modules.js'
-import {
-=======
-const AdminController = require('./Features/ServerAdmin/AdminController')
-const ErrorController = require('./Features/Errors/ErrorController')
 const { GitController } = require('./Features/Git/GitController')
-const ProjectController = require('./Features/Project/ProjectController')
-const ProjectApiController = require('./Features/Project/ProjectApiController')
-const ProjectListController = require('./Features/Project/ProjectListController')
-const SpellingController = require('./Features/Spelling/SpellingController')
-const EditorRouter = require('./Features/Editor/EditorRouter')
-const Settings = require('@overleaf/settings')
-const TpdsController = require('./Features/ThirdPartyDataStore/TpdsController')
-const SubscriptionRouter = require('./Features/Subscription/SubscriptionRouter')
-const UploadsRouter = require('./Features/Uploads/UploadsRouter')
-const metrics = require('@overleaf/metrics')
-const ReferalController = require('./Features/Referal/ReferalController')
-const AuthenticationController = require('./Features/Authentication/AuthenticationController')
-const PermissionsController = require('./Features/Authorization/PermissionsController')
-const SessionManager = require('./Features/Authentication/SessionManager')
-const TagsController = require('./Features/Tags/TagsController')
-const NotificationsController = require('./Features/Notifications/NotificationsController')
-const CollaboratorsRouter = require('./Features/Collaborators/CollaboratorsRouter')
-const UserInfoController = require('./Features/User/UserInfoController')
-const UserController = require('./Features/User/UserController')
-const UserEmailsController = require('./Features/User/UserEmailsController')
-const UserPagesController = require('./Features/User/UserPagesController')
-const TutorialController = require('./Features/Tutorial/TutorialController')
-const DocumentController = require('./Features/Documents/DocumentController')
-const CompileManager = require('./Features/Compile/CompileManager')
-const CompileController = require('./Features/Compile/CompileController')
-const ClsiCookieManager = require('./Features/Compile/ClsiCookieManager')(
-  Settings.apis.clsi != null ? Settings.apis.clsi.backendGroupName : undefined
-)
-const HealthCheckController = require('./Features/HealthCheck/HealthCheckController')
-const ProjectDownloadsController = require('./Features/Downloads/ProjectDownloadsController')
-const FileStoreController = require('./Features/FileStore/FileStoreController')
-const DocumentUpdaterController = require('./Features/DocumentUpdater/DocumentUpdaterController')
-const HistoryController = require('./Features/History/HistoryController')
-const ExportsController = require('./Features/Exports/ExportsController')
-const PasswordResetRouter = require('./Features/PasswordReset/PasswordResetRouter')
-const StaticPagesRouter = require('./Features/StaticPages/StaticPagesRouter')
-const ChatController = require('./Features/Chat/ChatController')
-const Modules = require('./infrastructure/Modules')
-const {
->>>>>>> ec7f1c8c24 (Add git functionality):services/web/app/src/router.js
+import {
   RateLimiter,
   openProjectRateLimiter,
   overleafLoginRateLimiter,
@@ -121,6 +77,7 @@ const { renderUnsupportedBrowserPage, unsupportedBrowserMiddleware } =
 const bodyParser = require("body-parser");
 const passport = require('passport')
 const samlStrategy = require('passport-saml').Strategy
+const gitlabStrategy = require('passport-gitlab2').Strategy
 const fs = require('fs')
 const { User } = require('./models/User')
 const UserCreator = require('./Features/User/UserCreator')
@@ -396,6 +353,33 @@ passport.use("saml", sstrat)
   })
   AuthenticationController.addEndpointToLoginWhitelist('/login/saml')
 
+var oauthid = process.env.GITLAB_APP_ID || ""
+var oauthsecret = process.env.GITLAB_APP_SECRET || ""
+var gstrat = new GitLabStrategy({
+    baseUrl: "https://gitlab.telecom-paris.fr"
+    clientID: oauthid,
+    clientSecret: oauthsecret,
+    callbackURL: "https://overleaf.enst.fr/login/gitlab/callback"
+  },
+  function(accessToken, refreshToken, profile, cb) {
+    User.findOrCreate({gitlabId: profile.id}, function (err, user) {
+      return cb(err, user);
+    });
+  }
+);
+passport.use("gitlab", gstrat);
+webRouter.get('/login/gitlab', passport.authenticate('gitlab'));
+webRouter.get('/login/gitlab/callback',
+  passport.authenticate('gitlab', {
+    failureRedirect: '/login'
+  }),
+  function(req, res) {
+    // Successful authentication, redirect home.
+    res.redirect('/');
+  });
+webRouter.csrf.disableDefaultCsrfProtection("/login/gitlab/callback", "POST")
+AuthenticationController.addEndpointToLoginWhitelist('/login/gitlab/callback')
+AuthenticationController.addEndpointToLoginWhitelist('/login/gitlab')
 
 
   webRouter.get(
