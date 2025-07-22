@@ -4,7 +4,7 @@ import { useSelectableEntity } from '../contexts/file-tree-selectable'
 
 import FileTreeItemInner from './file-tree-item/file-tree-item-inner'
 import { useTranslation } from 'react-i18next'
-import Icon from '../../../shared/components/icon'
+import MaterialIcon from '../../../shared/components/material-icon'
 import iconTypeFromName from '../util/icon-type-from-name'
 import classnames from 'classnames'
 
@@ -53,13 +53,13 @@ export const FileTreeIcon = ({ isLinkedFile, name }) => {
   return (
     <>
       &nbsp;
-      <Icon type="external-link-square"
+      <MaterialIcon type="external-link-square"
           modifier="rotate-180"
           className="linked-file-highlight"
           accessibilityLabel="Modified file"/>
-      <Icon type={iconTypeFromName(name)} fw className={className} />
+      <MaterialIcon type={iconTypeFromName(name)} fw className={className} />
       {isLinkedFile && (
-        <Icon
+        <MaterialIcon
           type="external-link-square"
           modifier="rotate-180"
           className="linked-file-highlight"

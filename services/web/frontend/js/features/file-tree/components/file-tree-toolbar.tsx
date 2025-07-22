@@ -2,8 +2,6 @@ import { useTranslation } from 'react-i18next'
 import * as eventTracking from '../../../infrastructure/event-tracking'
 
 import { Button } from 'react-bootstrap'
-import Tooltip from '../../../shared/components/tooltip'
-import Icon from '../../../shared/components/icon'
 
 import { useProjectContext } from '@/shared/context/project-context'
 import { useUserContext } from '../../../shared/context/user-context'
@@ -109,8 +107,7 @@ function FileTreeToolbarLeft() {
           <MaterialIcon type="upload" accessibilityLabel={t('upload')} />
         </button>
       </OLTooltip>
-      </Tooltip>
-      <Tooltip
+      <OLTooltip
         id="pull"
         description='Pull'
         overlayProps={{ placement: 'bottom' }}
@@ -125,10 +122,10 @@ function FileTreeToolbarLeft() {
               })
             );
       }}>
-          <Icon type="upload" fw accessibilityLabel={t('upload')} />
+          <MaterialIcon type="upload" fw accessibilityLabel={t('upload')} />
         </Button>
-      </Tooltip>
-      <Tooltip
+      </OLTooltip>
+      <OLTooltip
         id="pull"
         description='Pull'
         overlayProps={{ placement: 'bottom' }}
@@ -149,9 +146,9 @@ function FileTreeToolbarLeft() {
             })
         );
       }}>
-        <Icon type="repeat" fw accessibilityLabel={t('pull')} />
+        <MaterialIcon type="repeat" fw accessibilityLabel={t('pull')} />
       </Button>
-    </Tooltip>
+    </OLTooltip>
     </div>
   )
 }

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useState, useEffect } from 'react'
 import { useProjectContext } from '@/shared/context/project-context'
 import { useUserContext } from '../../../shared/context/user-context'
-import Icon from '../../../shared/components/icon'
+import MaterialIcon from '../../../shared/components/material-icon'
 import './Modal.css'
 
 import useAsync from '../../../shared/hooks/use-async'
@@ -546,7 +546,7 @@ function GitToggleButton() {
   return (
     <div className="toolbar-item">
       <button className={classes} onClick={handleButtonClick}>
-        <Icon type="comment" fw className={''} />
+        <MaterialIcon type="comment" fw className={''} />
         <p className="toolbar-label">{'Git menu'}</p>
       </button>
       <Modal
