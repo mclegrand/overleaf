@@ -40,6 +40,7 @@ build-community:
 	  --tag $(OVERLEAF_TAG) \
 	  --tag $(OVERLEAF_BRANCH) \
 	  $(MONOREPO_ROOT)
+	docker tag $(OVERLEAF_TAG) sharelatex/sharelatex:$(BRANCH_NAME)
 
 SHELLCHECK_OPTS = \
 	--shell=bash \
