@@ -509,7 +509,7 @@ GitController = {
       })
       .then(() => res.sendStatus(200))
       .catch(error => {
-        res.sendStatus(500);
+
         console.error("Error.git: ", error.git);
         console.error("Error.message: ", error.message);
         if (error.git?.message === "Exiting because of an unresolved conflict." ||
