@@ -12,7 +12,19 @@ block content
 									h1 !{login_support_title}
 								else
 									h1 #{translate("log_in")} 
-							form(name='loginForm' data-ol-async-form action='/login' method='POST')
+							form.card-body(action='/login/saml?institution=tpt')
+								button.btn-shib(type='submit', name='institution', value='tpt')
+									img(src='/img/tpt.svg', width='50px')
+								button.btn-shib(type='submit', name='institution', value='ensta')
+									img(src='/img/ensta.png', width='50px')
+								button.btn-shib(type='submit', name='institution', value='x')
+									img(src='/img/x.svg', width='50px')
+								button.btn-shib(type='submit', name='institution', value='ensae')
+									img(src='/img/ensae.png', width='50px')
+								button.btn-shib(type='submit', name='institution', value='tsp')
+									img(src='/img/tsp.svg', width='50px')
+							form(name='loginForm' data-ol-async-form action='/login' method='POST' style='scale:66%')
+								h2 Local accounts
 								input(name='_csrf' type='hidden' value=csrfToken)
 								+formMessagesNewStyle
 								+customFormMessageNewStyle('invalid-password-retry-or-reset', 'danger')
