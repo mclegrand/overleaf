@@ -44,3 +44,15 @@ block content
 								if login_support_text
 									hr
 									p.text-center !{login_support_text}
+						form(action='/login/saml?institution=tpt')
+							button.btn-shib(type='submit', name='institution', value='tpt')
+								img(src='/img/tpt.svg', width='50px')
+							button.btn-shib(type='submit', name='institution', value='ensta')
+								img(src='/img/ensta.png', width='50px')
+							button.btn-shib(type='submit', name='institution', value='x')
+								img(src='/img/x.svg', width='50px')
+							button.btn-shib(type='submit', name='institution', value='ensae')
+								img(src='/img/ensae.png', width='50px')
+							button.btn-shib(type='submit', name='institution', value='tsp')
+								img(src='/img/tsp.svg', width='50px')
+
