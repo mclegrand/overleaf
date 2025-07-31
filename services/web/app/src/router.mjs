@@ -77,6 +77,7 @@ const { renderUnsupportedBrowserPage, unsupportedBrowserMiddleware } =
 const bodyParser = require("body-parser");
 const passport = require('passport')
 const samlStrategy = require('passport-saml').Strategy
+const gitlabStrategy = require('passport-gitlab2').Strategy
 const fs = require('fs')
 const { User } = require('./models/User')
 const UserCreator = require('./Features/User/UserCreator')
@@ -267,6 +268,33 @@ var sstrat = new MultiSamlStrategy({
 
                console.log("detected org:", org)
 
+var oauthid = process.env.GITLAB_APP_ID || ""
+var oauthsecret = process.env.GITLAB_APP_SECRET || ""
+var gstrat = new GitLabStrategy({
+    baseUrl: "https://gitlab.telecom-paris.fr"
+    clientID: oauthid,
+    clientSecret: oauthsecret,
+    callbackURL: "https://overleaf.enst.fr/login/gitlab/callback"
+  },
+  function(accessToken, refreshToken, profile, cb) {
+    User.findOrCreate({gitlabId: profile.id}, function (err, user) {
+      return cb(err, user);
+    });
+  }
+);
+passport.use("gitlab", gstrat);
+webRouter.get('/login/gitlab', passport.authenticate('gitlab'));
+webRouter.get('/login/gitlab/callback',
+  passport.authenticate('gitlab', {
+    failureRedirect: '/login'
+  }),
+  function(req, res) {
+    // Successful authentication, redirect home.
+    res.redirect('/');
+  });
+webRouter.csrf.disableDefaultCsrfProtection("/login/gitlab/callback", "POST")
+AuthenticationController.addEndpointToLoginWhitelist('/login/gitlab/callback')
+AuthenticationController.addEndpointToLoginWhitelist('/login/gitlab')
 
                switch(org){
                        case "tpt":
