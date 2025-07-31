@@ -2,7 +2,9 @@
   "name": "overleaf",
   "private": true,
   "dependencies": {
-    "patch-package": "^8.0.0"
+    "patch-package": "^8.0.0",
+    "fs-extra": "^11.2.0",
+    "simple-git": "^3.25.0"
   },
   "devDependencies": {
     "@types/chai": "^4.3.0",

@@ -37,7 +37,7 @@ import PasswordResetRouter from './Features/PasswordReset/PasswordResetRouter.mj
 import StaticPagesRouter from './Features/StaticPages/StaticPagesRouter.mjs'
 import ChatController from './Features/Chat/ChatController.js'
 import Modules from './infrastructure/Modules.js'
-const { GitController } = require('./Features/Git/GitController')
+import { GitController } from './Features/Git/GitController.js'
 import {
   RateLimiter,
   openProjectRateLimiter,
@@ -444,6 +444,24 @@ passport.use("saml", sstrat)
     GitController.notStagedFiles
   )
 
+  webRouter.get(
+    '/git-currentbranch',
+    AuthenticationController.requireLogin(),
+    GitController.currentBranch
+  )
+
+  webRouter.get(
+    '/git-branches',
+    AuthenticationController.requireLogin(),
+    GitController.branches
+  )
+
+  webRouter.post(
+    '/git-create-branch',
+    AuthenticationController.requireLogin(),
+    GitController.createBranch
+  )
+
   webRouter.post(
     '/git-pull',
     AuthenticationController.requireLogin(),
@@ -456,11 +474,30 @@ passport.use("saml", sstrat)
     GitController.commit
   )
 
+  webRouter.get(
+  '/git-commits',
+  AuthenticationController.requireLogin(),
+  GitController.commitHistory
+  )
+
   webRouter.post(
     '/git-push',
     AuthenticationController.requireLogin(),
     GitController.push
   )
+
+  webRouter.post(
+    '/git-rollback',
+    AuthenticationController.requireLogin(),
+    GitController.rollback
+  )
+
+  webRouter.post(
+    '/git-switch-branch',
+    AuthenticationController.requireLogin(),
+    GitController.switch_branch
+  )
+
   webRouter.post(
     '/project/import',
     AuthenticationController.requireLogin(),

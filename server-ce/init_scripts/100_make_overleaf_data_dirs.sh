@@ -1,6 +1,10 @@
 #!/bin/sh
 set -e
 
+# saml certs
+mkdir -p /var/lib/overleaf/certs
+chown www-data:www-data /var/lib/overleaf/certs
+
 mkdir -p /var/lib/overleaf/data
 chown www-data:www-data /var/lib/overleaf/data
 
@@ -21,6 +25,12 @@ chown www-data:www-data /var/lib/overleaf/data/template_files
 
 mkdir -p /var/lib/overleaf/data/history
 chown www-data:www-data /var/lib/overleaf/data/history
+
+# git
+mkdir -p /var/lib/overleaf/data/git
+chown www-data:www-data /var/lib/overleaf/data/git
+mkdir -p /var/lib/overleaf/data/git/keys
+chown www-data:www-data /var/lib/overleaf/data/git/keys
 
 mkdir -p /var/lib/overleaf/tmp/projectHistories
 chown www-data:www-data /var/lib/overleaf/tmp/projectHistories

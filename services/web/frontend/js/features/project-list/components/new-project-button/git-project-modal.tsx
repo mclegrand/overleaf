@@ -1,4 +1,5 @@
-import AccessibleModal from '../../../../shared/components/accessible-modal'
+import { Modal } from 'react-bootstrap'
+
 import ModalContentNewProjectForm from './modal-content-new-git-project-form'
 
 type GitProjectModalProps = {
@@ -7,7 +8,7 @@ type GitProjectModalProps = {
 
 function GitProjectModal({ onHide }: GitProjectModalProps) {
   return (
-    <AccessibleModal
+    <Modal
       show
       animation
       onHide={onHide}
@@ -15,7 +16,7 @@ function GitProjectModal({ onHide }: GitProjectModalProps) {
       backdrop="static"
     >
       <ModalContentNewProjectForm onCancel={onHide} template="git"/>
-    </AccessibleModal>
+    </Modal>
   )
 }
 

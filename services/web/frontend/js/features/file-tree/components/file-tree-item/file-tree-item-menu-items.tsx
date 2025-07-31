@@ -8,7 +8,6 @@ import {
   DropdownItem,
 } from '@/features/ui/components/bootstrap-5/dropdown-menu'
 import { useUserContext } from '../../../../shared/context/user-context'
-import { MenuItem } from 'react-bootstrap'
 import { useFileTreeActionable } from '../../contexts/file-tree-actionable'
 import { copyDirectory } from '../../../../shared/utils/storage-handler'
 
@@ -115,7 +114,7 @@ function FileTreeItemMenuItems() {
         </>
       ) : null}
       {canDelete ? (
-        <MenuItem onClick={() => {
+        <DropdownItem onClick={() => {
             runAsync(
                postJSON('/git-add', {
                  body:{
@@ -124,8 +123,11 @@ function FileTreeItemMenuItems() {
                     filePath: selectedFilePath
                  }
               })
+               .catch( error => {
+                 alert(error.data.errorReason);
+               })
             )
-      }}>Add</MenuItem>
+      }}>Add</DropdownItem>
       ) : null}
     </>
   )

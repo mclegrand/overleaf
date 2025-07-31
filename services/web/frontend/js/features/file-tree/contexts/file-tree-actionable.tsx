@@ -497,7 +497,7 @@ export const FileTreeActionableProvider: FC<React.PropsWithChildren> = ({
 
   // build the path for downloading a single file or doc
   const downloadPath = useMemo(() => {
-    if (selectedEntityIds.size === 1) {
+    if (selectedEntityIds?.size === 1) {
       const [selectedEntityId] = selectedEntityIds
       const selectedEntity = findInTree(fileTreeData, selectedEntityId)
 
@@ -585,7 +585,7 @@ export function useFileTreeActionable() {
 
   // Calculates the file path
   const selectedFilePath = useMemo(() => {
-    if (selectedEntityIds.size === 1) {
+    if (selectedEntityIds?.size === 1) {
       const [selectedEntityId] = selectedEntityIds
       return getFullPath(fileTreeData, selectedEntityId).slice(1)
     }
