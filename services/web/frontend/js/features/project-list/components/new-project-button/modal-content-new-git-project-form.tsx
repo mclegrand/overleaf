@@ -85,6 +85,28 @@ function ModalContentNewGithubProjectForm({ onCancel, template = 'none' }: Props
           ) : (
             <Alert bsStyle="danger">{getUserFacingMessage(error)}</Alert>
           ))}
+        
+        {/* Explication SSH GitHub en vert */}
+        <Alert bsStyle="success" style={{ marginBottom: '15px' }}>
+          <strong>Comment trouver le lien SSH de votre dépôt GitHub :</strong>
+          <ol style={{ marginTop: '10px', marginBottom: '10px' }}>
+            <li>Rendez-vous sur la page de votre dépôt GitHub</li>
+            <li>Cliquez sur le bouton vert <strong>"Code"</strong></li>
+            <li>Sélectionnez l'onglet <strong>"SSH"</strong></li>
+            <li>Copiez l'URL qui commence par <code>git@github.com:</code></li>
+          </ol>
+          <small>
+            <strong>Note :</strong> Vous devez avoir configuré une clé SSH sur votre compte GitHub pour utiliser cette méthode.{' '}
+            <a 
+              href="https://docs.github.com/fr/authentication/connecting-to-github-with-ssh" 
+              target="_blank" 
+              rel="noopener noreferrer"
+            >
+              En savoir plus
+            </a>
+          </small>
+        </Alert>
+
         <Form onSubmit={handleSubmit}>
           <input
             type="text"

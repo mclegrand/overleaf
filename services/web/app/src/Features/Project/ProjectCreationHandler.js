@@ -108,7 +108,11 @@ async function createExampleProject(ownerId, projectName) {
 
 async function createGitProject(ownerId, projectLink) {
   console.log("Importing git project")
-  const regex = /^git@github\.com:(.+?)\/(.+?)\.git$/;
+  const regexGithub = /^git@github\.com:(.+?)\/(.+?)\.git$/;
+  const regexGitlab = /^git@gitlab\.com:(.+?)\/(.+?)\.git$/;
+  const regexGitlabTP = /^git@gitlab\.enst\.fr:(.+?)\/(.+?)\/(.+?)\.git$/;
+  const regex = /^git@[^:]+:([^/]+)\/([^.]+)\.git$/ 
+  //regexGithub | regexGitlab | regexGitlabTP;
   const match = projectLink.match(regex);
 
   if (match) {

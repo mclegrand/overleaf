@@ -172,7 +172,6 @@ function NewProjectButton({
           {buttonText || t('new_project')}
         </DropdownToggle>
         <DropdownMenu>
-          <li role="none">
           <MenuItem
             onClick={e =>
               handleModalMenuClick(e, {
@@ -213,7 +212,7 @@ function NewProjectButton({
           >
             {'Import from Git'}
           </MenuItem>
-          {ImportProjectFromGithubMenu && (
+          <li role="none">
             <DropdownItem
               onClick={e =>
                 handleModalMenuClick(e, {
@@ -224,7 +223,7 @@ function NewProjectButton({
             >
               {t('blank_project')}
             </DropdownItem>
-          </li>
+          </li>}
           <li role="none">
             <DropdownItem
               onClick={e =>

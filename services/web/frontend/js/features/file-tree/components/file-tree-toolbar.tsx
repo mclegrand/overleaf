@@ -2,8 +2,6 @@ import { useTranslation } from 'react-i18next'
 import * as eventTracking from '../../../infrastructure/event-tracking'
 
 import { Button } from 'react-bootstrap'
-import Tooltip from '../../../shared/components/tooltip'
-import Icon from '../../../shared/components/icon'
 
 import { useProjectContext } from '@/shared/context/project-context'
 import { useUserContext } from '../../../shared/context/user-context'
@@ -109,8 +107,7 @@ function FileTreeToolbarLeft() {
           <MaterialIcon type="upload" accessibilityLabel={t('upload')} />
         </button>
       </OLTooltip>
-      </Tooltip>
-      <Tooltip
+      <OLTooltip
         id="pull"
         description='Pull'
         overlayProps={{ placement: 'bottom' }}
@@ -125,9 +122,33 @@ function FileTreeToolbarLeft() {
               })
             );
       }}>
-          <Icon type="upload" fw accessibilityLabel={t('upload')} />
+          <MaterialIcon type="upload" fw accessibilityLabel={t('upload')} />
         </Button>
-      </Tooltip>
+      </OLTooltip>
+      <OLTooltip
+        id="pull"
+        description='Pull'
+        overlayProps={{ placement: 'bottom' }}
+      >
+      <Button onClick={() => {
+        runAsync(
+            postJSON('/git-pull', {
+              body:{
+                projectId: projectId,
+                userId: userId
+              }
+            })
+            .then(response => {
+                alert("Pull successful");
+            })
+            .catch( error => {
+                alert(error.data.errorReason);
+            })
+        );
+      }}>
+        <MaterialIcon type="repeat" fw accessibilityLabel={t('pull')} />
+      </Button>
+    </OLTooltip>
     </div>
   )
 }

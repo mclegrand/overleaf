@@ -1,54 +1,269 @@
 .modal-overlay {
   position: fixed;
   top: 0;
+  left: 0;
   right: 0;
   bottom: 0;
-  width: 30%;
-  background-color: #f5f5f5;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
   z-index: 1000;
-  padding: 15px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  border-radius: 5px;
-}
-
-.modal {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-close-button {
-  background: none;
-  border: none;
-  font-size: 1.8rem;
-  color: #aaa;
-  margin-bottom: 10px;
-  cursor: pointer;
-  align-self: flex-end;
-  transition: color 0.2s ease-in-out;
-}
-
-.modal-close-button:hover {
-  color: #333;
 }
 
 .modal-content {
-  font-family: sans-serif;
-  background-color: #f5f5f5;
-  border: 0px solid rgba(0,0,0,.2);
-  box-shadow: 0 0px 0px rgba(0, 0, 0, 0.1);
-  line-height: 1.5;
+  background: white;
+  border-radius: 8px;
+  padding: 30px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
 
-.modal-actions {
+.modal-close-button {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #666;
+  width: 30px;
+  height: 30px;
   display: flex;
-  justify-content: flex-end;
-  margin-top: 10px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s;
 }
 
-.modal-actions button {
-  margin-left: 10px;
+.modal-close-button:hover {
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.modal-content h2 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #333;
+  text-align: center;
+}
+
+.modal-content h3 {
+  color: #333;
+  margin-bottom: 10px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.modal-content label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: #333;
+}
+
+.modal-content textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.modal-content textarea:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.modal-content button {
+  padding: 10px 20px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.modal-content button:hover {
+  background-color: #f8f9fa;
+  border-color: #adb5bd;
+}
+
+.modal-content button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+/* Styles pour les onglets */
+.tab-button {
+  padding: 10px 20px;
+  border: none;
+  background-color: transparent;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.tab-button.active {
+  background-color: #007bff;
+  color: white;
+  border-bottom-color: #007bff;
+}
+
+.tab-button:hover:not(.active) {
+  background-color: #f8f9fa;
+}
+
+/* Styles pour la liste des commits */
+.commit-item {
+  margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: white;
+}
+
+.commit-item:hover {
+  border-color: #007bff;
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.1);
+}
+
+.commit-item.selected {
+  border: 2px solid #007bff;
+  background-color: #f0f8ff;
+}
+
+.commit-hash {
+  font-weight: bold;
+  color: #333;
+  font-size: 12px;
+  font-family: 'Courier New', monospace;
+}
+
+.commit-message {
+  color: #333;
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+.commit-date {
+  color: #666;
+  font-size: 11px;
+  margin-top: 5px;
+}
+
+/* Styles pour les alertes */
+.warning-box {
+  padding: 12px;
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 6px;
+  margin-bottom: 15px;
+}
+
+.warning-title {
+  color: #856404;
+  font-weight: bold;
+}
+
+.warning-text {
+  color: #856404;
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+.warning-text code {
+  background-color: rgba(0, 0, 0, 0.1);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+}
+
+/* Styles pour le bouton de rollback */
+.rollback-button {
+  background-color: #dc3545 !important;
+  color: white !important;
+  border: none !important;
+  padding: 12px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.rollback-button:hover {
+  background-color: #c82333 !important;
+}
+
+/* Styles pour les listes de fichiers */
+.file-list {
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.file-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file-list li {
+  padding: 4px 0;
+  color: #333;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+}
+
+.file-list li:not(:last-child) {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+/* Styles pour le scroll de l'historique des commits */
+.commit-history-container {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.commit-history-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.commit-history-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.commit-history-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.commit-history-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Message pour historique vide */
+.empty-history {
+  color: #666;
+  text-align: center;
+  padding: 20px;
+  font-style: italic;
 }
