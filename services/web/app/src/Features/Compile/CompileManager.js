@@ -1,6 +1,5 @@
 let CompileManager
 const Crypto = require('crypto')
-const { gitUpdate } = require('../Git/GitController')
 const Settings = require('@overleaf/settings')
 const RedisWrapper = require('../../infrastructure/RedisWrapper')
 const rclient = RedisWrapper.client('clsi_recently_compiled')
@@ -90,6 +89,7 @@ async function compile(projectId, userId, options = {}) {
     clsiCacheShard,
   } = await ClsiManager.promises.sendRequest(projectId, compileAsUser, options)
 
+const { gitUpdate } = require('../Git/GitController')
   await gitUpdate(projectId, userId)
   return {
     status,

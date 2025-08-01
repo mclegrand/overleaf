@@ -94,6 +94,7 @@ function getDetails(ip, callback) {
 }
 
 function getCurrencyCode(ip, callback) {
+      return callback(null, DEFAULT_CURRENCY_CODE)
   getDetails(ip, function (err, ipDetails) {
     if (err || !ipDetails) {
       logger.err(

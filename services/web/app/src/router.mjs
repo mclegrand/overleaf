@@ -37,7 +37,7 @@ import PasswordResetRouter from './Features/PasswordReset/PasswordResetRouter.mj
 import StaticPagesRouter from './Features/StaticPages/StaticPagesRouter.mjs'
 import ChatController from './Features/Chat/ChatController.js'
 import Modules from './infrastructure/Modules.js'
-const { GitController } = require('./Features/Git/GitController')
+import { GitController } from './Features/Git/GitController.js'
 import {
   RateLimiter,
   openProjectRateLimiter,
@@ -74,15 +74,14 @@ const ClsiCookieManager = ClsiCookieManagerFactory(
 const { renderUnsupportedBrowserPage, unsupportedBrowserMiddleware } =
   UnsupportedBrowserMiddleware
 
-const bodyParser = require("body-parser");
-const passport = require('passport')
-const samlStrategy = require('passport-saml').Strategy
-const gitlabStrategy = require('passport-gitlab2').Strategy
-const fs = require('fs')
-const { User } = require('./models/User')
-const UserCreator = require('./Features/User/UserCreator')
-const UserUpdater = require('./Features/User/UserUpdater')
-//const certDir = '/etc/sharelatex/certs/'
+import bodyParser from "body-parser";
+import passport from 'passport';
+import {MultiSamlStrategy, Strategy as samlStrategy} from 'passport-saml';
+import {Strategy as gitlabStrategy} from 'passport-gitlab2';
+import fs from 'fs';
+import { User } from './models/User.js';
+import UserCreator from './Features/User/UserCreator.js'
+import UserUpdater from './Features/User/UserUpdater.js'
 const certDir = '/var/lib/overleaf/certs/'
 
 
@@ -250,7 +249,6 @@ var oldstrat = new samlStrategy({
        decryptionPvk: fs.readFileSync(certDir + 'privateKey.key', 'utf8'),
        cert: fs.readFileSync(certDir + 'tpt.crt', 'utf8')
 }, function(){});
-const { MultiSamlStrategy } = require('passport-saml');
 var sstrat = new MultiSamlStrategy({
        passReqToCallback: true,
        callbackUrl: "https://overleaf.enst.fr/login/callback",
@@ -268,33 +266,6 @@ var sstrat = new MultiSamlStrategy({
 
                console.log("detected org:", org)
 
-var oauthid = process.env.GITLAB_APP_ID || ""
-var oauthsecret = process.env.GITLAB_APP_SECRET || ""
-var gstrat = new GitLabStrategy({
-    baseUrl: "https://gitlab.telecom-paris.fr"
-    clientID: oauthid,
-    clientSecret: oauthsecret,
-    callbackURL: "https://overleaf.enst.fr/login/gitlab/callback"
-  },
-  function(accessToken, refreshToken, profile, cb) {
-    User.findOrCreate({gitlabId: profile.id}, function (err, user) {
-      return cb(err, user);
-    });
-  }
-);
-passport.use("gitlab", gstrat);
-webRouter.get('/login/gitlab', passport.authenticate('gitlab'));
-webRouter.get('/login/gitlab/callback',
-  passport.authenticate('gitlab', {
-    failureRedirect: '/login'
-  }),
-  function(req, res) {
-    // Successful authentication, redirect home.
-    res.redirect('/');
-  });
-webRouter.csrf.disableDefaultCsrfProtection("/login/gitlab/callback", "POST")
-AuthenticationController.addEndpointToLoginWhitelist('/login/gitlab/callback')
-AuthenticationController.addEndpointToLoginWhitelist('/login/gitlab')
 
                switch(org){
                        case "tpt":
@@ -379,6 +350,42 @@ passport.use("saml", sstrat)
    res.redirect("/");
   })
   AuthenticationController.addEndpointToLoginWhitelist('/login/saml')
+
+var oauthid = process.env.GITLAB_APP_ID || ""
+var oauthsecret = process.env.GITLAB_APP_SECRET || ""
+var gstrat = new gitlabStrategy({
+    baseURL: "https://gitlab.telecom-paris.fr",
+    clientID: oauthid,
+    clientSecret: oauthsecret,
+    callbackURL: "https://ol-preprod.r2.enst.fr/login/gitlab/callback"
+  },
+  function(accessToken, refreshToken, profile, done) {
+      User.findOne({'email':profile.emails[0].value }, (e,u) => {
+             console.log("toto",e,u, profile)
+      if(e) {return done(e)}
+      if (!u) {
+             UserCreator.createNewUser({"email":profile.emails[0].value, "first_name":profile.displayName}, function() {
+             User.findOne({'email':profile.emails[0].value }, (e,u) => {
+               console.log("CREATING",e,u, profile)
+             UserUpdater.confirmEmail(u._id, u.email, function(){return done(null, u)})
+             }) })
+      } else return done(null, u) })
+  }
+);
+passport.use("gitlab", gstrat);
+webRouter.get('/login/gitlab', passport.authenticate('gitlab'));
+webRouter.get('/login/gitlab/callback',
+  passport.authenticate('gitlab', {
+    failureRedirect: '/login'
+  }),
+  function(req, res) {
+    // Successful authentication, redirect home.
+    res.redirect('/');
+  });
+webRouter.csrf.disableDefaultCsrfProtection("/login/gitlab/callback", "POST")
+AuthenticationController.addEndpointToLoginWhitelist('/login/gitlab/callback')
+AuthenticationController.addEndpointToLoginWhitelist('/login/gitlab')
+
 
   webRouter.get(
     '/compromised-password',

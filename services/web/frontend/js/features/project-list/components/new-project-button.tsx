@@ -172,7 +172,7 @@ function NewProjectButton({
           {buttonText || t('new_project')}
         </DropdownToggle>
         <DropdownMenu>
-          <MenuItem
+          <DropdownItem
             onClick={e =>
               handleModalMenuClick(e, {
                 modalVariant: 'blank_project',
@@ -181,8 +181,8 @@ function NewProjectButton({
             }
           >
             {t('blank_project')}
-          </MenuItem>
-          <MenuItem
+          </DropdownItem>
+          <DropdownItem
             onClick={e =>
               handleModalMenuClick(e, {
                 modalVariant: 'example_project',
@@ -191,8 +191,8 @@ function NewProjectButton({
             }
           >
             {t('example_project')}
-          </MenuItem>
-          <MenuItem
+          </DropdownItem>
+          <DropdownItem
             onClick={e =>
               handleModalMenuClick(e, {
                 modalVariant: 'upload_project',
@@ -201,8 +201,8 @@ function NewProjectButton({
             }
           >
             {t('upload_project')}
-          </MenuItem>
-          <MenuItem
+          </DropdownItem>
+          <DropdownItem
             onClick={e =>
               handleModalMenuClick(e, {
                 modalVariant: 'import_from_git_free',
@@ -211,7 +211,7 @@ function NewProjectButton({
             }
           >
             {'Import from Git'}
-          </MenuItem>
+          </DropdownItem>
           <li role="none">
             <DropdownItem
               onClick={e =>
