@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as eventTracking from '../../../../infrastructure/event-tracking'
 import { useProjectContext } from '@/shared/context/project-context'
@@ -8,7 +8,10 @@ import {
   DropdownItem,
 } from '@/features/ui/components/bootstrap-5/dropdown-menu'
 import { useUserContext } from '../../../../shared/context/user-context'
+import { useFileTreeData } from '../../../../shared/context/file-tree-data-context'
+import { getFullPath } from '../../contexts/get-full-path'
 import { useFileTreeActionable } from '../../contexts/file-tree-actionable'
+import { useFileTreeSelectable } from '../../contexts/file-tree-selectable'
 import { copyDirectory } from '../../../../shared/utils/storage-handler'
 
 import useAsync from '../../../../shared/hooks/use-async'
@@ -33,7 +36,7 @@ function FileTreeItemMenuItems() {
   const { isLoading, isError, error, runAsync } = useAsync<NewProjectData>()
 
   const { id: userId } = useUserContext()
-  const { _id: projectId } = useProjectContext()
+  const { projectId } = useProjectContext()
   const { t } = useTranslation()
 
   const {
@@ -47,12 +50,22 @@ function FileTreeItemMenuItems() {
     startCreatingDocOrFile,
     startUploadingDocOrFile,
     downloadPath,
-    selectedFileName,
-    selectedFilePath
+    selectedFileName
   } = useFileTreeActionable()
+
+  const { fileTreeData } = useFileTreeData()
+  const { selectedEntityIds } = useFileTreeSelectable()
 
   const { project } = useProjectContext()
   const projectOwner = project?.owner?._id
+
+  const selectedFilePath = useMemo(() => {
+    if (selectedEntityIds?.size === 1) {
+      const [selectedEntityId] = selectedEntityIds
+      return getFullPath(fileTreeData, selectedEntityId).slice(1)
+    }
+    return null;
+  }, [fileTreeData, selectedEntityIds])
 
   const downloadWithAnalytics = useCallback(() => {
     // we are only interested in downloads of bib files WRT analytics, for the purposes of promoting the tpr integrations

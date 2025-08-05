@@ -57,7 +57,7 @@ function FileTreeToolbarLeft() {
   const { isLoading, isError, error, runAsync } = useAsync<NewProjectData>()
   const { t } = useTranslation()
   const { id: userId } = useUserContext()
-  const { _id: projectId } = useProjectContext()
+  const { projectId } = useProjectContext()
 
   const {
     canCreate,

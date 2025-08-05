@@ -318,6 +318,7 @@ function Modal({
               <h4>c. <code>git pull</code> – Récupérer les changements du dépôt distant</h4>
               <ul>
                 <li>Cliquez sur le bouton <strong>"Pull"</strong> en haut à gauche (icône en forme de flèche circulaire)</li>
+                <li> ⚠️  Il semble y avoir un bug qui ajoute les fichiers générés par la compil quand on clique sur pull, donc il faut faire un Rollback au commit pullé après un pull (cf section suivante) - Attention à la perte de donnée non encore committée le cas échéant. Cet ajout fait échouer la compilation donc il faut cliquer sur <strong>"Clear cached files"</strong> sur la page (en rouge) après le rollback.</li>
               </ul>
 
               <h4>d. <code>git rollback</code> – Revenir à un ancien commit</h4>
@@ -355,7 +356,7 @@ function Modal({
 function GitToggleButton() {
 
   const { id: userId } = useUserContext()
-  const { _id: projectId } = useProjectContext()
+  const { projectId } = useProjectContext()
   const { isLoading, isSuccess, isError, error, runAsync } = useAsync()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [notStagedFiles, setNotStagedFiles] = useState([])
