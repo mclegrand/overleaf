@@ -77,6 +77,7 @@ const { renderUnsupportedBrowserPage, unsupportedBrowserMiddleware } =
 import bodyParser from "body-parser";
 import passport from 'passport';
 import {MultiSamlStrategy, Strategy as samlStrategy} from 'passport-saml';
+import {Strategy as gitlabStrategy} from 'passport-gitlab2';
 import fs from 'fs';
 import { User } from './models/User.js';
 import UserCreator from './Features/User/UserCreator.js'
@@ -349,6 +350,42 @@ passport.use("saml", sstrat)
    res.redirect("/");
   })
   AuthenticationController.addEndpointToLoginWhitelist('/login/saml')
+
+var oauthurl = process.env.GITLAB_BASEURL || "https://gitlab.com"
+var oauthid = process.env.GITLAB_APP_ID || ""
+var oauthsecret = process.env.GITLAB_APP_SECRET || ""
+var gstrat = new gitlabStrategy({
+    baseURL: oauthurl,
+    clientID: oauthid,
+    clientSecret: oauthsecret,
+    callbackURL: process.env.OVERLEAF_SITE_URL+"/login/gitlab/callback"
+  },
+  function(accessToken, refreshToken, profile, done) {
+      User.findOne({'email':profile.emails[0].value }).then( (u) => {
+             console.log("toto",u, profile)
+      if(u) {return done(null, u)} else {
+             UserCreator.createNewUser({"email":profile.emails[0].value, "first_name":profile.displayName}, function() {
+             User.findOne({'email':profile.emails[0].value }).then( (u) => {
+               console.log("CREATING",u, profile)
+             UserUpdater.confirmEmail(u._id, u.email, function(){return done(null, u)})
+             }) })
+      } })
+  }
+);
+passport.use("gitlab", gstrat);
+webRouter.get('/login/gitlab', passport.authenticate('gitlab'));
+webRouter.get('/login/gitlab/callback',
+  passport.authenticate('gitlab', {
+    failureRedirect: '/login'
+  }),
+  function(req, res) {
+    // Successful authentication, redirect home.
+    res.redirect('/');
+  });
+webRouter.csrf.disableDefaultCsrfProtection("/login/gitlab/callback", "POST")
+AuthenticationController.addEndpointToLoginWhitelist('/login/gitlab/callback')
+AuthenticationController.addEndpointToLoginWhitelist('/login/gitlab')
+
 
   webRouter.get(
     '/compromised-password',
